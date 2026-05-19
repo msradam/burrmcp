@@ -3,7 +3,7 @@
 Mount [Burr](https://burr.dagworks.io/) Applications as
 [MCP](https://modelcontextprotocol.io/) servers.
 
-Status: v1.0.0.
+Status: v1.0.1.
 
 ## What this is
 
@@ -457,6 +457,15 @@ Shipped in v0.3.0:
 - `tests/test_http_transport.py`: spawns the HTTP example as a
   subprocess and drives it with two concurrent HTTP clients to
   verify per-session isolation on the wire format.
+
+Shipped in v1.0.1:
+
+- `burr://subruns` index entries now include a fully-rendered ``uri``
+  field (e.g. ``burr://subruns/sub-abc...``) so consumers don't have
+  to construct the URI from the template.
+- History entries that spawned sub-runs now carry both ``subruns``
+  (bare ids) and ``subrun_uris`` (rendered URIs) so a client reading
+  ``burr://history`` can follow cross-references without inference.
 
 Shipped in v1.0.0:
 

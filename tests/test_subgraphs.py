@@ -56,6 +56,23 @@ async def test_subruns_index_lists_started_subrun():
         assert entry["started_ts"] is not None
         assert entry["ended_ts"] is not None
         assert entry["error"] is None
+        # The index entry carries the fully-rendered URI so consumers
+        # don't have to construct burr://subruns/{id} from the template.
+        assert entry["uri"] == f"burr://subruns/{entry['id']}"
+
+
+@pytest.mark.asyncio
+async def test_parent_history_carries_subrun_uris():
+    """History entries that spawned sub-runs also list their URIs
+    alongside the bare ids, so a client reading burr://history can
+    follow the cross-references without template inference."""
+    server = build_server()
+    async with Client(server) as client:
+        await client.call_tool("step", {"action": "investigate", "inputs": {"source": "log-3"}})
+        history = json.loads((await client.read_resource("burr://history"))[0].text)
+        entry = history[0]
+        assert "subruns" in entry and "subrun_uris" in entry
+        assert entry["subrun_uris"] == [f"burr://subruns/{sid}" for sid in entry["subruns"]]
 
 
 @pytest.mark.asyncio
