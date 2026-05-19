@@ -17,17 +17,16 @@ Three serving modes:
                              ``tools/list_changed`` after each step.
                              Best when the client honors it.
 
-All modes register four resources:
+All modes register six resources:
 
-  • ``burr://state``:   current Application state as JSON.
-  • ``burr://next``:    list of action names reachable from now.
-  • ``burr://history``: per-session timeline of every action attempt
-                        (successes + refusals), each with timestamp,
-                        inputs, resulting state, and valid-next set.
-  • ``burr://trace``:   Burr's on-disk LocalTrackingClient log for the
-                        current session's Application. Empty if no
-                        tracker attached. Cross-reference for full
-                        Burr replay format.
+  • ``burr://state``:           current Application state as JSON.
+  • ``burr://next``:            actions reachable from current state.
+  • ``burr://history``:         per-session timeline of every action
+                                attempt (successes + refusals).
+  • ``burr://trace``:           Burr's on-disk LocalTrackingClient log.
+  • ``burr://subruns``:         index of sub-Application runs spawned
+                                in this session via ``spawn_subapp``.
+  • ``burr://subruns/{id}``:    full record for one sub-run.
 
 Per-session isolation:
 
@@ -44,10 +43,12 @@ Per-session isolation:
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import inspect
 import json
 import time
 import typing
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -336,6 +337,88 @@ class ActionTimeoutError(Exception):
         super().__init__(f"action {action_name!r} exceeded the {timeout_seconds}s timeout")
 
 
+#: ContextVar set by ``_make_tool_handler`` / the step handler around
+#: each ``_step_application`` call. Reads inside an action's body see
+#: their session's entry, which is what ``spawn_subapp`` needs to
+#: record sub-run timelines back into the parent session.
+_current_session_entry: contextvars.ContextVar[_SessionEntry | None] = contextvars.ContextVar(
+    "_burr_mcp_current_session", default=None
+)
+
+
+async def spawn_subapp(
+    sub_application: Application,
+    *,
+    label: str | None = None,
+    halt_after: list[str] | None = None,
+    inputs: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Run a sub-Application inside an action and record its timeline.
+
+    Designed to be called from inside a Burr action body when the
+    parent Application wants to delegate a multi-step procedure to a
+    sub-graph (Circe's runbook pattern, for example). The sub-run's
+    per-step timeline is appended to the parent session's subruns
+    dict and surfaced via ``burr://subruns`` (list) and
+    ``burr://subruns/{subrun_id}`` (full record).
+
+    Args:
+        sub_application: A built ``burr.core.Application`` to run.
+            The same instance can be re-spawned across actions; each
+            call gets a fresh subrun_id.
+        label: Optional friendly name attached to the subrun record.
+            Helpful when one parent action spawns several sub-runs
+            and the client wants to tell them apart.
+        halt_after: Names of sub-application actions to halt after.
+            Forwards to ``app.arun(halt_after=...)``. Defaults to the
+            sub-graph's last action.
+        inputs: Forwarded to ``app.arun(inputs=...)``.
+
+    Returns:
+        A dict with ``subrun_id`` (the id used in the resource URI),
+        ``final_state`` (public state of the sub-app at halt), and
+        ``label`` (echoed back).
+
+    When called outside an active session (i.e. not from inside an
+    action that ran via ``_step_application``), the sub-run still
+    executes but is not recorded anywhere visible to MCP clients;
+    a debug log line announces this and the function returns the
+    final state regardless.
+    """
+    entry = _current_session_entry.get()
+    sub_id = f"sub-{uuid.uuid4()}"
+    started = datetime.now(UTC).isoformat()
+    record: dict[str, Any] = {
+        "id": sub_id,
+        "label": label,
+        "started_ts": started,
+        "ended_ts": None,
+        "history": [],
+        "final_state": None,
+        "error": None,
+    }
+    if entry is not None:
+        entry.subruns[sub_id] = record
+        entry.last_access = time.monotonic()
+
+    try:
+        last_step = (
+            halt_after if halt_after is not None else [sub_application.graph.actions[-1].name]
+        )
+        _, _, final_state = await sub_application.arun(
+            halt_after=last_step,
+            inputs=inputs or {},
+        )
+        final = _serializable_state(_public_state(final_state.get_all()))[0]
+        record["final_state"] = final
+        record["ended_ts"] = datetime.now(UTC).isoformat()
+        return {"subrun_id": sub_id, "label": label, "final_state": final}
+    except Exception as exc:
+        record["error"] = {"type": type(exc).__name__, "message": str(exc)}
+        record["ended_ts"] = datetime.now(UTC).isoformat()
+        raise
+
+
 class ValidationFailed(Exception):
     """Raised by an input validator to refuse a call before execution.
 
@@ -453,10 +536,19 @@ class _SessionEntry:
     it). The lock means concurrent step calls from the same session
     queue rather than racing on the Application's state pointer.
     Different sessions still proceed in parallel.
+
+    ``subruns`` holds the timelines of any sub-Applications spawned
+    from inside this session's actions via ``burr_mcp.spawn_subapp``.
+    Each entry has its own id, label, started/ended timestamps,
+    history list, and optional final state. Subrun ids are surfaced
+    on the parent action's history entry via the ``subruns`` key so
+    a client can correlate "the analyse action spawned subrun X" with
+    "subrun X had the following timeline."
     """
 
     application: Application | None
     history: list[dict[str, Any]] = field(default_factory=list)
+    subruns: dict[str, dict[str, Any]] = field(default_factory=dict)
     last_access: float = field(default_factory=time.monotonic)
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
@@ -536,15 +628,17 @@ def _record_history(
     refusal_reason: str | None = None,
     error_message: str | None = None,
     error_type: str | None = None,
+    subruns: list[str] | None = None,
 ) -> None:
     """Append one timeline entry to this session's history.
 
     Records successes and refusals alike. When ``refusal_reason`` is
     ``"action_error"``, the entry also carries ``error_message`` and
     ``error_type`` so a client can distinguish "the FSM said no" from
-    "the action's code raised." No-op when ``ctx`` is None (calls
-    outside an MCP request, e.g. the initial dynamic-mode visibility
-    refresh).
+    "the action's code raised." When the action spawned sub-runs via
+    ``spawn_subapp``, their ids are listed under ``subruns`` so the
+    client can correlate the parent entry with the child timelines at
+    ``burr://subruns/{id}``. No-op when ``ctx`` is None.
     """
     if ctx is None:
         return
@@ -563,6 +657,8 @@ def _record_history(
         record["error_message"] = error_message
     if error_type is not None:
         record["error_type"] = error_type
+    if subruns:
+        record["subruns"] = subruns
     entry.history.append(record)
     entry.last_access = time.monotonic()
 
@@ -573,27 +669,31 @@ def _session_app_and_lock(
     shared_lock: asyncio.Lock,
     factory: ApplicationFactory | None,
     store: _SessionStore,
-) -> tuple[Application, asyncio.Lock]:
-    """Resolve the (Application, lock) pair for this request.
+) -> tuple[Application, asyncio.Lock, _SessionEntry | None]:
+    """Resolve the ``(Application, lock, session_entry)`` for this request.
 
     Shared-app mode (factory is None): returns ``shared_app`` plus the
     server-wide ``shared_lock``. All sessions serialise their step
     calls on this lock, because they're all mutating one Application.
+    The session entry is the per-session bookkeeping slot (history,
+    sub-runs); it still exists in shared-app mode for history's sake.
 
     Factory mode: returns the session's own Application and the
     session entry's own lock. Different sessions' steps run in
     parallel; calls within one session queue on its lock.
 
     ``ctx`` may be None when invoked outside an MCP request (e.g. the
-    initial dynamic-mode visibility refresh). In that case we fall back
-    to ``shared_app``/``shared_lock`` even in factory mode; the refresh
-    operates on the template's graph shape.
+    initial dynamic-mode visibility refresh). In that case ``entry`` is
+    None and the app/lock come from the server-wide defaults; the
+    refresh operates on the template's graph shape.
     """
-    if factory is None or ctx is None:
-        return shared_app, shared_lock
+    if ctx is None:
+        return shared_app, shared_lock, None
     entry = store.get_or_create(ctx.session_id, factory)
+    if factory is None:
+        return shared_app, shared_lock, entry
     assert entry.application is not None  # factory mode guarantees this
-    return entry.application, entry.lock
+    return entry.application, entry.lock, entry
 
 
 async def _step_application(
@@ -742,7 +842,9 @@ def _make_tool_handler(
 
     async def handler(**kwargs: Any) -> dict[str, Any]:
         ctx = kwargs.pop("ctx", None)
-        app, lock = _session_app_and_lock(ctx, shared_app, shared_lock, factory, store)
+        app, lock, entry = _session_app_and_lock(ctx, shared_app, shared_lock, factory, store)
+        token = _current_session_entry.set(entry)
+        subruns_before = set(entry.subruns) if entry is not None else set()
         try:
             async with lock:
                 out = await _step_application(
@@ -834,6 +936,13 @@ def _make_tool_handler(
                 "error_message": str(e.original),
                 "valid_next_actions": valid_next_action_names(app),
             }
+        finally:
+            _current_session_entry.reset(token)
+        # Success path: surface any sub-runs the action spawned so the
+        # parent timeline carries pointers to the nested ones.
+        new_subruns: list[str] = []
+        if entry is not None:
+            new_subruns = [s for s in entry.subruns if s not in subruns_before]
         _record_history(
             store,
             ctx,
@@ -842,6 +951,7 @@ def _make_tool_handler(
             inputs=kwargs,
             state_after=out["state"],
             valid_next_actions=out["valid_next_actions"],
+            subruns=new_subruns or None,
         )
         if refresh_session_visibility and ctx is not None:
             await _refresh_session_dynamic_visibility(ctx, app)
@@ -977,7 +1087,7 @@ def mount(
         with the affected keys listed under ``_burr_mcp.coerced_keys``
         so the client knows the round-trip is lossy.
         """
-        app, _ = _session_app_and_lock(ctx, shared_app, shared_lock, factory, store)
+        app, _, _ = _session_app_and_lock(ctx, shared_app, shared_lock, factory, store)
         state, coerced = _serializable_state(_public_state(app.state.get_all()))
         if coerced:
             state["_burr_mcp"] = {"coerced_keys": coerced}
@@ -991,7 +1101,7 @@ def mount(
         all conditionally-reachable next actions are listed. After a
         terminal action this is an empty list, meaning the FSM is done.
         """
-        app, _ = _session_app_and_lock(ctx, shared_app, shared_lock, factory, store)
+        app, _, _ = _session_app_and_lock(ctx, shared_app, shared_lock, factory, store)
         return json.dumps(valid_next_action_names(app))
 
     @mcp.resource("burr://history")
@@ -1008,6 +1118,62 @@ def mount(
         """
         history = store.history(ctx.session_id) if ctx is not None else []
         return json.dumps(history, default=str, indent=2)
+
+    @mcp.resource("burr://subruns")
+    async def _subruns_resource(ctx: Context) -> str:
+        """Index of sub-Application runs spawned in this session.
+
+        Each entry has ``id``, ``label``, ``started_ts``, ``ended_ts``,
+        and the ``parent_action`` that spawned it. Full per-subrun
+        timelines live at ``burr://subruns/{id}``. Empty list if no
+        actions in this session called ``spawn_subapp``.
+        """
+        if ctx is None:
+            return json.dumps([])
+        entry = store.get_or_create(ctx.session_id, factory)
+        index = []
+        # Reverse-map subrun_id -> the parent history entry that spawned it.
+        parent_action_for: dict[str, str] = {}
+        for h in entry.history:
+            for sid in h.get("subruns", []) or []:
+                parent_action_for[sid] = h["action"]
+        for sid, record in entry.subruns.items():
+            index.append(
+                {
+                    "id": sid,
+                    "label": record.get("label"),
+                    "started_ts": record.get("started_ts"),
+                    "ended_ts": record.get("ended_ts"),
+                    "parent_action": parent_action_for.get(sid),
+                    "error": record.get("error"),
+                }
+            )
+        return json.dumps(index, default=str, indent=2)
+
+    @mcp.resource("burr://subruns/{subrun_id}")
+    async def _subrun_detail_resource(subrun_id: str, ctx: Context) -> str:
+        """Full record for one sub-Application run.
+
+        Includes the sub-run's id, label, parent-spawning timestamps,
+        in-memory history of the sub-graph's steps, final public
+        state, and any error that aborted the run. Returns
+        ``{"error": "unknown_subrun"}`` if the id isn't known to this
+        session.
+        """
+        if ctx is None:
+            return json.dumps({"error": "no_session"})
+        entry = store.get_or_create(ctx.session_id, factory)
+        record = entry.subruns.get(subrun_id)
+        if record is None:
+            return json.dumps(
+                {
+                    "error": "unknown_subrun",
+                    "subrun_id": subrun_id,
+                    "known_subruns": list(entry.subruns),
+                },
+                indent=2,
+            )
+        return json.dumps(record, default=str, indent=2)
 
     @mcp.resource("burr://trace")
     async def _trace_resource(ctx: Context) -> str:
@@ -1028,7 +1194,7 @@ def mount(
         refusals) and Burr's own structured trace format (one entry
         per state transition, full Burr replay shape).
         """
-        app, _ = _session_app_and_lock(ctx, shared_app, shared_lock, factory, store)
+        app, _, _ = _session_app_and_lock(ctx, shared_app, shared_lock, factory, store)
         path = _tracker_log_path(app)
         if path is None:
             return json.dumps(
@@ -1087,9 +1253,11 @@ def mount(
                     "requested": action,
                     "known_actions": action_names,
                 }
-            app, lock = _session_app_and_lock(ctx, shared_app, shared_lock, factory, store)
+            app, lock, entry = _session_app_and_lock(ctx, shared_app, shared_lock, factory, store)
             effective_timeout = _action_timeout(action_map[action], action_timeout_seconds)
             effective_validator = _action_validator(action_map[action], input_validators)
+            token = _current_session_entry.set(entry)
+            subruns_before = set(entry.subruns) if entry is not None else set()
             try:
                 async with lock:
                     out = await _step_application(
@@ -1181,6 +1349,11 @@ def mount(
                     "error_message": str(e.original),
                     "valid_next_actions": valid_next_action_names(app),
                 }
+            finally:
+                _current_session_entry.reset(token)
+            new_subruns: list[str] = []
+            if entry is not None:
+                new_subruns = [s for s in entry.subruns if s not in subruns_before]
             _record_history(
                 store,
                 ctx,
@@ -1189,6 +1362,7 @@ def mount(
                 inputs=inputs or {},
                 state_after=out["state"],
                 valid_next_actions=out["valid_next_actions"],
+                subruns=new_subruns or None,
             )
             return out
 

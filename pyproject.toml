@@ -1,6 +1,6 @@
 [project]
 name = "burr-mcp"
-version = "0.9.0"
+version = "1.0.0"
 description = "Mount Burr Applications as MCP servers. FSM-as-API, not tools-as-API."
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
@@ -9,7 +9,7 @@ authors = [
     { name = "Adam Munawar Rahman", email = "msrahmanadam@gmail.com" },
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",

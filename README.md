@@ -3,7 +3,7 @@
 Mount [Burr](https://burr.dagworks.io/) Applications as
 [MCP](https://modelcontextprotocol.io/) servers.
 
-Status: experiment, v0.9.0.
+Status: v1.0.0.
 
 ## What this is
 
@@ -157,7 +157,7 @@ keep its own model of the graph can recover from one error.
 
 ## Resources
 
-Every mounted server registers four MCP resources:
+Every mounted server registers six MCP resources:
 
 | URI | Returns |
 |---|---|
@@ -165,6 +165,8 @@ Every mounted server registers four MCP resources:
 | `burr://next` | Action names reachable from the current state. Empty list after a terminal action. |
 | `burr://history` | Per-session timeline of every action attempted (successes and refusals). |
 | `burr://trace` | Burr's on-disk `LocalTrackingClient` log for the current session's Application. Capped at 1000 most-recent records. Returns `{"error": "no_tracker"}` if no `LocalTrackingClient` was attached. |
+| `burr://subruns` | Index of sub-Application runs spawned in this session via `spawn_subapp`. Each entry has `id`, `label`, `started_ts`, `ended_ts`, `parent_action`. |
+| `burr://subruns/{id}` | Full record for one sub-run: id, label, timestamps, in-memory history, final state, and any error. |
 
 `burr://history` and `burr://trace` are complementary. History is one
 entry per attempted action (including refusals), structured for the
@@ -295,7 +297,7 @@ burr-mcp serve triage:build_application
 uv run pytest
 ```
 
-Eighty-nine tests in about 3.3 seconds. Most use FastMCP's in-process
+Ninety-five tests in about 3.4 seconds. Most use FastMCP's in-process
 client; `tests/test_http_transport.py` spawns the HTTP example as a
 subprocess and drives it with two real HTTP clients.
 `tests/test_hardening.py` covers action exceptions, concurrent steps
@@ -412,6 +414,22 @@ Shipped in v0.3.0:
   subprocess and drives it with two concurrent HTTP clients to
   verify per-session isolation on the wire format.
 
+Shipped in v1.0.0:
+
+- Subgraph mounting. A Burr action body can call
+  `await burr_mcp.spawn_subapp(sub_app, label=...)` to delegate a
+  multi-step procedure to a sub-Application. The sub-run's timeline
+  is recorded under the parent session and addressable via two new
+  MCP resources: `burr://subruns` (index) and
+  `burr://subruns/{id}` (full record). The parent action's history
+  entry carries the new subrun ids under a `subruns` field so a
+  client can correlate parent action with child timeline.
+- The session entry now also tracks a ContextVar so spawn_subapp
+  knows which session it's running inside without callers having to
+  thread context manually.
+- `examples/subgraphs.py` shows the pattern end-to-end with a
+  three-step investigation sub-graph spawned from a parent FSM.
+
 Shipped in v0.9.0:
 
 - Input validators. A callable that runs between MCP arrival and
@@ -489,10 +507,15 @@ Shipped in v0.4.0 (hardening for frontier-model deployments):
 - Burr pinned to `>=0.40.2,<0.41` since we rely on internal API
   surface (`Action.fn`, `Action.inputs` tuple shape, `__PRIOR_STEP`).
 
-Next:
+Next (v1.x):
 
-- v1.0: subgraph mounting (a Burr subgraph spawned from inside an
-  action, exposed as a sub-resource).
+- Public PyPI release.
+- WebSocket transport example.
+- A `burr-mcp doctor` CLI subcommand that validates a mount target
+  before serving (graph reachability, action signatures, tracker
+  configuration).
+- Optional Pydantic-model output schemas surfaced as MCP tool
+  `outputSchema` for stronger client contracts.
 
 ## License
 
