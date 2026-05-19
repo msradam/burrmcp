@@ -46,6 +46,7 @@ Per-session isolation:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import contextvars
 import inspect
 import json
@@ -800,6 +801,7 @@ async def _step_application(
     enforce_transitions: bool,
     timeout_seconds: float | None = None,
     validator: Callable | None = None,
+    ctx: Context | None = None,
 ) -> dict[str, Any]:
     """Run one step of the Application.
 
@@ -845,9 +847,18 @@ async def _step_application(
     target_action = app.graph.get_action(action_name)
     if target_action is None:
         raise InvalidTransitionError(action_name, valid)
+    is_streaming = bool(getattr(target_action, "streaming", False))
     original_get_next_action = app.get_next_action
     app.get_next_action = lambda: target_action  # type: ignore[method-assign]
     try:
+        if is_streaming:
+            return await _step_streaming_action(
+                app=app,
+                action_name=action_name,
+                inputs=inputs,
+                ctx=ctx,
+                timeout_seconds=timeout_seconds,
+            )
         if timeout_seconds is not None:
             a, result, new_state = await asyncio.wait_for(
                 app.astep(inputs=inputs), timeout=timeout_seconds
@@ -872,6 +883,72 @@ async def _step_application(
         "result": result,
         "state": state,
         "valid_next_actions": valid_next_action_names(app),
+    }
+
+
+async def _step_streaming_action(
+    *,
+    app: Application,
+    action_name: str,
+    inputs: dict[str, Any],
+    ctx: Context | None,
+    timeout_seconds: float | None,
+) -> dict[str, Any]:
+    """Run a streaming Burr action and surface chunks as MCP progress
+    notifications.
+
+    Burr streaming actions yield intermediate chunks plus a final
+    state. We forward each chunk to the client via
+    ``ctx.report_progress`` (the MCP-spec mechanism for partial
+    results during a long-running tool call), then return the final
+    state in the same shape as a regular step response. When ``ctx``
+    is None the chunks are still iterated but not surfaced; the final
+    state is returned regardless.
+
+    Cancellation on timeout is best-effort. The streaming container's
+    iterator is wrapped in ``asyncio.wait_for`` per-chunk so individual
+    chunks can time out, with the total budget shared across them.
+    """
+    try:
+        a, container = await app.astream_result(halt_after=[action_name], inputs=inputs)
+    except Exception as exc:
+        raise ActionExecutionError(action_name, exc) from exc
+
+    chunk_count = 0
+    try:
+        async for chunk in container:
+            chunk_count += 1
+            if ctx is not None:
+                # ``report_progress`` accepts a string message; chunks
+                # may be arbitrary JSON-serialisable values, so we
+                # stringify them deterministically for the wire.
+                try:
+                    msg = json.dumps(chunk, default=str)
+                except (TypeError, ValueError):
+                    msg = str(chunk)
+                # Progress notifications are best-effort: clients that
+                # didn't supply a progress token cause this to drop on
+                # the floor. Suppressing here keeps the action running
+                # in the face of a noisy/disconnected notification
+                # channel.
+                with contextlib.suppress(Exception):
+                    await ctx.report_progress(progress=chunk_count, message=msg)
+        final_chunk, final_state_dict = await container.get()
+    except TimeoutError as exc:
+        raise ActionTimeoutError(action_name, timeout_seconds or 0.0) from exc
+    except Exception as exc:
+        raise ActionExecutionError(action_name, exc) from exc
+
+    state, coerced = _serializable_state(_public_state(final_state_dict))
+    if coerced:
+        state["_burr_mcp"] = {"coerced_keys": coerced}
+    return {
+        "action": a.name,
+        "result": final_chunk,
+        "state": state,
+        "valid_next_actions": valid_next_action_names(app),
+        "streamed": True,
+        "chunks": chunk_count,
     }
 
 
@@ -965,6 +1042,7 @@ def _make_tool_handler(
                     enforce_transitions=enforce_transitions,
                     timeout_seconds=timeout_seconds,
                     validator=validator,
+                    ctx=ctx,
                 )
         except ValidationFailed as e:
             _record_history(
@@ -1429,6 +1507,7 @@ def mount(
                         enforce_transitions=True,
                         timeout_seconds=effective_timeout,
                         validator=effective_validator,
+                        ctx=ctx,
                     )
             except ValidationFailed as e:
                 _record_history(

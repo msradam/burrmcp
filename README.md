@@ -13,7 +13,7 @@ are valid, and `burr_app_from_fastmcp(...)` lifts it into a Burr
 Application that mounts the same way, gaining transition enforcement,
 audit history, and per-session isolation.
 
-Status: v1.5.0.
+Status: v1.6.0.
 
 ## What this is
 
@@ -283,6 +283,7 @@ via the snippet in `examples/claude-code.example.json`.
 | `triage.py` | Branching FSM | Classify input, then route to one of three branches based on the result. |
 | `subgraphs.py` | Sub-Application composition | Parent action spawns a sub-FSM via `spawn_subapp`; nested timeline at `burr://subruns/{id}`. |
 | `parallel_research.py` | Parallel fan-out | One parent action spawns N sub-applications concurrently via `asyncio.gather`. Each is its own subrun; the parent gathers their findings into the parent state. |
+| `streaming_narrate.py` | Streaming action | An action that yields intermediate chunks; each becomes an MCP progress notification, the final state arrives in the tool response. |
 | `incident_response.py` | Showcase | Realistic ops workflow with all features (validators, sub-graphs, branching, conditional loop). The canonical Claude Code demo. |
 | `git_review.py` | CLI wrapping | An FSM whose actions wrap `git status` / `log` / `show` via subprocess. Demonstrates the "agent driving CLIs" pattern with FSM-enforced sequence. |
 | `adventure.py` | State-space traversal | Tiny text adventure where rooms are states and moves are gated transitions. Mirrors Burr's `llm-adventure-game`. Sharpest illustration of FSM-as-API. |
@@ -412,7 +413,7 @@ burr-mcp serve triage:build_application
 uv run pytest
 ```
 
-One hundred and thirty-seven tests in about 3.9 seconds. Most use FastMCP's in-process
+One hundred and forty tests in about 4 seconds. Most use FastMCP's in-process
 client; `tests/test_http_transport.py` spawns the HTTP example as a
 subprocess and drives it with two real HTTP clients.
 `tests/test_hardening.py` covers action exceptions, concurrent steps
@@ -528,6 +529,23 @@ Shipped in v0.3.0:
 - `tests/test_http_transport.py`: spawns the HTTP example as a
   subprocess and drives it with two concurrent HTTP clients to
   verify per-session isolation on the wire format.
+
+Shipped in v1.6.0:
+
+- Streaming Burr actions plumbed through to MCP progress
+  notifications. When an action is decorated with
+  `@streaming_action`, the adapter detects it (via the
+  `action.streaming` attribute) and uses `app.astream_result` instead
+  of `astep`. Each yielded chunk is forwarded to the client via
+  `ctx.report_progress` (the MCP-spec mechanism for partial results
+  during a long-running tool call); the final state arrives in the
+  regular tool response with `streamed: true` and a `chunks` count.
+- `examples/streaming_narrate.py`: a streaming narration action that
+  yields chunks of a generated story. Works with any client that
+  honours progress notifications (Claude Code does).
+- Clients that don't supply a progress token still get the final
+  result; intermediate chunks are dropped silently. The streaming
+  path stays robust to that.
 
 Shipped in v1.5.0:
 
