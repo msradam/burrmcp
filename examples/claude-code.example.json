@@ -1,0 +1,19 @@
+{
+  "_comment": "Wire the incident-response sample into Claude Code. Copy this to your project's .mcp.json (or paste into ~/.claude.json under mcpServers) after editing the absolute path. Then run `claude` from this project and use /mcp to confirm the server connected.",
+  "mcpServers": {
+    "incident-response": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/ABSOLUTE/PATH/TO/burr-mcp",
+        "run",
+        "burr-mcp",
+        "serve",
+        "incident_response:build_application",
+        "--app-dir",
+        "examples"
+      ]
+    }
+  }
+}

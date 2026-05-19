@@ -224,7 +224,51 @@ uv sync
 
 Python 3.11 through 3.13.
 
-## Run the example
+## Try it with Claude Code
+
+The included `examples/incident_response.py` is a realistic ops
+workflow: an on-call engineer (or the agent) walks an incident from
+report to postmortem, with the server enforcing the order
+(`report → acknowledge → investigate → mitigate → verify →
+resolve → write_postmortem`), validating that severity is one of
+P1/P2/P3, and delegating the investigation step to a sub-graph whose
+timeline is addressable at `burr://subruns/{id}`.
+
+To wire it into Claude Code:
+
+1. Copy `examples/claude-code.example.json` to `.mcp.json` in any
+   project you'd like to test from, and edit the absolute path under
+   `args[1]` to match your checkout of this repo.
+2. Run `claude` from that project. Use `/mcp` to confirm the
+   `incident-response` server connected.
+3. Try a happy-path prompt:
+
+   > Open a P1 incident: API 500s started 5 minutes ago, reporter
+   > is alice. Then acknowledge as bob. Then run an investigation.
+   > Then read `burr://subruns` and tell me what the investigation
+   > found. Then mitigate by rolling back deploy 89a3. Verify the
+   > mitigation worked. Resolve the incident. Write a one-paragraph
+   > postmortem.
+
+4. Try a refusal-path prompt:
+
+   > Open a Sev-2 incident: alerts firing on the queue worker.
+
+   Severity `Sev-2` isn't P1/P2/P3, so the validator refuses and
+   returns the legal values. The model should retry with `P2`.
+
+5. Try an out-of-order prompt:
+
+   > Resolve incident INC-99 with resolution "rolled back".
+
+   No incident is open yet (FSM is at `report`), so the call comes
+   back as `invalid_transition` with `valid_next_actions: ["report"]`.
+
+The `burr://history` resource records every attempt, refusals and
+successes alike, so you can ask the agent: "show me the audit trail"
+and it'll read the resource and summarise.
+
+## Run other examples
 
 ```bash
 uv run python examples/coffee_order.py
