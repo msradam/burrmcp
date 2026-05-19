@@ -19,5 +19,6 @@ doesn't refresh on its own.
 """
 
 from burr_mcp.adapter import ServingMode, mount
+from burr_mcp.importing import ToolSpec, burr_app_from_fastmcp
 
-__all__ = ["ServingMode", "mount"]
+__all__ = ["ServingMode", "ToolSpec", "burr_app_from_fastmcp", "mount"]
