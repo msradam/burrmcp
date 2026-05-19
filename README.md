@@ -441,15 +441,19 @@ observation forces `rollback`; only `rollback` is callable, not
 `promote_to_prod`.
 
 `examples/local_shell.py` is a tiny Claude-Code-style local-shell
-agent with three safety rules baked into the FSM: you cannot
+agent with four safety rules baked into the FSM: you cannot
 `edit_file` a path you haven't `read_file`'d first, you cannot
-`commit` unless tests passed since the last edit, and deletion is
-two-step (`request_delete` then `confirm_delete`). None of these
-rules are written in the agent's prompt; the server refuses unsafe
-sequences. Demo line: "edit main.py to print goodbye". A naive agent
-goes straight to `edit_file`, the server returns
+`create_file` over a path that already exists or is already
+pending, you cannot `commit` unless tests passed since the last
+edit (or create), and deletion is two-step (`request_delete` then
+`confirm_delete`). None of these rules are written in the agent's
+prompt; the server refuses unsafe sequences. Demo line: "edit
+main.py to print goodbye". A naive agent goes straight to
+`edit_file`, the server returns
 `"must read 'main.py' before editing it. Files read so far: []"`,
-and the agent self-corrects.
+and the agent self-corrects. Another demo line: "create main.py
+with new contents". `create_file` refuses because main.py already
+exists in workspace; the agent rewires to read-then-edit.
 
 All three work with no external dependencies. Wire them into Claude
 Code via `examples/claude-code.example.json`.
@@ -460,7 +464,7 @@ Code via `examples/claude-code.example.json`.
 uv run pytest
 ```
 
-Two hundred and nine tests in about 5 seconds. Most use FastMCP's in-process
+Two hundred and fifteen tests in about 5 seconds. Most use FastMCP's in-process
 client; `tests/test_http_transport.py` spawns the HTTP example as a
 subprocess and drives it with two real HTTP clients.
 `tests/test_hardening.py` covers action exceptions, concurrent steps

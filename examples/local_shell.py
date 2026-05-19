@@ -87,6 +87,56 @@ def read_file(state: State, path: str) -> State:
 
 
 @action(
+    reads=["workspace", "pending_edits", "files_read", "log"],
+    writes=["pending_edits", "files_read", "last_test_result", "log"],
+)
+def create_file(state: State, path: str, content: str) -> State:
+    """Stage a brand-new file. Refuses if ``path`` already exists in
+    the workspace or is already pending an edit, so create_file can't
+    silently clobber a file the agent should have read first.
+
+    The new path is implicitly added to ``files_read`` since you just
+    wrote it, so a subsequent ``edit_file`` on the same path works
+    without an intermediate ``read_file``. Like ``edit_file``, this
+    sets ``last_test_result=unknown`` so the agent must re-test
+    before commit.
+
+    Args:
+        path: New filename. Must not collide with anything in the
+            current workspace or pending_edits.
+        content: Full contents of the new file.
+    """
+    workspace = state["workspace"]
+    pending = state.get("pending_edits", {})
+    if not path.strip():
+        raise ValueError("path must not be empty")
+    if path in workspace:
+        raise ValueError(
+            f"file {path!r} already exists in workspace. "
+            f"Use read_file then edit_file to modify it instead."
+        )
+    if path in pending:
+        raise ValueError(
+            f"file {path!r} is already staged as a pending edit or create. "
+            f"Use edit_file to modify the staged version."
+        )
+    new_pending = {**pending, path: content}
+    files_read = state.get("files_read", [])
+    if path not in files_read:
+        files_read = [*files_read, path]
+    log = [
+        *state.get("log", []),
+        f"Created {path} ({len(content)} bytes). Tests now stale.",
+    ]
+    return state.update(
+        pending_edits=new_pending,
+        files_read=files_read,
+        last_test_result="unknown",
+        log=log,
+    )
+
+
+@action(
     reads=["workspace", "files_read", "pending_edits", "log"],
     writes=["pending_edits", "last_test_result", "log"],
 )
@@ -99,18 +149,20 @@ def edit_file(state: State, path: str, new_content: str) -> State:
         new_content: Full new contents of the file.
     """
     workspace = state["workspace"]
+    pending = state.get("pending_edits", {})
     files_read = state.get("files_read", [])
-    if path not in workspace:
-        raise ValueError(f"no such file {path!r}. Workspace: {sorted(workspace)}")
+    if path not in workspace and path not in pending:
+        known = sorted(set(workspace) | set(pending))
+        raise ValueError(f"no such file {path!r}. Known paths (workspace + pending): {known}.")
     if path not in files_read:
         raise ValueError(f"must read {path!r} before editing it. Files read so far: {files_read}.")
-    pending = {**state.get("pending_edits", {}), path: new_content}
+    new_pending = {**pending, path: new_content}
     log = [
         *state.get("log", []),
         f"Staged edit to {path} ({len(new_content)} bytes). Tests now stale.",
     ]
     # Editing invalidates the prior test run.
-    return state.update(pending_edits=pending, last_test_result="unknown", log=log)
+    return state.update(pending_edits=new_pending, last_test_result="unknown", log=log)
 
 
 @action(reads=["pending_edits", "log"], writes=["last_test_result", "log"])
@@ -206,6 +258,7 @@ def confirm_delete(state: State) -> State:
 _ALL_ACTIONS = [
     "list_files",
     "read_file",
+    "create_file",
     "edit_file",
     "run_tests",
     "commit",
@@ -215,6 +268,7 @@ _ALL_ACTIONS = [
 _UNCONDITIONAL_TARGETS = [
     "list_files",
     "read_file",
+    "create_file",
     "edit_file",
     "run_tests",
     "request_delete",
@@ -248,6 +302,7 @@ def build_application():
         .with_actions(
             list_files=list_files,
             read_file=read_file,
+            create_file=create_file,
             edit_file=edit_file,
             run_tests=run_tests,
             commit=commit,
@@ -278,12 +333,14 @@ def build_server():
         instructions=(
             "A tiny local-shell-style FSM. Start every session with "
             "list_files (the entrypoint). Then: read_file(path), "
-            "edit_file(path, new_content), run_tests([result]), "
-            "commit(message), request_delete(path), confirm_delete. "
-            "Safety rules the server enforces: (1) you must read a "
-            "file before editing it; (2) you must run_tests with "
-            "result=passed before commit, and any edit_file "
-            "invalidates the prior test result; (3) deletion is "
+            "create_file(path, content), edit_file(path, new_content), "
+            "run_tests([result]), commit(message), "
+            "request_delete(path), confirm_delete. Safety rules the "
+            "server enforces: (1) you must read a file before editing "
+            "it; (2) create_file refuses if the path already exists "
+            "or is staged; (3) you must run_tests with result=passed "
+            "before commit, and any edit_file or create_file "
+            "invalidates the prior test result; (4) deletion is "
             "two-step (request then confirm). Read burr://state for "
             "workspace, files_read, pending_edits, last_test_result, "
             "commits. Read burr://next to see currently-legal actions."
