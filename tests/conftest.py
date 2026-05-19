@@ -6,13 +6,13 @@ build a fresh Application per test so state never leaks across cases.
 
 from __future__ import annotations
 
-import pytest
-
-from burr_mcp import ServingMode
-
 # Make examples importable without an editable install of the examples dir.
 import sys
 from pathlib import Path
+
+import pytest
+
+from burr_mcp import ServingMode
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "examples"))

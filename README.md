@@ -3,7 +3,7 @@
 Mount [Burr](https://burr.dagworks.io/) Applications as
 [MCP](https://modelcontextprotocol.io/) servers.
 
-Status: experiment, v0.0.1.
+Status: experiment, v0.1.0.
 
 ## What this is
 
@@ -17,9 +17,11 @@ Transitions can be enforced by the server, so a client that calls an
 action which isn't reachable from current state gets back a structured
 error listing the actions that *are* reachable.
 
-The current Application instance is captured by reference, so for now
-all clients connected to one server share one FSM. Per-session
-isolation is on the v0.1 list.
+`mount(...)` accepts either a built `Application` (shared across all
+connected clients) or a callable `() -> Application` (each MCP
+session gets its own state). The factory form is the right default
+for multi-client servers; the instance form is fine for single-user
+local tooling.
 
 ## Why bother
 
@@ -145,6 +147,32 @@ The server returns the new state and `valid_next_actions` after each
 call. Try `pay` before `take_order` and the server returns
 `invalid_transition` with `valid_next_actions: ["take_order"]`.
 
+## CLI
+
+`pip install burr-mcp` (or `uv sync`) registers a `burr-mcp` console
+script. Launch any importable Application or factory:
+
+```bash
+burr-mcp serve coffee_order:build_application --mode step
+burr-mcp serve triage:build_application --mode dynamic --name triage
+```
+
+The first argument is a `module:attr` target, the same shape uvicorn
+and gunicorn use. The attr may be a built `Application` or a callable
+returning one.
+
+## Branching example
+
+`examples/triage.py` shows conditional transitions: after `classify`
+writes `severity` into state, the graph branches into `escalate`,
+`queue`, or `drop`. `burr://next` returns only the branch matching
+current state; calling the wrong branch is refused with the right one
+listed in the response.
+
+```bash
+burr-mcp serve triage:build_application
+```
+
 ## Tests
 
 ```bash
@@ -152,8 +180,8 @@ uv run pytest
 ```
 
 Tests drive each mode through an in-process FastMCP client. No
-subprocess, no stdio framing. Seventeen tests, runs in about a tenth
-of a second.
+subprocess, no stdio framing. Thirty-four tests, runs in about a
+tenth of a second.
 
 ## Design notes
 
@@ -181,11 +209,26 @@ under `~/.burr/`.
 
 ### Per-session isolation
 
-`mount(...)` captures the Application by reference. All clients
-connected to one server share one FSM. For per-session isolation,
-where each MCP connection gets its own state, the build needs to move
-into FastMCP's lifespan with one Application per session context.
-That's on the v0.1 list.
+`mount(...)` accepts either an `Application` instance or a callable
+factory. Instance: one shared FSM across all sessions, mutated in
+place. Factory: each MCP session gets its own Application, built
+lazily on first tool call and keyed by `ctx.session_id` in a
+per-server dict.
+
+```python
+# Shared state across sessions (single-user local tooling).
+server = mount(app, mode=ServingMode.STEP)
+
+# Per-session isolation (multi-user server, web-mounted MCP, etc.).
+server = mount(build_application, mode=ServingMode.STEP)
+```
+
+FastMCP 3.2's built-in `ctx.set_state(serializable=False)` is
+**request-scoped**, not session-scoped, so it's not suitable for
+caching the Application across calls in one session. The session
+store is a plain dict held in `mount`'s closure scope. Entries are
+not currently evicted on session end; for long-running servers with
+many short sessions this is on the v0.2 list.
 
 ### What this is not
 
@@ -198,12 +241,20 @@ That's on the v0.1 list.
 
 ## Roadmap
 
-- v0.1: per-session isolation, lifespan example, audit-trail resource.
-- v0.2: subgraph mounting (a Burr subgraph spawned from inside an
-  action, exposed as a sub-resource).
-- v0.3: input validation hooks beyond Burr's `inputs` declaration.
-- TBD: a `burr-mcp` CLI to launch any importable Burr Application as
-  an MCP server (`burr-mcp serve mymodule:application`).
+Shipped in v0.1.0:
+
+- Per-session isolation via factory mode.
+- Branching example (conditional transitions).
+- `burr-mcp serve module:attr` CLI.
+- CI on 3.11/3.12/3.13.
+
+Next:
+
+- v0.2: session-store eviction on disconnect, audit-trail resource
+  surfacing Burr's tracker output, HTTP/SSE transport docs.
+- v0.3: subgraph mounting (a Burr subgraph spawned from inside an
+  action, exposed as a sub-resource), input validation hooks beyond
+  Burr's `inputs` declaration.
 
 ## License
 

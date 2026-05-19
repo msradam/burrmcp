@@ -12,10 +12,10 @@ from __future__ import annotations
 import json
 
 import pytest
+from coffee_order import build_server
 from fastmcp import Client
 
 from burr_mcp import ServingMode
-from coffee_order import build_server
 
 
 @pytest.mark.asyncio
@@ -59,4 +59,8 @@ async def test_dynamic_refuses_invalid_transition_too():
         except Exception as e:
             # FastMCP may also reject at the routing layer because the
             # tool is disabled. Either outcome is acceptable.
-            assert "pay" in str(e).lower() or "disabled" in str(e).lower() or "not found" in str(e).lower()
+            assert (
+                "pay" in str(e).lower()
+                or "disabled" in str(e).lower()
+                or "not found" in str(e).lower()
+            )

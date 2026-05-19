@@ -1,6 +1,6 @@
 [project]
 name = "burr-mcp"
-version = "0.0.1"
+version = "0.1.0"
 description = "Mount Burr Applications as MCP servers. FSM-as-API, not tools-as-API."
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
@@ -22,6 +22,9 @@ dependencies = [
     "fastmcp>=3.2,<3.3",
     "pydantic>=2,<3",
 ]
+
+[project.scripts]
+burr-mcp = "burr_mcp.cli:main"
 
 [build-system]
 requires = ["hatchling>=1.27"]
