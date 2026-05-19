@@ -251,6 +251,17 @@ def _compute_graph_summary(app: Application, server_name: str) -> dict[str, Any]
         "entrypoint": app.entrypoint,
         "actions": actions_meta,
         "transitions": transitions_meta,
+        "meta_tools": [
+            {
+                "name": "reset_session",
+                "description": (
+                    "Reset this session's FSM to its entrypoint, clearing "
+                    "sub-runs and appending a reset marker to history. "
+                    "Always callable regardless of FSM state. Refuses in "
+                    "shared-app mode."
+                ),
+            },
+        ],
     }
 
 
@@ -1161,7 +1172,9 @@ def mount(
         "Read burr://graph once at start for the full action list and "
         "transitions; you don't need to keep polling burr://next or "
         "burr://state, each step response already includes the new "
-        "state and valid_next_actions inline."
+        "state and valid_next_actions inline. To restart the FSM after "
+        "reaching a terminal node or a dead-end branch, call the "
+        "reset_session tool; it's always available."
     )
     if instructions:
         effective_instructions = f"{instructions}\n\n{discovery_hint}"
@@ -1529,5 +1542,76 @@ def mount(
         _refresh_global_dynamic_visibility(mcp, shared_app)
     else:
         raise ValueError(f"unknown serving mode: {mode!r}")
+
+    # ── meta tool: reset_session ────────────────────────────────────
+    # Always callable regardless of FSM state. Only meaningful in
+    # factory mode; refuses in shared-app mode. The discovery hint in
+    # ``instructions`` advertises it so the agent doesn't have to ask
+    # the human to restart the server when it reaches a terminal node
+    # and wants to try another path.
+
+    async def reset_session(ctx: Context = None) -> dict[str, Any]:
+        """Reset this session's FSM to its entrypoint.
+
+        Rebuilds the session's Application via the factory, clears any
+        sub-runs the session spawned, and appends a ``reset_session``
+        marker entry to ``burr://history``. Prior history entries are
+        preserved, so the audit trail records the reset rather than
+        wiping it: ``ran A -> ran B -> reset -> ran A again``.
+
+        Refuses in shared-app mode (servers mounted with an
+        ``Application`` instance rather than a factory) because
+        resetting would affect every connected client at once. Use
+        per-session isolation (factory mode) for servers where reset
+        matters.
+        """
+        if factory is None:
+            return {
+                "error": "reset_not_supported",
+                "reason": (
+                    "this server runs in shared-app mode (no factory was passed "
+                    "to mount); resetting would affect every connected client. "
+                    "Disconnect and reconnect for a fresh session, or remount "
+                    "the server with a factory: mount(() -> Application, ...)"
+                ),
+            }
+        if ctx is None:
+            return {"error": "no_session"}
+
+        entry = store.get_or_create(ctx.session_id, factory)
+        async with entry.lock:
+            previous_state, _ = _serializable_state(
+                _public_state(entry.application.state.get_all())
+                if entry.application is not None
+                else {}
+            )
+            entry.application = factory()
+            entry.subruns.clear()
+            new_app = entry.application
+            assert new_app is not None
+            new_state, coerced = _serializable_state(_public_state(new_app.state.get_all()))
+            if coerced:
+                new_state["_burr_mcp"] = {"coerced_keys": coerced}
+            valid_next = valid_next_action_names(new_app)
+            entry.last_access = time.monotonic()
+
+        _record_history(
+            store,
+            ctx,
+            factory,
+            action="reset_session",
+            inputs={},
+            state_after=new_state,
+            valid_next_actions=valid_next,
+        )
+
+        return {
+            "action": "reset_session",
+            "result": {"previous_state": previous_state},
+            "state": new_state,
+            "valid_next_actions": valid_next,
+        }
+
+    mcp.tool(name="reset_session", description=reset_session.__doc__)(reset_session)
 
     return mcp
