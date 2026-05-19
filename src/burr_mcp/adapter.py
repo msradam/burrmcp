@@ -42,8 +42,10 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
+import time
 import typing
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
@@ -55,8 +57,9 @@ from fastmcp import Context, FastMCP
 ApplicationFactory = Callable[[], Application]
 ApplicationOrFactory = Application | ApplicationFactory
 
-# Key used to stash the session-scoped Application on FastMCP's context.
-_SESSION_APP_KEY = "_burr_mcp_application"
+# Defaults for session-store eviction.
+_DEFAULT_SESSION_TTL_SECONDS = 3600  # 1 hour idle
+_DEFAULT_MAX_SESSIONS = 100
 
 
 class ServingMode(str, Enum):  # noqa: UP042  # leaving as (str, Enum) for stable wire serialization across Python versions
@@ -213,9 +216,87 @@ def _resolve(application: ApplicationOrFactory) -> tuple[Application, Applicatio
     )
 
 
+@dataclass
+class _SessionEntry:
+    """One session's slot in ``_SessionStore``.
+
+    ``application`` is None in shared-app mode (the server has one
+    Application that all sessions mutate; per-session apps aren't
+    created). ``history`` is always per-session: each session sees
+    only the timeline of its own calls.
+    """
+
+    application: Application | None
+    history: list[dict[str, Any]] = field(default_factory=list)
+    last_access: float = field(default_factory=time.monotonic)
+
+
+class _SessionStore:
+    """Lazy TTL + max-size session store.
+
+    Eviction is lazy: stale entries are dropped on the next access
+    (``get_or_create`` or any of the helpers). No background thread,
+    no asyncio task, no timer surprises.
+
+    Defaults are chosen so a small interactive server doesn't notice
+    eviction at all. Long-running multi-tenant servers should tune
+    ``ttl_seconds`` and ``max_sessions`` based on real session
+    durations and memory budgets.
+    """
+
+    def __init__(
+        self,
+        *,
+        ttl_seconds: int | None = _DEFAULT_SESSION_TTL_SECONDS,
+        max_sessions: int | None = _DEFAULT_MAX_SESSIONS,
+    ) -> None:
+        self._entries: dict[str, _SessionEntry] = {}
+        self.ttl_seconds = ttl_seconds
+        self.max_sessions = max_sessions
+
+    def _evict_stale(self) -> None:
+        if self.ttl_seconds is None:
+            return
+        now = time.monotonic()
+        stale = [sid for sid, e in self._entries.items() if now - e.last_access > self.ttl_seconds]
+        for sid in stale:
+            del self._entries[sid]
+
+    def _evict_if_full(self) -> None:
+        if self.max_sessions is None:
+            return
+        while len(self._entries) >= self.max_sessions:
+            # Evict the least-recently-accessed entry.
+            oldest = min(self._entries, key=lambda s: self._entries[s].last_access)
+            del self._entries[oldest]
+
+    def get_or_create(
+        self,
+        sid: str,
+        factory: ApplicationFactory | None,
+    ) -> _SessionEntry:
+        self._evict_stale()
+        entry = self._entries.get(sid)
+        if entry is None:
+            self._evict_if_full()
+            app = factory() if factory is not None else None
+            entry = _SessionEntry(application=app)
+            self._entries[sid] = entry
+        entry.last_access = time.monotonic()
+        return entry
+
+    def history(self, sid: str) -> list[dict[str, Any]]:
+        entry = self._entries.get(sid)
+        return list(entry.history) if entry is not None else []
+
+    def __len__(self) -> int:
+        return len(self._entries)
+
+
 def _record_history(
-    history_store: dict[str, list[dict[str, Any]]],
+    store: _SessionStore,
     ctx: Context | None,
+    factory: ApplicationFactory | None,
     *,
     action: str,
     inputs: dict[str, Any],
@@ -226,20 +307,16 @@ def _record_history(
 ) -> None:
     """Append one timeline entry to this session's history.
 
-    Records both successful steps and refusals (invalid transitions,
-    unknown actions). Each entry carries enough information to replay
-    the session: which action was attempted, with what inputs, what
-    the resulting state looked like, and what next actions were valid
-    at that moment. No-op when ``ctx`` is None (calls outside an MCP
-    request, e.g. initial dynamic-mode visibility refresh).
+    Records successes and refusals alike. No-op when ``ctx`` is None
+    (calls outside an MCP request, e.g. the initial dynamic-mode
+    visibility refresh).
     """
     if ctx is None:
         return
-    sid = ctx.session_id
-    history = history_store.setdefault(sid, [])
-    history.append(
+    entry = store.get_or_create(ctx.session_id, factory)
+    entry.history.append(
         {
-            "seq": len(history),
+            "seq": len(entry.history),
             "ts": datetime.now(UTC).isoformat(),
             "action": action,
             "inputs": inputs,
@@ -249,42 +326,37 @@ def _record_history(
             "refusal_reason": refusal_reason,
         }
     )
+    entry.last_access = time.monotonic()
 
 
 def _session_app(
     ctx: Context | None,
     shared_app: Application,
     factory: ApplicationFactory | None,
-    session_store: dict[str, Application],
+    store: _SessionStore,
 ) -> Application:
     """Resolve the Application for this request.
 
-    When ``factory`` is None, returns ``shared_app`` (the mount-time
-    instance, shared across sessions). When ``factory`` is set, looks
-    up the session-scoped Application by ``ctx.session_id`` in the
-    server's own session store, creating one via the factory if this
-    is the session's first call.
+    Shared-app mode (factory is None): returns ``shared_app`` regardless
+    of session id. Factory mode: looks up the session entry in ``store``,
+    creating a new Application via the factory on first access.
 
-    The store is a plain dict held in closure scope by ``mount(...)``.
-    FastMCP's own ``ctx.set_state(serializable=False)`` is request-scoped
-    rather than session-scoped, so it isn't suitable for caching the
-    Application across multiple tool calls in one session. Entries are
-    not cleaned up when sessions end; for long-running servers with many
-    short sessions, an eviction policy should be added (v0.2).
+    The store backs both Application caching and history recording.
+    Lazy TTL + max-size eviction lives on the store itself. FastMCP's
+    own ``ctx.set_state(serializable=False)`` is request-scoped rather
+    than session-scoped, so it's not suitable for caching across calls
+    in one session.
 
-    ``ctx`` may be None when invoked outside an MCP request (e.g. the
-    initial dynamic-mode visibility refresh). In that case the shared
-    app is returned even in factory mode; the refresh is a best-effort
-    signal that operates on the template's graph shape.
+    ``ctx`` is None when invoked outside an MCP request (e.g. the
+    initial dynamic-mode visibility refresh at mount time). In that
+    case the shared app is returned even in factory mode; the refresh
+    operates on the template's graph shape.
     """
     if factory is None or ctx is None:
         return shared_app
-    sid = ctx.session_id
-    existing = session_store.get(sid)
-    if existing is None:
-        existing = factory()
-        session_store[sid] = existing
-    return existing
+    entry = store.get_or_create(ctx.session_id, factory)
+    assert entry.application is not None  # factory mode guarantees this
+    return entry.application
 
 
 async def _step_application(
@@ -348,8 +420,7 @@ async def _run_action_bare(
 def _make_tool_handler(
     shared_app: Application,
     factory: ApplicationFactory | None,
-    session_store: dict[str, Application],
-    history_store: dict[str, list[dict[str, Any]]],
+    store: _SessionStore,
     action: Action,
     enforce_transitions: bool,
     refresh_session_visibility: bool = False,
@@ -374,7 +445,7 @@ def _make_tool_handler(
 
     async def handler(**kwargs: Any) -> dict[str, Any]:
         ctx = kwargs.pop("ctx", None)
-        app = _session_app(ctx, shared_app, factory, session_store)
+        app = _session_app(ctx, shared_app, factory, store)
         try:
             out = await _step_application(
                 app,
@@ -384,8 +455,9 @@ def _make_tool_handler(
             )
         except InvalidTransitionError as e:
             _record_history(
-                history_store,
+                store,
                 ctx,
+                factory,
                 action=action_name,
                 inputs=kwargs,
                 state_after=None,
@@ -400,8 +472,9 @@ def _make_tool_handler(
                 "message": str(e),
             }
         _record_history(
-            history_store,
+            store,
             ctx,
+            factory,
             action=action_name,
             inputs=kwargs,
             state_after=out["state"],
@@ -469,6 +542,8 @@ def mount(
     mode: ServingMode = ServingMode.STEP,
     name: str | None = None,
     instructions: str | None = None,
+    session_ttl_seconds: int | None = _DEFAULT_SESSION_TTL_SECONDS,
+    max_sessions: int | None = _DEFAULT_MAX_SESSIONS,
 ) -> FastMCP:
     """Return a FastMCP server that exposes ``application`` per ``mode``.
 
@@ -482,13 +557,25 @@ def mount(
         name: MCP server name; defaults to ``"burr-mcp"``.
         instructions: Server-level instructions surfaced via the MCP
             spec's server-info ``instructions`` field.
+        session_ttl_seconds: Idle TTL for the per-session store. After
+            this many seconds without a tool call or resource read, a
+            session's Application and history are evicted on the next
+            access. Set to ``None`` to disable TTL eviction. Default
+            3600 (1 hour).
+        max_sessions: Hard cap on simultaneous live sessions in the
+            store. When exceeded, the least-recently-accessed entry
+            is evicted on insert. Set to ``None`` to disable size
+            eviction. Default 100.
     """
     shared_app, factory = _resolve(application)
-    # Per-session stores keyed by ctx.session_id; populated lazily on
-    # first tool call. Live in closure scope so they're tied to this
-    # server instance, not module-global.
-    session_store: dict[str, Application] = {}
-    history_store: dict[str, list[dict[str, Any]]] = {}
+    # Per-session store keyed by ctx.session_id; populated lazily on
+    # the first tool call. Lives in closure scope so it's tied to this
+    # server instance, not module-global. Holds both the session's
+    # Application (factory mode only) and its history (always).
+    store = _SessionStore(
+        ttl_seconds=session_ttl_seconds,
+        max_sessions=max_sessions,
+    )
 
     server_name = name or "burr-mcp"
     mcp = FastMCP(server_name, instructions=instructions)
@@ -503,7 +590,7 @@ def mount(
         filtered. Use this to inspect what the FSM has accumulated
         across tool calls.
         """
-        app = _session_app(ctx, shared_app, factory, session_store)
+        app = _session_app(ctx, shared_app, factory, store)
         return json.dumps(_public_state(app.state.get_all()), default=str, indent=2)
 
     @mcp.resource("burr://next")
@@ -514,7 +601,7 @@ def mount(
         all conditionally-reachable next actions are listed. After a
         terminal action this is an empty list, meaning the FSM is done.
         """
-        app = _session_app(ctx, shared_app, factory, session_store)
+        app = _session_app(ctx, shared_app, factory, store)
         return json.dumps(valid_next_action_names(app))
 
     @mcp.resource("burr://history")
@@ -529,8 +616,7 @@ def mount(
         shared-app deployments each session sees the timeline of its
         own calls against the shared FSM.
         """
-        sid = ctx.session_id if ctx is not None else None
-        history = history_store.get(sid, []) if sid is not None else []
+        history = store.history(ctx.session_id) if ctx is not None else []
         return json.dumps(history, default=str, indent=2)
 
     # ── tools, per mode ──────────────────────────────────────────────
@@ -558,8 +644,9 @@ def mount(
             """
             if action not in action_map:
                 _record_history(
-                    history_store,
+                    store,
                     ctx,
+                    factory,
                     action=action,
                     inputs=inputs or {},
                     state_after=None,
@@ -572,7 +659,7 @@ def mount(
                     "requested": action,
                     "known_actions": action_names,
                 }
-            app = _session_app(ctx, shared_app, factory, session_store)
+            app = _session_app(ctx, shared_app, factory, store)
             try:
                 out = await _step_application(
                     app,
@@ -582,8 +669,9 @@ def mount(
                 )
             except InvalidTransitionError as e:
                 _record_history(
-                    history_store,
+                    store,
                     ctx,
+                    factory,
                     action=action,
                     inputs=inputs or {},
                     state_after=None,
@@ -598,8 +686,9 @@ def mount(
                     "message": str(e),
                 }
             _record_history(
-                history_store,
+                store,
                 ctx,
+                factory,
                 action=action,
                 inputs=inputs or {},
                 state_after=out["state"],
@@ -614,8 +703,7 @@ def mount(
             handler = _make_tool_handler(
                 shared_app=shared_app,
                 factory=factory,
-                session_store=session_store,
-                history_store=history_store,
+                store=store,
                 action=action,
                 enforce_transitions=False,
             )
@@ -626,8 +714,7 @@ def mount(
             handler = _make_tool_handler(
                 shared_app=shared_app,
                 factory=factory,
-                session_store=session_store,
-                history_store=history_store,
+                store=store,
                 action=action,
                 enforce_transitions=True,
                 refresh_session_visibility=True,
