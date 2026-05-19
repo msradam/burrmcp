@@ -286,6 +286,16 @@ def _compute_graph_summary(app: Application, server_name: str) -> dict[str, Any]
                     "trail. Refuses in shared-app mode."
                 ),
             },
+            {
+                "name": "fork_from_past",
+                "description": (
+                    "Resume a past Burr run by loading its state from "
+                    "disk. Requires the Application to have a "
+                    "LocalTrackingClient. Use for resuming sessions "
+                    "across server restarts or forking from any "
+                    "persisted past app_id."
+                ),
+            },
         ],
     }
 
@@ -1842,5 +1852,145 @@ def mount(
         }
 
     mcp.tool(name="fork_at", description=fork_at.__doc__)(fork_at)
+
+    # ── meta tool: fork_from_past ───────────────────────────────────
+    # Resume a past Burr run from disk. Lets an agent recover state
+    # after a server restart, or fork from any persisted past app_id
+    # the client has tracked. Requires:
+    #   - factory mode (need to rebuild the Application)
+    #   - the session's current Application to have a
+    #     LocalTrackingClient attached (so we know which storage_dir
+    #     and project to read from)
+
+    async def fork_from_past(
+        app_id: str,
+        sequence_id: int = -1,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """Resume a past Burr run by loading its state from disk.
+
+        Reads ``~/.burr/<project>/<app_id>/log.jsonl`` for the project
+        the current session's tracker is writing to, extracts the
+        state at the requested ``sequence_id`` (use ``-1`` for the
+        final state of that run, the default), then rebuilds the
+        session's Application via the factory and overwrites its
+        state with the loaded snapshot. A ``fork_from_past`` marker
+        is appended to history with the requested ``app_id`` and
+        ``sequence_id`` in inputs.
+
+        Use this for:
+          - resuming a session across server restarts (track ``app_id``
+            on the client, restore here after reconnect)
+          - forking from any persisted past run, not just the current
+            session's in-memory history
+
+        Refuses when:
+          - shared-app mode (no factory to rebuild from);
+          - the current Application has no LocalTrackingClient (can't
+            locate the on-disk logs);
+          - the requested app_id/sequence_id doesn't exist on disk.
+        """
+        if factory is None:
+            return {
+                "error": "fork_not_supported",
+                "reason": (
+                    "this server runs in shared-app mode (no factory was passed "
+                    "to mount); cross-session resume requires per-session "
+                    "isolation. Remount with a factory."
+                ),
+            }
+        if ctx is None:
+            return {"error": "no_session"}
+
+        try:
+            from burr.tracking.client import LocalTrackingClient
+        except ImportError:
+            return {"error": "no_tracker"}
+
+        entry = store.get_or_create(ctx.session_id, factory)
+        async with entry.lock:
+            tracker = getattr(entry.application, "_tracker", None)
+            if not isinstance(tracker, LocalTrackingClient):
+                return {
+                    "error": "no_tracker",
+                    "reason": (
+                        "the current Application has no LocalTrackingClient "
+                        "attached, so there's no on-disk run to fork from. "
+                        "Add `.with_tracker(LocalTrackingClient(project=...))` "
+                        "to the Application factory."
+                    ),
+                }
+
+            project = tracker.project_id
+            raw_storage_dir = tracker.raw_storage_dir
+            try:
+                # ``load_state`` is the public path even though Burr has
+                # marked it deprecated; the replacement (``initialize_from``)
+                # is a builder method and doesn't fit a post-build override.
+                # When Burr lands a non-builder replacement we'll switch.
+                import warnings
+
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", DeprecationWarning)
+                    loaded_state, last_action = LocalTrackingClient.load_state(
+                        project=project,
+                        app_id=app_id,
+                        sequence_id=sequence_id,
+                        storage_dir=raw_storage_dir,
+                    )
+            except (ValueError, FileNotFoundError, OSError) as exc:
+                return {
+                    "error": "unknown_past_run",
+                    "reason": str(exc),
+                    "app_id": app_id,
+                    "sequence_id": sequence_id,
+                }
+
+            # Rebuild and overwrite state.
+            from burr.core.state import State as _BurrState
+
+            entry.application = factory()
+            new_app = entry.application
+            assert new_app is not None
+            # Set __PRIOR_STEP so get_next_action computes valid edges
+            # correctly. ``load_state`` returned the action that last
+            # ran; that's our prior_step.
+            forked_state_dict = {
+                **loaded_state,
+                "__PRIOR_STEP": last_action,
+            }
+            new_app.update_state(_BurrState(forked_state_dict))
+            # Clear in-memory subruns; they belonged to the previous
+            # session state, which has been replaced.
+            entry.subruns.clear()
+
+            new_state, coerced = _serializable_state(_public_state(new_app.state.get_all()))
+            if coerced:
+                new_state["_burr_mcp"] = {"coerced_keys": coerced}
+            valid_next = valid_next_action_names(new_app)
+            entry.last_access = time.monotonic()
+
+        _record_history(
+            store,
+            ctx,
+            factory,
+            action="fork_from_past",
+            inputs={"app_id": app_id, "sequence_id": sequence_id},
+            state_after=new_state,
+            valid_next_actions=valid_next,
+        )
+
+        return {
+            "action": "fork_from_past",
+            "result": {
+                "loaded_app_id": app_id,
+                "loaded_sequence_id": sequence_id,
+                "from_action": last_action,
+            },
+            "state": new_state,
+            "valid_next_actions": valid_next,
+        }
+
+    mcp.tool(name="fork_from_past", description=fork_from_past.__doc__)(fork_from_past)
 
     return mcp
