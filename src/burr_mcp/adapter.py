@@ -17,10 +17,13 @@ Three serving modes:
                              ``tools/list_changed`` after each step.
                              Best when the client honors it.
 
-All modes register two resources:
+All modes register three resources:
 
-  • ``burr://state``: current Application state as JSON.
-  • ``burr://next``:  list of action names reachable from now.
+  • ``burr://state``:   current Application state as JSON.
+  • ``burr://next``:    list of action names reachable from now.
+  • ``burr://history``: per-session timeline of every action attempt
+                        (successes + refusals), each with timestamp,
+                        inputs, resulting state, and valid-next set.
 
 Per-session isolation:
 
@@ -41,6 +44,7 @@ import inspect
 import json
 import typing
 from collections.abc import Callable
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
@@ -209,6 +213,44 @@ def _resolve(application: ApplicationOrFactory) -> tuple[Application, Applicatio
     )
 
 
+def _record_history(
+    history_store: dict[str, list[dict[str, Any]]],
+    ctx: Context | None,
+    *,
+    action: str,
+    inputs: dict[str, Any],
+    state_after: dict[str, Any] | None,
+    valid_next_actions: list[str],
+    refused: bool = False,
+    refusal_reason: str | None = None,
+) -> None:
+    """Append one timeline entry to this session's history.
+
+    Records both successful steps and refusals (invalid transitions,
+    unknown actions). Each entry carries enough information to replay
+    the session: which action was attempted, with what inputs, what
+    the resulting state looked like, and what next actions were valid
+    at that moment. No-op when ``ctx`` is None (calls outside an MCP
+    request, e.g. initial dynamic-mode visibility refresh).
+    """
+    if ctx is None:
+        return
+    sid = ctx.session_id
+    history = history_store.setdefault(sid, [])
+    history.append(
+        {
+            "seq": len(history),
+            "ts": datetime.now(UTC).isoformat(),
+            "action": action,
+            "inputs": inputs,
+            "state_after": state_after,
+            "valid_next_actions": valid_next_actions,
+            "refused": refused,
+            "refusal_reason": refusal_reason,
+        }
+    )
+
+
 def _session_app(
     ctx: Context | None,
     shared_app: Application,
@@ -307,17 +349,18 @@ def _make_tool_handler(
     shared_app: Application,
     factory: ApplicationFactory | None,
     session_store: dict[str, Application],
+    history_store: dict[str, list[dict[str, Any]]],
     action: Action,
     enforce_transitions: bool,
-    refresh_tools_after: Callable[[FastMCP, Application], None] | None = None,
-    mcp_server: FastMCP | None = None,
+    refresh_session_visibility: bool = False,
 ) -> Callable:
     """Build an async MCP tool handler for one Burr action.
 
     The handler's signature is dynamically constructed to match the
     action's declared inputs so FastMCP introspects the correct
-    JSON Schema. Body resolves the session-scoped Application and
-    delegates to ``_step_application``.
+    JSON Schema. Body resolves the session-scoped Application,
+    delegates to ``_step_application``, and records the attempt in
+    the session's history.
     """
     params = _action_signature_params(action)
     # FastMCP injects a Context when the handler signature includes one.
@@ -340,14 +383,32 @@ def _make_tool_handler(
                 enforce_transitions=enforce_transitions,
             )
         except InvalidTransitionError as e:
+            _record_history(
+                history_store,
+                ctx,
+                action=action_name,
+                inputs=kwargs,
+                state_after=None,
+                valid_next_actions=e.valid,
+                refused=True,
+                refusal_reason="invalid_transition",
+            )
             return {
                 "error": "invalid_transition",
                 "requested": e.requested,
                 "valid_next_actions": e.valid,
                 "message": str(e),
             }
-        if refresh_tools_after is not None and mcp_server is not None:
-            refresh_tools_after(mcp_server, app)
+        _record_history(
+            history_store,
+            ctx,
+            action=action_name,
+            inputs=kwargs,
+            state_after=out["state"],
+            valid_next_actions=out["valid_next_actions"],
+        )
+        if refresh_session_visibility and ctx is not None:
+            await _refresh_session_dynamic_visibility(ctx, app)
         return out
 
     handler.__name__ = f"action_{action_name}"
@@ -366,15 +427,13 @@ def _make_tool_handler(
     return handler
 
 
-def _refresh_dynamic_visibility(mcp: FastMCP, app: Application) -> None:
-    """For ``ServingMode.DYNAMIC``: enable tools for valid-next actions,
-    disable the rest.
+def _refresh_global_dynamic_visibility(mcp: FastMCP, app: Application) -> None:
+    """Set the server-wide baseline visibility for DYNAMIC mode.
 
-    Uses tag-based visibility. Every action tool is tagged with
-    ``f"action:{name}"``; this enables the valid set and disables the
-    others. FastMCP fires ``notifications/tools/list_changed`` when the
-    visible set changes. As of FastMCP 3.2, enable/disable transforms
-    are per-session, so concurrent sessions see independent visibility.
+    Used once at mount time so that fresh sessions see only the
+    entrypoint actions before they've made any calls. Subsequent
+    refreshes happen per-session via ``_refresh_session_dynamic_visibility``,
+    and FastMCP's per-session rules override the global baseline.
     """
     valid = set(valid_next_action_names(app))
     all_action_names = {a.name for a in app.graph.actions}
@@ -384,6 +443,24 @@ def _refresh_dynamic_visibility(mcp: FastMCP, app: Application) -> None:
         mcp.disable(tags=disable_tags)
     if enable_tags:
         mcp.enable(tags=enable_tags)
+
+
+async def _refresh_session_dynamic_visibility(ctx: Context, app: Application) -> None:
+    """For ``ServingMode.DYNAMIC``: per-session visibility refresh.
+
+    Uses ``ctx.enable_components`` / ``ctx.disable_components``, which
+    apply only to the current MCP session and override the server-wide
+    baseline. Sends a ``tools/list_changed`` notification to this
+    session only. Concurrent sessions see independent visibility.
+    """
+    valid = set(valid_next_action_names(app))
+    all_action_names = {a.name for a in app.graph.actions}
+    enable_tags = {f"action:{n}" for n in valid}
+    disable_tags = {f"action:{n}" for n in all_action_names - valid}
+    if disable_tags:
+        await ctx.disable_components(tags=disable_tags)
+    if enable_tags:
+        await ctx.enable_components(tags=enable_tags)
 
 
 def mount(
@@ -407,10 +484,11 @@ def mount(
             spec's server-info ``instructions`` field.
     """
     shared_app, factory = _resolve(application)
-    # Per-session store. Keyed by ctx.session_id; populated lazily on
-    # the first tool call of each session. Lives in closure scope so
-    # it's tied to this server instance, not module-global.
+    # Per-session stores keyed by ctx.session_id; populated lazily on
+    # first tool call. Live in closure scope so they're tied to this
+    # server instance, not module-global.
     session_store: dict[str, Application] = {}
+    history_store: dict[str, list[dict[str, Any]]] = {}
 
     server_name = name or "burr-mcp"
     mcp = FastMCP(server_name, instructions=instructions)
@@ -439,6 +517,22 @@ def mount(
         app = _session_app(ctx, shared_app, factory, session_store)
         return json.dumps(valid_next_action_names(app))
 
+    @mcp.resource("burr://history")
+    async def _history_resource(ctx: Context) -> str:
+        """Timeline of every action attempted in this session.
+
+        Each entry has ``seq``, ``ts``, ``action``, ``inputs``,
+        ``state_after``, ``valid_next_actions``, ``refused``, and
+        ``refusal_reason``. Both successful steps and refused attempts
+        (invalid transitions, unknown actions) appear. In factory-mode
+        deployments each session sees only its own history; in
+        shared-app deployments each session sees the timeline of its
+        own calls against the shared FSM.
+        """
+        sid = ctx.session_id if ctx is not None else None
+        history = history_store.get(sid, []) if sid is not None else []
+        return json.dumps(history, default=str, indent=2)
+
     # ── tools, per mode ──────────────────────────────────────────────
 
     if mode is ServingMode.STEP:
@@ -463,6 +557,16 @@ def mount(
                     to see what's expected.
             """
             if action not in action_map:
+                _record_history(
+                    history_store,
+                    ctx,
+                    action=action,
+                    inputs=inputs or {},
+                    state_after=None,
+                    valid_next_actions=action_names,
+                    refused=True,
+                    refusal_reason="unknown_action",
+                )
                 return {
                     "error": "unknown_action",
                     "requested": action,
@@ -470,19 +574,38 @@ def mount(
                 }
             app = _session_app(ctx, shared_app, factory, session_store)
             try:
-                return await _step_application(
+                out = await _step_application(
                     app,
                     action_name=action,
                     inputs=inputs or {},
                     enforce_transitions=True,
                 )
             except InvalidTransitionError as e:
+                _record_history(
+                    history_store,
+                    ctx,
+                    action=action,
+                    inputs=inputs or {},
+                    state_after=None,
+                    valid_next_actions=e.valid,
+                    refused=True,
+                    refusal_reason="invalid_transition",
+                )
                 return {
                     "error": "invalid_transition",
                     "requested": e.requested,
                     "valid_next_actions": e.valid,
                     "message": str(e),
                 }
+            _record_history(
+                history_store,
+                ctx,
+                action=action,
+                inputs=inputs or {},
+                state_after=out["state"],
+                valid_next_actions=out["valid_next_actions"],
+            )
+            return out
 
         mcp.tool(name="step", description=step.__doc__)(step)
 
@@ -492,6 +615,7 @@ def mount(
                 shared_app=shared_app,
                 factory=factory,
                 session_store=session_store,
+                history_store=history_store,
                 action=action,
                 enforce_transitions=False,
             )
@@ -503,17 +627,20 @@ def mount(
                 shared_app=shared_app,
                 factory=factory,
                 session_store=session_store,
+                history_store=history_store,
                 action=action,
                 enforce_transitions=True,
-                refresh_tools_after=_refresh_dynamic_visibility,
-                mcp_server=mcp,
+                refresh_session_visibility=True,
             )
             mcp.tool(
                 name=action.name,
                 description=handler.__doc__,
                 tags={f"action:{action.name}"},
             )(handler)
-        _refresh_dynamic_visibility(mcp, shared_app)
+        # Server-wide baseline: only entrypoint visible to a fresh
+        # session before its first call. Per-session refreshes after
+        # each call override this baseline for that session only.
+        _refresh_global_dynamic_visibility(mcp, shared_app)
     else:
         raise ValueError(f"unknown serving mode: {mode!r}")
 
