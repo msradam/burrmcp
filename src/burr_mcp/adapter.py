@@ -246,11 +246,25 @@ def _compute_graph_summary(app: Application, server_name: str) -> dict[str, Any]
             }
         )
 
+    # Optionally surface the Pydantic JSON schema for state if the
+    # user wired up Burr's PydanticTypingSystem. Untyped state shows
+    # up as None here; consumers fall back to inferring shape from
+    # per-action ``reads``/``writes``.
+    state_schema: dict[str, Any] | None = None
+    try:
+        ts = app.state.typing_system
+        state_type = ts.state_type() if hasattr(ts, "state_type") else None
+        if state_type is not None and hasattr(state_type, "model_json_schema"):
+            state_schema = state_type.model_json_schema()
+    except Exception:
+        state_schema = None
+
     return {
         "name": server_name,
         "entrypoint": app.entrypoint,
         "actions": actions_meta,
         "transitions": transitions_meta,
+        "state_schema": state_schema,
         "meta_tools": [
             {
                 "name": "reset_session",
@@ -259,6 +273,16 @@ def _compute_graph_summary(app: Application, server_name: str) -> dict[str, Any]
                     "sub-runs and appending a reset marker to history. "
                     "Always callable regardless of FSM state. Refuses in "
                     "shared-app mode."
+                ),
+            },
+            {
+                "name": "fork_at",
+                "description": (
+                    "Rewind the session to the state captured after a "
+                    "specific history entry (by ``seq`` from "
+                    "``burr://history``). Lets an agent explore alternate "
+                    "paths from any checkpoint without losing the audit "
+                    "trail. Refuses in shared-app mode."
                 ),
             },
         ],
@@ -1174,7 +1198,9 @@ def mount(
         "burr://state, each step response already includes the new "
         "state and valid_next_actions inline. To restart the FSM after "
         "reaching a terminal node or a dead-end branch, call the "
-        "reset_session tool; it's always available."
+        "reset_session tool. To rewind to a specific earlier point and "
+        "explore an alternate path from there, call fork_at(sequence_id) "
+        "with a seq from burr://history. Both are always available."
     )
     if instructions:
         effective_instructions = f"{instructions}\n\n{discovery_hint}"
@@ -1613,5 +1639,129 @@ def mount(
         }
 
     mcp.tool(name="reset_session", description=reset_session.__doc__)(reset_session)
+
+    # ── meta tool: fork_at ──────────────────────────────────────────
+    # Rewind the session's Application to the state captured after a
+    # specific history entry. Lets an agent explore "what if" branches
+    # without disconnecting and losing context. Implemented via our
+    # in-memory history rather than Burr's tracker-based replay so it
+    # works without requiring users to wire up a LocalTrackingClient.
+
+    async def fork_at(sequence_id: int, ctx: Context = None) -> dict[str, Any]:
+        """Rewind the session to the state captured after history[seq=N].
+
+        ``sequence_id`` is the ``seq`` field on a ``burr://history`` entry.
+        The session's Application is rebuilt via the factory, then its
+        state is overwritten with the snapshot captured at that point,
+        and its ``__PRIOR_STEP`` is set to the action name from that
+        entry so ``valid_next_actions`` computes correctly. Sub-runs
+        recorded after that point are cleared. A ``fork_at`` marker is
+        appended to history with the target sequence_id under
+        ``inputs``.
+
+        Refuses when:
+          - shared-app mode (would affect every connected client);
+          - sequence_id is out of range;
+          - the target entry was a refusal (state_after is None);
+          - the target entry is itself a fork or reset marker (avoid
+            walking a hall of mirrors).
+        """
+        if factory is None:
+            return {
+                "error": "fork_not_supported",
+                "reason": (
+                    "this server runs in shared-app mode (no factory was passed "
+                    "to mount); forking would affect every connected client. "
+                    "Remount with a factory to enable fork_at."
+                ),
+            }
+        if ctx is None:
+            return {"error": "no_session"}
+
+        entry = store.get_or_create(ctx.session_id, factory)
+        async with entry.lock:
+            if sequence_id < 0 or sequence_id >= len(entry.history):
+                return {
+                    "error": "unknown_sequence_id",
+                    "requested": sequence_id,
+                    "history_length": len(entry.history),
+                }
+            target = entry.history[sequence_id]
+            if target.get("refused"):
+                return {
+                    "error": "cannot_fork_to_refusal",
+                    "sequence_id": sequence_id,
+                    "refusal_reason": target.get("refusal_reason"),
+                }
+            if target.get("action") in {"fork_at", "reset_session"}:
+                return {
+                    "error": "cannot_fork_to_meta_entry",
+                    "sequence_id": sequence_id,
+                    "action": target.get("action"),
+                }
+            saved_state = target.get("state_after")
+            if saved_state is None:
+                return {
+                    "error": "no_state_snapshot",
+                    "sequence_id": sequence_id,
+                }
+            target_action = target.get("action")
+
+            # Rebuild via factory to get a fresh internal Application.
+            entry.application = factory()
+            new_app = entry.application
+            assert new_app is not None
+            # Overwrite state with the saved snapshot, including the
+            # __PRIOR_STEP so Burr's get_next_action picks up the right
+            # outgoing edges, and a SEQUENCE_ID that matches the fork
+            # point so the tracker's count stays monotonic.
+            from burr.core.state import State as _BurrState
+
+            forked_state_dict = {
+                **saved_state,
+                "__PRIOR_STEP": target_action,
+                "__SEQUENCE_ID": sequence_id,
+            }
+            new_app.update_state(_BurrState(forked_state_dict))
+
+            # Clear any sub-runs that happened after this point. We
+            # keep sub-runs spawned before the fork point because the
+            # parent history entries that reference them are still
+            # visible.
+            kept_subrun_ids: set[str] = set()
+            for h in entry.history[: sequence_id + 1]:
+                for sid in h.get("subruns", []) or []:
+                    kept_subrun_ids.add(sid)
+            entry.subruns = {
+                sid: rec for sid, rec in entry.subruns.items() if sid in kept_subrun_ids
+            }
+
+            new_state, coerced = _serializable_state(_public_state(new_app.state.get_all()))
+            if coerced:
+                new_state["_burr_mcp"] = {"coerced_keys": coerced}
+            valid_next = valid_next_action_names(new_app)
+            entry.last_access = time.monotonic()
+
+        _record_history(
+            store,
+            ctx,
+            factory,
+            action="fork_at",
+            inputs={"sequence_id": sequence_id},
+            state_after=new_state,
+            valid_next_actions=valid_next,
+        )
+
+        return {
+            "action": "fork_at",
+            "result": {
+                "sequence_id": sequence_id,
+                "from_action": target_action,
+            },
+            "state": new_state,
+            "valid_next_actions": valid_next,
+        }
+
+    mcp.tool(name="fork_at", description=fork_at.__doc__)(fork_at)
 
     return mcp
