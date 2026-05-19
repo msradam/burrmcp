@@ -3,7 +3,7 @@
 Mount [Burr](https://burr.dagworks.io/) Applications as
 [MCP](https://modelcontextprotocol.io/) servers.
 
-Status: v1.0.1.
+Status: v1.1.0.
 
 ## What this is
 
@@ -157,16 +157,25 @@ keep its own model of the graph can recover from one error.
 
 ## Resources
 
-Every mounted server registers six MCP resources:
+Every mounted server registers seven MCP resources:
 
 | URI | Returns |
 |---|---|
+| `burr://graph` | Static description of the FSM topology: every action with its description, reads, writes, required/optional inputs; every transition with its condition. Computed once at mount time. **Read this first** to see the whole graph in one fetch. |
 | `burr://state` | Current Application state as JSON. Internal Burr keys (`__PRIOR_STEP`, `__SEQUENCE_ID`) filtered. |
 | `burr://next` | Action names reachable from the current state. Empty list after a terminal action. |
 | `burr://history` | Per-session timeline of every action attempted (successes and refusals). |
 | `burr://trace` | Burr's on-disk `LocalTrackingClient` log for the current session's Application. Capped at 1000 most-recent records. Returns `{"error": "no_tracker"}` if no `LocalTrackingClient` was attached. |
-| `burr://subruns` | Index of sub-Application runs spawned in this session via `spawn_subapp`. Each entry has `id`, `label`, `started_ts`, `ended_ts`, `parent_action`. |
+| `burr://subruns` | Index of sub-Application runs spawned in this session via `spawn_subapp`. Each entry has `id`, `uri`, `label`, `started_ts`, `ended_ts`, `parent_action`. |
 | `burr://subruns/{id}` | Full record for one sub-run: id, label, timestamps, in-memory history, final state, and any error. |
+
+**Discovery flow for a connecting client**: read `burr://graph` once
+at start to learn the topology, then drive on step responses
+(`state`, `valid_next_actions` are inline on every response).
+Re-read `burr://state` only for forensic checks; `burr://next` only
+when you need a refresher mid-session. The server-level instructions
+include a one-line hint pointing at this flow, so the model sees it
+before the first tool call.
 
 `burr://history` and `burr://trace` are complementary. History is one
 entry per attempted action (including refusals), structured for the
@@ -341,7 +350,7 @@ burr-mcp serve triage:build_application
 uv run pytest
 ```
 
-Ninety-five tests in about 3.4 seconds. Most use FastMCP's in-process
+One hundred and six tests in about 3.4 seconds. Most use FastMCP's in-process
 client; `tests/test_http_transport.py` spawns the HTTP example as a
 subprocess and drives it with two real HTTP clients.
 `tests/test_hardening.py` covers action exceptions, concurrent steps
@@ -457,6 +466,17 @@ Shipped in v0.3.0:
 - `tests/test_http_transport.py`: spawns the HTTP example as a
   subprocess and drives it with two concurrent HTTP clients to
   verify per-session isolation on the wire format.
+
+Shipped in v1.1.0:
+
+- `burr://graph` resource. Static description of the FSM topology
+  (actions with their reads/writes/inputs/docstring, transitions with
+  their conditions). Computed once at mount time. Lets a connecting
+  model learn the whole graph in one read instead of inferring it
+  from trial-and-error or per-tool docstrings.
+- Server-level `instructions` now include a one-line discovery hint
+  pointing at `burr://graph`, so the model sees it before its first
+  tool call. User-supplied `instructions` are preserved alongside.
 
 Shipped in v1.0.1:
 

@@ -17,8 +17,11 @@ Three serving modes:
                              ``tools/list_changed`` after each step.
                              Best when the client honors it.
 
-All modes register six resources:
+All modes register seven resources:
 
+  • ``burr://graph``:           static description of the FSM topology
+                                (actions, reads/writes/inputs, edges
+                                with conditions). Read once per session.
   • ``burr://state``:           current Application state as JSON.
   • ``burr://next``:            actions reachable from current state.
   • ``burr://history``:         per-session timeline of every action
@@ -191,6 +194,64 @@ def _read_trace(path: Path, *, tail: int = _TRACE_MAX_ENTRIES) -> list[dict]:
     if tail and len(entries) > tail:
         entries = entries[-tail:]
     return entries
+
+
+def _compute_graph_summary(app: Application, server_name: str) -> dict[str, Any]:
+    """Build a static description of an Application's graph.
+
+    Computed once at mount time and returned as-is by the
+    ``burr://graph`` resource. Includes per-action metadata
+    (description, reads, writes, required/optional inputs) and the
+    full transition table including conditions as printed expressions.
+
+    The point of this surface is cold-start discovery: a model
+    connecting to the server can read one resource and have the full
+    topology without trial-and-error or repeated state probes.
+    """
+    actions_meta: list[dict[str, Any]] = []
+    for a in app.graph.actions:
+        required, optional = _action_inputs(a)
+        fn = getattr(a, "fn", None)
+        doc = (fn.__doc__ or "").strip() if fn is not None and fn.__doc__ else ""
+        actions_meta.append(
+            {
+                "name": a.name,
+                "description": doc,
+                "reads": list(a.reads or []),
+                "writes": list(a.writes or []),
+                "required_inputs": required,
+                "optional_inputs": optional,
+            }
+        )
+
+    transitions_meta: list[dict[str, Any]] = []
+    for t in app.graph.transitions:
+        cond_expr: str | None = None
+        try:
+            cond = t.condition
+            cond_name = getattr(cond, "_name", None) or getattr(cond, "name", None)
+            # Burr's Condition.expr produces a condition whose `name`
+            # is the printed expression, which is exactly what a model
+            # needs to know when to take the edge. ``default`` means
+            # unconditional.
+            if cond_name and cond_name != "default":
+                cond_expr = cond_name
+        except Exception:
+            cond_expr = None
+        transitions_meta.append(
+            {
+                "from": t.from_.name,
+                "to": t.to.name,
+                "condition": cond_expr,
+            }
+        )
+
+    return {
+        "name": server_name,
+        "entrypoint": app.entrypoint,
+        "actions": actions_meta,
+        "transitions": transitions_meta,
+    }
 
 
 def valid_next_action_names(app: Application) -> list[str]:
@@ -1075,9 +1136,53 @@ def mount(
     shared_lock = asyncio.Lock()
 
     server_name = name or "burr-mcp"
-    mcp = FastMCP(server_name, instructions=instructions)
+    # Static graph summary, computed once. Sub-runs may have their own
+    # graphs but this resource describes the top-level one.
+    graph_summary = _compute_graph_summary(shared_app, server_name)
+    graph_summary_json = json.dumps(graph_summary, indent=2)
+    # Augment user-supplied instructions with a one-line hint pointing
+    # at burr://graph. Cold-start discoverability without forcing users
+    # to write the hint themselves.
+    discovery_hint = (
+        "Read burr://graph once at start for the full action list and "
+        "transitions; you don't need to keep polling burr://next or "
+        "burr://state, each step response already includes the new "
+        "state and valid_next_actions inline."
+    )
+    if instructions:
+        effective_instructions = f"{instructions}\n\n{discovery_hint}"
+    else:
+        effective_instructions = discovery_hint
+    mcp = FastMCP(server_name, instructions=effective_instructions)
 
     # ── resources ────────────────────────────────────────────────────
+
+    @mcp.resource("burr://graph")
+    async def _graph_resource() -> str:
+        """Static description of the Application's FSM topology.
+
+        Read once per session. The graph doesn't change after mount;
+        a model that has this resource doesn't need to keep polling
+        ``burr://next`` to plan ahead. Each tool response already
+        carries the current state and the valid next actions, so
+        runtime polling is only useful for forensic inspection of an
+        already-running session.
+
+        Shape:
+
+            {
+              "name": "<server name>",
+              "entrypoint": "<starting action>",
+              "actions": [
+                {"name", "description", "reads", "writes",
+                 "required_inputs", "optional_inputs"}, ...
+              ],
+              "transitions": [
+                {"from", "to", "condition": "<expr or null>"}, ...
+              ]
+            }
+        """
+        return graph_summary_json
 
     @mcp.resource("burr://state")
     async def _state_resource(ctx: Context) -> str:
