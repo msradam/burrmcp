@@ -13,7 +13,7 @@ are valid, and `burr_app_from_fastmcp(...)` lifts it into a Burr
 Application that mounts the same way, gaining transition enforcement,
 audit history, and per-session isolation.
 
-Status: v1.8.0.
+Status: v1.9.0.
 
 ## What this is
 
@@ -414,7 +414,7 @@ burr-mcp serve triage:build_application
 uv run pytest
 ```
 
-One hundred and fifty tests in about 4 seconds. Most use FastMCP's in-process
+One hundred and fifty-eight tests in about 4 seconds. Most use FastMCP's in-process
 client; `tests/test_http_transport.py` spawns the HTTP example as a
 subprocess and drives it with two real HTTP clients.
 `tests/test_hardening.py` covers action exceptions, concurrent steps
@@ -530,6 +530,20 @@ Shipped in v0.3.0:
 - `tests/test_http_transport.py`: spawns the HTTP example as a
   subprocess and drives it with two concurrent HTTP clients to
   verify per-session isolation on the wire format.
+
+Shipped in v1.9.0:
+
+- Every tool response (step, reset_session, fork_at, fork_from_past)
+  now carries an `app_id` field. Clients tracking sessions across
+  server restarts have a stable id to remember without fishing it
+  out of `burr://trace`.
+- `fork_from_past` generalized to support any Burr `BaseStateLoader`,
+  not just `LocalTrackingClient`. Pass `state_loader=...` to `mount()`
+  and resume works against custom SQLite/postgres/S3 persisters.
+  Three-tier source resolution: explicit loader wins, then the
+  Application's `LocalTrackingClient` if present, then refuse.
+- `fork_from_past` accepts an optional `partition_key` parameter for
+  persisters that use partitioned storage.
 
 Shipped in v1.8.0:
 

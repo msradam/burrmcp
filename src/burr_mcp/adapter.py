@@ -893,6 +893,7 @@ async def _step_application(
         "result": result,
         "state": state,
         "valid_next_actions": valid_next_action_names(app),
+        "app_id": app.uid,
     }
 
 
@@ -957,6 +958,7 @@ async def _step_streaming_action(
         "result": final_chunk,
         "state": state,
         "valid_next_actions": valid_next_action_names(app),
+        "app_id": app.uid,
         "streamed": True,
         "chunks": chunk_count,
     }
@@ -1005,6 +1007,7 @@ async def _run_action_bare(
         "result": {},
         "state": out_state,
         "valid_next_actions": valid_next_action_names(app),
+        "app_id": app.uid,
         "note": "ran without transition enforcement (tools mode)",
     }
 
@@ -1218,6 +1221,7 @@ def mount(
     max_sessions: int | None = _DEFAULT_MAX_SESSIONS,
     action_timeout_seconds: float | None = None,
     input_validators: dict[str, Callable] | None = None,
+    state_loader: Any | None = None,
 ) -> FastMCP:
     """Return a FastMCP server that exposes ``application`` per ``mode``.
 
@@ -1255,6 +1259,14 @@ def mount(
             validators are supported. ToolSpec-declared validators
             from the importer also work; per-action attribute
             ``fn._burr_mcp_validator`` is the hand-tagged escape hatch.
+        state_loader: Optional Burr ``BaseStateLoader`` (or compatible)
+            used by ``fork_from_past`` to load persisted state from a
+            non-``LocalTrackingClient`` backend (SQLite, S3, postgres,
+            etc.). Three-tier fallback when ``fork_from_past`` runs:
+            this explicit loader wins; else the current Application's
+            ``_tracker`` if it's a ``LocalTrackingClient``; else
+            refuse. ``None`` (the default) preserves the v1.8 behavior
+            of requiring a ``LocalTrackingClient``.
     """
     shared_app, factory = _resolve(application)
     # Per-session store keyed by ctx.session_id; populated lazily on
@@ -1725,6 +1737,7 @@ def mount(
             "result": {"previous_state": previous_state},
             "state": new_state,
             "valid_next_actions": valid_next,
+            "app_id": new_app.uid,
         }
 
     mcp.tool(name="reset_session", description=reset_session.__doc__)(reset_session)
@@ -1849,6 +1862,7 @@ def mount(
             },
             "state": new_state,
             "valid_next_actions": valid_next,
+            "app_id": new_app.uid,
         }
 
     mcp.tool(name="fork_at", description=fork_at.__doc__)(fork_at)
@@ -1865,30 +1879,35 @@ def mount(
     async def fork_from_past(
         app_id: str,
         sequence_id: int = -1,
+        partition_key: str = "",
         ctx: Context = None,
     ) -> dict[str, Any]:
-        """Resume a past Burr run by loading its state from disk.
+        """Resume a past Burr run by loading persisted state.
 
-        Reads ``~/.burr/<project>/<app_id>/log.jsonl`` for the project
-        the current session's tracker is writing to, extracts the
-        state at the requested ``sequence_id`` (use ``-1`` for the
-        final state of that run, the default), then rebuilds the
-        session's Application via the factory and overwrites its
-        state with the loaded snapshot. A ``fork_from_past`` marker
-        is appended to history with the requested ``app_id`` and
-        ``sequence_id`` in inputs.
+        Three-tier source resolution:
+
+        1. If ``mount(state_loader=...)`` was passed an explicit Burr
+           ``BaseStateLoader``, use it. Any persister works:
+           ``SQLitePersister``, custom S3/postgres loaders, etc.
+        2. Else if the session's current Application has a
+           ``LocalTrackingClient`` attached, read its on-disk log.
+        3. Else refuse.
+
+        ``partition_key`` defaults to empty string, matching Burr's
+        default; pass it explicitly when your persister uses
+        partitioned storage.
 
         Use this for:
-          - resuming a session across server restarts (track ``app_id``
-            on the client, restore here after reconnect)
+          - resuming a session across server restarts (track
+            ``app_id`` on the client, restore here after reconnect);
           - forking from any persisted past run, not just the current
-            session's in-memory history
+            session's in-memory history.
 
         Refuses when:
           - shared-app mode (no factory to rebuild from);
-          - the current Application has no LocalTrackingClient (can't
-            locate the on-disk logs);
-          - the requested app_id/sequence_id doesn't exist on disk.
+          - no state_loader configured and no LocalTrackingClient on
+            the Application;
+          - the requested app_id/sequence_id doesn't exist.
         """
         if factory is None:
             return {
@@ -1902,49 +1921,79 @@ def mount(
         if ctx is None:
             return {"error": "no_session"}
 
-        try:
-            from burr.tracking.client import LocalTrackingClient
-        except ImportError:
-            return {"error": "no_tracker"}
-
         entry = store.get_or_create(ctx.session_id, factory)
         async with entry.lock:
-            tracker = getattr(entry.application, "_tracker", None)
-            if not isinstance(tracker, LocalTrackingClient):
-                return {
-                    "error": "no_tracker",
-                    "reason": (
-                        "the current Application has no LocalTrackingClient "
-                        "attached, so there's no on-disk run to fork from. "
-                        "Add `.with_tracker(LocalTrackingClient(project=...))` "
-                        "to the Application factory."
-                    ),
-                }
+            loaded_state_dict: dict[str, Any] | None = None
+            last_action: str | None = None
 
-            project = tracker.project_id
-            raw_storage_dir = tracker.raw_storage_dir
-            try:
-                # ``load_state`` is the public path even though Burr has
-                # marked it deprecated; the replacement (``initialize_from``)
-                # is a builder method and doesn't fit a post-build override.
-                # When Burr lands a non-builder replacement we'll switch.
-                import warnings
-
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore", DeprecationWarning)
-                    loaded_state, last_action = LocalTrackingClient.load_state(
-                        project=project,
+            if state_loader is not None:
+                # Tier 1: explicit BaseStateLoader passed to mount().
+                # Works with any persister (SQLite, S3, postgres, etc.).
+                try:
+                    raw = state_loader.load(
+                        partition_key=partition_key,
                         app_id=app_id,
-                        sequence_id=sequence_id,
-                        storage_dir=raw_storage_dir,
+                        sequence_id=sequence_id if sequence_id != -1 else None,
                     )
-            except (ValueError, FileNotFoundError, OSError) as exc:
-                return {
-                    "error": "unknown_past_run",
-                    "reason": str(exc),
-                    "app_id": app_id,
-                    "sequence_id": sequence_id,
-                }
+                    if asyncio.iscoroutine(raw):
+                        loaded = await raw
+                    else:
+                        loaded = raw
+                except Exception as exc:
+                    return {
+                        "error": "unknown_past_run",
+                        "reason": str(exc),
+                        "app_id": app_id,
+                        "sequence_id": sequence_id,
+                    }
+                if loaded is None:
+                    return {
+                        "error": "unknown_past_run",
+                        "reason": "loader returned None",
+                        "app_id": app_id,
+                        "sequence_id": sequence_id,
+                    }
+                # PersistedStateData has state as a burr State; pull
+                # the dict out and let the rebuild path normalise.
+                loaded_state_obj = loaded["state"]
+                loaded_state_dict = loaded_state_obj.get_all()
+                last_action = loaded.get("position")
+            else:
+                # Tier 2: fall back to LocalTrackingClient on the app.
+                try:
+                    from burr.tracking.client import LocalTrackingClient
+                except ImportError:
+                    return {"error": "no_tracker"}
+                tracker = getattr(entry.application, "_tracker", None)
+                if not isinstance(tracker, LocalTrackingClient):
+                    return {
+                        "error": "no_tracker",
+                        "reason": (
+                            "no state_loader passed to mount() and the current "
+                            "Application has no LocalTrackingClient. Either "
+                            "pass `state_loader=<BaseStateLoader>` to mount() "
+                            "or add `.with_tracker(LocalTrackingClient(...))` "
+                            "to the factory."
+                        ),
+                    }
+                try:
+                    import warnings
+
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore", DeprecationWarning)
+                        loaded_state_dict, last_action = LocalTrackingClient.load_state(
+                            project=tracker.project_id,
+                            app_id=app_id,
+                            sequence_id=sequence_id,
+                            storage_dir=tracker.raw_storage_dir,
+                        )
+                except (ValueError, FileNotFoundError, OSError) as exc:
+                    return {
+                        "error": "unknown_past_run",
+                        "reason": str(exc),
+                        "app_id": app_id,
+                        "sequence_id": sequence_id,
+                    }
 
             # Rebuild and overwrite state.
             from burr.core.state import State as _BurrState
@@ -1952,11 +2001,8 @@ def mount(
             entry.application = factory()
             new_app = entry.application
             assert new_app is not None
-            # Set __PRIOR_STEP so get_next_action computes valid edges
-            # correctly. ``load_state`` returned the action that last
-            # ran; that's our prior_step.
             forked_state_dict = {
-                **loaded_state,
+                **loaded_state_dict,
                 "__PRIOR_STEP": last_action,
             }
             new_app.update_state(_BurrState(forked_state_dict))
@@ -1989,6 +2035,7 @@ def mount(
             },
             "state": new_state,
             "valid_next_actions": valid_next,
+            "app_id": new_app.uid,
         }
 
     mcp.tool(name="fork_from_past", description=fork_from_past.__doc__)(fork_from_past)
