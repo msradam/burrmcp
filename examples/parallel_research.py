@@ -27,8 +27,11 @@ from __future__ import annotations
 import asyncio
 
 from burr.core import ApplicationBuilder, State, action
+from burr.tracking.client import LocalTrackingClient
 
 from burr_mcp import ServingMode, mount, spawn_subapp
+
+_TRACKER_PROJECT = "parallel-research-demo"
 
 # ── sub-graph: search one source ────────────────────────────────────
 
@@ -47,6 +50,7 @@ def _build_search_subgraph(query: str, source: str):
     return (
         ApplicationBuilder()
         .with_actions(search_one=search_one)
+        .with_tracker(LocalTrackingClient(project=f"{_TRACKER_PROJECT}-search"))
         .with_state(query=query, source=source, found=None)
         .with_entrypoint("search_one")
         .build()
@@ -90,6 +94,7 @@ def build_application():
     return (
         ApplicationBuilder()
         .with_actions(research=research)
+        .with_tracker(LocalTrackingClient(project=_TRACKER_PROJECT))
         .with_state(query=None, sources=None, results=None, report=None)
         .with_entrypoint("research")
         .build()

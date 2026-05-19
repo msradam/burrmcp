@@ -1,14 +1,17 @@
-"""``burr-mcp`` CLI: launch any importable Burr Application as an MCP server.
+"""``burr-mcp`` CLI: launch or validate an importable Burr Application.
 
 Usage:
 
     burr-mcp serve coffee_order:build_application --mode step
     burr-mcp serve mymodule:application_factory --mode dynamic --name coffee
+    burr-mcp doctor coffee_order:build_application
 
 The ``module:attr`` syntax matches uvicorn / gunicorn conventions. The
 referenced attribute can be either a built ``Application`` (shared
 across sessions) or a callable factory returning one (per-session
-isolation). See ``burr_mcp.mount`` for the distinction.
+isolation). See ``burr_mcp.mount`` for the distinction. The ``doctor``
+subcommand runs static validation against the resolved Application
+before you mount it.
 """
 
 from __future__ import annotations
@@ -91,6 +94,27 @@ def _build_parser() -> argparse.ArgumentParser:
         "Repeatable. Use this when your FSM module lives in a subdirectory of "
         "the project (e.g. --app-dir ./examples).",
     )
+
+    doctor = sub.add_parser(
+        "doctor",
+        help="Statically validate a Burr Application or factory before mounting.",
+    )
+    doctor.add_argument(
+        "target",
+        help="Import target in module:attr form. Same shape as `serve`.",
+    )
+    doctor.add_argument(
+        "--app-dir",
+        action="append",
+        default=[],
+        metavar="PATH",
+        help="Extra directory to prepend to sys.path before importing the target.",
+    )
+    doctor.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Print message and details for every check, not just failures and warnings.",
+    )
     return p
 
 
@@ -111,6 +135,14 @@ def main(argv: list[str] | None = None) -> int:
         # for v0.1).
         server.run()
         return 0
+
+    if args.command == "doctor":
+        from burr_mcp.doctor import format_report, run_checks
+
+        application_or_factory = _import_target(args.target, args.app_dir)
+        report = run_checks(application_or_factory)
+        print(format_report(report, verbose=args.verbose))
+        return 0 if report.ok else 1
 
     parser.print_help()
     return 1

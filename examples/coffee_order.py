@@ -20,8 +20,11 @@ The ``burr://state`` resource shows the order's current state. The
 from __future__ import annotations
 
 from burr.core import ApplicationBuilder, State, action
+from burr.tracking.client import LocalTrackingClient
 
 from burr_mcp import ServingMode, mount
+
+_TRACKER_PROJECT = "coffee-order-demo"
 
 
 @action(reads=[], writes=["stage", "item", "qty"])
@@ -57,6 +60,7 @@ def build_application():
         ApplicationBuilder()
         .with_actions(take_order=take_order, pay=pay, fulfill=fulfill)
         .with_transitions(("take_order", "pay"), ("pay", "fulfill"))
+        .with_tracker(LocalTrackingClient(project=_TRACKER_PROJECT))
         .with_state(stage="new")
         .with_entrypoint("take_order")
         .build()

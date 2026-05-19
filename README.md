@@ -396,6 +396,20 @@ The first argument is a `module:attr` target, the same shape uvicorn
 and gunicorn use. The attr may be a built `Application` or a callable
 returning one.
 
+`burr-mcp doctor` runs static validation against the same target
+before you mount it. Catches the failure modes that only surface at
+runtime: unreachable actions, factory exceptions, dead-end terminals,
+state keys read before anything writes them, orphan initial state.
+
+```bash
+burr-mcp doctor coffee_order:build_application --app-dir examples
+```
+
+Exit code is `0` when there are no failures (warnings and info notes
+don't block) and `1` otherwise, so a `burr-mcp doctor` invocation
+slots into CI. Importable from Python too: `from burr_mcp.doctor
+import run_checks`.
+
 ## Branching example
 
 `examples/triage.py` shows conditional transitions: after `classify`
@@ -408,13 +422,45 @@ listed in the response.
 burr-mcp serve triage:build_application
 ```
 
+## More self-contained demos
+
+`examples/chargen.py` is a six-stage D&D-style character builder:
+`begin -> choose_race -> choose_class -> assign_stats -> pick_skills
+-> equip -> finalize`. Each step writes one slice of the character
+sheet and unlocks exactly one next step. Prompt your MCP client with
+"just finalize my character" and watch the FSM refuse, pointing at
+`begin` as the only legal next move.
+
+`examples/release_pipeline.py` is the canonical "agent refuses to
+skip-ahead" demo: a deploy pipeline that gates promotion behind tests,
+canary deployment, and at least two healthy canary observations. The
+demo line is "just promote this hotfix to prod". `step` returns
+`invalid_transition` with `valid_next_actions: ["submit_change"]`, and
+the agent has to walk through the gates instead. A degraded canary
+observation forces `rollback`; only `rollback` is callable, not
+`promote_to_prod`.
+
+`examples/local_shell.py` is a tiny Claude-Code-style local-shell
+agent with three safety rules baked into the FSM: you cannot
+`edit_file` a path you haven't `read_file`'d first, you cannot
+`commit` unless tests passed since the last edit, and deletion is
+two-step (`request_delete` then `confirm_delete`). None of these
+rules are written in the agent's prompt; the server refuses unsafe
+sequences. Demo line: "edit main.py to print goodbye". A naive agent
+goes straight to `edit_file`, the server returns
+`"must read 'main.py' before editing it. Files read so far: []"`,
+and the agent self-corrects.
+
+All three work with no external dependencies. Wire them into Claude
+Code via `examples/claude-code.example.json`.
+
 ## Tests
 
 ```bash
 uv run pytest
 ```
 
-One hundred and fifty-eight tests in about 4 seconds. Most use FastMCP's in-process
+Two hundred tests in about 4 seconds. Most use FastMCP's in-process
 client; `tests/test_http_transport.py` spawns the HTTP example as a
 subprocess and drives it with two real HTTP clients.
 `tests/test_hardening.py` covers action exceptions, concurrent steps
@@ -777,13 +823,19 @@ Shipped in v0.4.0 (hardening for frontier-model deployments):
 - Burr pinned to `>=0.40.2,<0.41` since we rely on internal API
   surface (`Action.fn`, `Action.inputs` tuple shape, `__PRIOR_STEP`).
 
+Shipped in v1.10.0:
+
+- `burr-mcp doctor module:attr` CLI subcommand for static validation
+  before mounting. Checks: target resolves, factory builds, every
+  action is reachable from the entrypoint, terminal nodes are
+  surfaced, every state-key read has a writer or initial seed, orphan
+  initial keys are flagged. Importable as
+  `from burr_mcp.doctor import run_checks` for use in tests too.
+
 Next (v1.x):
 
 - Public PyPI release.
 - WebSocket transport example.
-- A `burr-mcp doctor` CLI subcommand that validates a mount target
-  before serving (graph reachability, action signatures, tracker
-  configuration).
 - Optional Pydantic-model output schemas surfaced as MCP tool
   `outputSchema` for stronger client contracts.
 

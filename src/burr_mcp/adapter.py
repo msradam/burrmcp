@@ -519,6 +519,17 @@ async def spawn_subapp(
         final = _serializable_state(_public_state(final_state.get_all()))[0]
         record["final_state"] = final
         record["ended_ts"] = datetime.now(UTC).isoformat()
+        # If the sub-Application has its own LocalTrackingClient, surface
+        # its per-step trace on the record so burr://subruns/{id} returns
+        # a populated ``history`` rather than an empty list. Best-effort:
+        # a missing tracker, missing file, or read error all just leave
+        # ``history`` empty.
+        try:
+            trace_path = _tracker_log_path(sub_application)
+            if trace_path is not None and trace_path.exists():
+                record["history"] = _read_trace(trace_path)
+        except Exception:
+            pass
         return {"subrun_id": sub_id, "label": label, "final_state": final}
     except Exception as exc:
         record["error"] = {"type": type(exc).__name__, "message": str(exc)}

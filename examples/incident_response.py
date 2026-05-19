@@ -46,6 +46,7 @@ from datetime import UTC, datetime
 
 from burr.core import ApplicationBuilder, State, action
 from burr.core.action import Condition
+from burr.tracking.client import LocalTrackingClient
 
 from burr_mcp import (
     ServingMode,
@@ -53,6 +54,8 @@ from burr_mcp import (
     mount,
     spawn_subapp,
 )
+
+_TRACKER_PROJECT = "incident-response-demo"
 
 # ── investigation sub-graph ──────────────────────────────────────────
 
@@ -130,6 +133,7 @@ def _build_investigation_subgraph():
             ("correlate_events", "form_hypothesis"),
             ("form_hypothesis", "report_findings"),
         )
+        .with_tracker(LocalTrackingClient(project=f"{_TRACKER_PROJECT}-investigation"))
         .with_state(
             incident_id=None,
             logs=None,
@@ -293,6 +297,7 @@ def build_application():
             ("verify", "mitigate", Condition.expr("verified == False")),
             ("resolve", "write_postmortem"),
         )
+        .with_tracker(LocalTrackingClient(project=_TRACKER_PROJECT))
         .with_state(
             incident_id=None,
             status="new",

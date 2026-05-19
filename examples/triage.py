@@ -24,8 +24,11 @@ from __future__ import annotations
 
 from burr.core import ApplicationBuilder, State, action
 from burr.core.action import Condition
+from burr.tracking.client import LocalTrackingClient
 
 from burr_mcp import ServingMode, mount
+
+_TRACKER_PROJECT = "triage-demo"
 
 
 @action(reads=[], writes=["stage", "subject", "body"])
@@ -89,6 +92,7 @@ def build_application():
             ("classify", "queue", Condition.expr("severity == 'routine'")),
             ("classify", "drop", Condition.expr("severity == 'spam'")),
         )
+        .with_tracker(LocalTrackingClient(project=_TRACKER_PROJECT))
         .with_state(stage="new")
         .with_entrypoint("intake")
         .build()
