@@ -104,29 +104,59 @@ def _extract_snippets(query: str, content: str, max_snippets: int) -> list[str]:
     return matches
 
 
-def _available_sources() -> list[str]:
-    """List subfolders of the shipped corpus (one per source)."""
-    if not _DATA_DIR.exists():
+def _available_sources(corpus_dir: Path | None = None) -> list[str]:
+    """List subfolders of ``corpus_dir`` (one per source).
+
+    Defaults to the shipped corpus at ``_DATA_DIR`` when no override
+    is passed. Hidden directories (dot-prefixed) and ``__pycache__``
+    are skipped so a user pointing at a working directory doesn't
+    accidentally surface ``.git``, ``.venv``, ``.burr``, etc. as
+    "sources".
+    """
+    base = Path(corpus_dir) if corpus_dir is not None else _DATA_DIR
+    if not base.exists():
         return []
-    return sorted(p.name for p in _DATA_DIR.iterdir() if p.is_dir())
+    return sorted(
+        p.name
+        for p in base.iterdir()
+        if p.is_dir() and not p.name.startswith(".") and p.name != "__pycache__"
+    )
+
+
+def _resolve_corpus_dir(corpus_dir: str | None) -> Path:
+    """Resolve a user-supplied corpus directory to an absolute path.
+
+    Empty / None falls back to the shipped corpus. Raises ValueError
+    if the resolved path doesn't exist or isn't a directory.
+    """
+    if not corpus_dir:
+        return _DATA_DIR
+    p = Path(corpus_dir).expanduser().resolve()
+    if not p.exists():
+        raise ValueError(f"corpus_dir does not exist: {corpus_dir}")
+    if not p.is_dir():
+        raise ValueError(f"corpus_dir is not a directory: {corpus_dir}")
+    return p
 
 
 # ── sub-graph: one source's four-step search ────────────────────────
 
 
-@action(reads=["source"], writes=["documents"])
+@action(reads=["source", "corpus_dir"], writes=["documents"])
 async def load_documents(state: State) -> State:
-    """Read every ``*.md`` document under ``data/parallel_research/<source>``.
+    """Read every ``*.md`` document under ``<corpus_dir>/<source>``.
 
     Refuses with a clear error if the source folder doesn't exist; the
     parent ``research`` action validates source names up front, so this
     only fires if the corpus has been moved or deleted on disk.
     """
     source = state["source"]
-    folder = _DATA_DIR / source
+    base = Path(state["corpus_dir"]) if state.get("corpus_dir") else _DATA_DIR
+    folder = base / source
     if not folder.exists():
         raise FileNotFoundError(
-            f"source folder not found on disk: {folder}. Available: {_available_sources()}"
+            f"source folder not found on disk: {folder}. "
+            f"Available under {base}: {_available_sources(base)}"
         )
     docs = _load_corpus(folder)
     return state.update(documents=docs)
@@ -174,11 +204,12 @@ async def summarize(state: State) -> State:
     return state.update(report="\n".join(lines))
 
 
-def _build_search_subgraph(query: str, source: str):
+def _build_search_subgraph(query: str, source: str, corpus_dir: str):
     """Build a fresh four-step search sub-Application for one source.
 
-    State seeds ``query`` and ``source`` at construction time so the
-    spawned sub-app doesn't need to thread them through ``inputs``.
+    State seeds ``query``, ``source``, and ``corpus_dir`` at
+    construction time so the spawned sub-app doesn't need to thread
+    them through ``inputs``.
     """
     return (
         ApplicationBuilder()
@@ -197,6 +228,7 @@ def _build_search_subgraph(query: str, source: str):
         .with_state(
             query=query,
             source=source,
+            corpus_dir=corpus_dir,
             documents={},
             scored=[],
             findings=[],
@@ -210,17 +242,25 @@ def _build_search_subgraph(query: str, source: str):
 # ── parent: fan-out across sources ──────────────────────────────────
 
 
-@action(reads=[], writes=["query", "sources", "results", "report"])
-async def research(state: State, query: str, sources: list[str] | None = None) -> State:
+@action(reads=[], writes=["query", "sources", "corpus_dir", "results", "report"])
+async def research(
+    state: State,
+    query: str,
+    sources: list[str] | None = None,
+    corpus_dir: str | None = None,
+) -> State:
     """Fan out a research query across one or more source folders.
 
     Args:
         query: The research question. Tokenised and matched against
             document contents in each source.
         sources: Optional list of source folder names. Defaults to all
-            available sources (every subfolder under
-            ``examples/data/parallel_research/``). Pass a subset to
-            scope the search.
+            available sources (every subfolder under ``corpus_dir``).
+            Pass a subset to scope the search.
+        corpus_dir: Optional path to a directory of markdown documents
+            organised into per-source subfolders. Defaults to the
+            shipped corpus at ``examples/data/parallel_research/``.
+            Supports ``~`` and relative paths.
 
     Each source spawns one search sub-Application that runs the
     four-step pipeline (load_documents, score_documents,
@@ -233,10 +273,12 @@ async def research(state: State, query: str, sources: list[str] | None = None) -
     Returns ``state.report`` joined from the per-source reports plus
     ``state.results`` (a list of per-source report strings).
     """
-    available = _available_sources()
+    base = _resolve_corpus_dir(corpus_dir)
+    available = _available_sources(base)
     if not available:
         raise RuntimeError(
-            f"no source folders under {_DATA_DIR}. Did the data corpus ship with this example?"
+            f"no source subfolders found under {base}. "
+            "A corpus directory must contain at least one subfolder of .md files."
         )
     target_sources = list(sources) if sources else available
     if not target_sources:
@@ -247,7 +289,7 @@ async def research(state: State, query: str, sources: list[str] | None = None) -
     results = await asyncio.gather(
         *(
             spawn_subapp(
-                _build_search_subgraph(query, source),
+                _build_search_subgraph(query, source, str(base)),
                 label=f"search-{source}",
             )
             for source in target_sources
@@ -257,6 +299,7 @@ async def research(state: State, query: str, sources: list[str] | None = None) -
     return state.update(
         query=query,
         sources=target_sources,
+        corpus_dir=str(base),
         results=per_source_reports,
         report="\n\n".join(per_source_reports),
     )
@@ -267,7 +310,13 @@ def build_application():
         ApplicationBuilder()
         .with_actions(research=research)
         .with_tracker(LocalTrackingClient(project=_TRACKER_PROJECT))
-        .with_state(query=None, sources=None, results=None, report=None)
+        .with_state(
+            query=None,
+            sources=None,
+            corpus_dir=None,
+            results=None,
+            report=None,
+        )
         .with_entrypoint("research")
         .build()
     )
@@ -281,16 +330,20 @@ def build_server():
         mode=ServingMode.STEP,
         name="parallel-research",
         instructions=(
-            "Parallel research agent over a local markdown corpus at "
-            "examples/data/parallel_research/. Call "
-            "research(query, sources) where query is a freeform string "
-            "and sources is an optional list of source-folder names "
-            f"(available: {sources_hint}). Defaults to all sources. "
-            "Each source spawns a concurrent four-step search "
+            "Parallel research agent over a markdown corpus organised "
+            "into per-source subfolders. Call "
+            "research(query, sources=None, corpus_dir=None) where "
+            "query is a freeform string, sources is an optional list "
+            "of source-folder names, and corpus_dir is an optional "
+            "directory path (defaults to the shipped corpus at "
+            "examples/data/parallel_research/ with the sources: "
+            f"{sources_hint}). Supports ~ and relative paths. Each "
+            "source spawns a concurrent four-step search "
             "sub-Application (load_documents, score_documents, "
-            "extract_snippets, summarize). The combined report joins "
-            "every per-source mini-report. Each sub-run is addressable "
-            "at burr://subruns/{id} with the source name as its label."
+            "extract_snippets, summarize) via asyncio.gather. The "
+            "combined report joins every per-source mini-report. Each "
+            "sub-run is addressable at burr://subruns/{id} with the "
+            "source name as its label."
         ),
     )
 

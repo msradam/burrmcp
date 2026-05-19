@@ -158,16 +158,32 @@ def _parse_grade(raw: str) -> tuple[int, str]:
     return score, reason
 
 
-def _retrieve_top(query: str) -> dict[str, list[str]]:
-    """Score every doc across every source folder and return the top-N
-    overall with snippets per doc.
+def _resolve_corpus_dir(corpus_dir: str | None) -> Path:
+    """Resolve a user-supplied corpus directory to an absolute path.
+
+    Empty / None falls back to the shipped corpus. Raises ValueError
+    if the resolved path doesn't exist or isn't a directory.
+    """
+    if not corpus_dir:
+        return _DATA_DIR
+    p = Path(corpus_dir).expanduser().resolve()
+    if not p.exists():
+        raise ValueError(f"corpus_dir does not exist: {corpus_dir}")
+    if not p.is_dir():
+        raise ValueError(f"corpus_dir is not a directory: {corpus_dir}")
+    return p
+
+
+def _retrieve_top(query: str, corpus_dir: Path) -> dict[str, list[str]]:
+    """Score every doc across every source folder under ``corpus_dir``
+    and return the top-N overall with snippets per doc.
 
     Keys are ``"<source>/<doc_name>"`` so the caller (and citations)
     can tell which corpus each snippet came from.
     """
     scored_all: list[tuple[str, str, int, str]] = []  # (source, name, score, content)
-    for source in _available_sources():
-        folder = _DATA_DIR / source
+    for source in _available_sources(corpus_dir):
+        folder = corpus_dir / source
         corpus = _load_corpus(folder)
         for name, score in _score_documents(query, corpus):
             if score <= 0:
@@ -189,6 +205,7 @@ def _retrieve_top(query: str) -> dict[str, list[str]]:
     writes=[
         "question",
         "search_queries",
+        "corpus_dir",
         "retrieved",
         "draft_answer",
         "grade_score",
@@ -199,17 +216,32 @@ def _retrieve_top(query: str) -> dict[str, list[str]]:
         "log",
     ],
 )
-async def ask(state: State, question: str, max_rounds: int = _DEFAULT_MAX_ROUNDS) -> State:
+async def ask(
+    state: State,
+    question: str,
+    max_rounds: int = _DEFAULT_MAX_ROUNDS,
+    corpus_dir: str | None = None,
+) -> State:
     """Entrypoint. Validates the question and resets all state.
+
+    Args:
+        question: The research question.
+        max_rounds: Hard cap on grade-then-rewrite cycles. Default 3.
+        corpus_dir: Optional path to a directory of markdown documents
+            organised into per-source subfolders. Defaults to the
+            shipped corpus at ``examples/data/parallel_research/``.
+            Supports ``~`` and relative paths.
 
     ``search_queries`` is seeded with the original question; the
     rewrite loop appends to it.
     """
     if not question.strip():
         raise ValueError("question must not be empty")
+    base = _resolve_corpus_dir(corpus_dir)
     return state.update(
         question=question,
         search_queries=[question],
+        corpus_dir=str(base),
         retrieved={},
         draft_answer=None,
         grade_score=0,
@@ -217,11 +249,11 @@ async def ask(state: State, question: str, max_rounds: int = _DEFAULT_MAX_ROUNDS
         grading_attempts=[],
         max_rounds=max_rounds,
         final_answer=None,
-        log=[f"Question received: {question[:80]!r} (max_rounds={max_rounds})"],
+        log=[f"Question received: {question[:80]!r} (max_rounds={max_rounds}, corpus_dir={base})"],
     )
 
 
-@action(reads=["search_queries", "log"], writes=["retrieved", "log"])
+@action(reads=["search_queries", "corpus_dir", "log"], writes=["retrieved", "log"])
 async def retrieve(state: State) -> State:
     """Score every doc under every corpus source by the latest query
     and pull snippets from the top hits.
@@ -230,12 +262,13 @@ async def retrieve(state: State) -> State:
     ``rewrite_query`` automatically picks up the new query.
     """
     query = state["search_queries"][-1]
-    retrieved = _retrieve_top(query)
+    base = Path(state["corpus_dir"]) if state.get("corpus_dir") else _DATA_DIR
+    retrieved = _retrieve_top(query, base)
     return state.update(
         retrieved=retrieved,
         log=[
             *state.get("log", []),
-            f"Retrieved {len(retrieved)} doc(s) for query={query!r}",
+            f"Retrieved {len(retrieved)} doc(s) for query={query!r} from {base}",
         ],
     )
 
@@ -399,6 +432,7 @@ def build_application():
         .with_state(
             question="",
             search_queries=[],
+            corpus_dir=None,
             retrieved={},
             draft_answer=None,
             grade_score=0,
@@ -420,17 +454,19 @@ def build_server():
         name="adaptive-crag",
         instructions=(
             "Self-correcting RAG agent. Start a session with "
-            "ask(question=..., max_rounds=3). The FSM walks "
-            "ask -> retrieve (term-frequency search over the markdown "
-            "corpus at examples/data/parallel_research/) -> synthesize "
-            "(Granite generates a 2-3 sentence answer from the "
-            "retrieved snippets) -> grade (Granite scores the answer "
-            "1-5 on grounding plus relevance). On a passing grade "
-            "(>=4) or at the round cap the FSM routes to finalize; "
-            "otherwise rewrite_query asks Granite for a better search "
-            "query and the loop returns to retrieve. Capped at 3 "
-            "rounds by default. The corpus is shared with the "
-            "parallel-research demo. Unlike a one-shot RAG pipeline, "
+            "ask(question=..., max_rounds=3, corpus_dir=None). "
+            "corpus_dir defaults to the shipped corpus at "
+            "examples/data/parallel_research/ but accepts any directory "
+            "(supports ~ and relative paths) whose subfolders contain "
+            "markdown documents. The FSM walks ask -> retrieve "
+            "(term-frequency search over the configured corpus) -> "
+            "synthesize (Granite generates a 2-3 sentence answer from "
+            "the retrieved snippets) -> grade (Granite scores the "
+            "answer 1-5 on grounding plus relevance). On a passing "
+            "grade (>=4) or at the round cap the FSM routes to "
+            "finalize; otherwise rewrite_query asks Granite for a "
+            "better search query and the loop returns to retrieve. "
+            "Capped at 3 rounds by default. Unlike a one-shot RAG pipeline, "
             "this FSM grades its own output rather than accepting it "
             "blindly, and every grading attempt plus every search "
             "query tried is preserved in state for audit."

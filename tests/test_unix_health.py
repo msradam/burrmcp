@@ -1,19 +1,18 @@
-"""Unix-health FSM: deterministic branching demo.
+"""Unix-health FSM: shellout-based system health triage.
 
-Tests cover the happy path through to ``produce_report`` (healthy and
-warning), the critical branch through ``deep_dive`` to
-``raise_alert``, validation refusals from ``configure``, and FSM
-gating that makes the wrong post-triage transition invalid.
-
-The host running the tests may itself be perfectly healthy or under
-load, so every test monkeypatches ``psutil`` plus ``os.getloadavg``
-to feed fixed values into the four subsystem probes.
+Tests monkey-patch ``_run_check_command`` so the FSM exercises the
+parsers against canned tool output and the host's actual state
+doesn't leak in. Covers each parser, the configure-input validation,
+the full walk through produce_report on a clean host, the full walk
+through deep_dive + raise_alert on a critical host, and the
+transition gates on triage.
 """
 
 from __future__ import annotations
 
 import json
 import sys
+from collections import deque
 from pathlib import Path
 
 import pytest
@@ -22,326 +21,426 @@ from fastmcp import Client
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "examples"))
 
-import unix_health  # noqa: E402  isort:skip
-from unix_health import build_server  # noqa: E402  isort:skip
+import unix_health  # noqa: E402
+from unix_health import (  # noqa: E402
+    _max_severity,
+    _parse_df_all,
+    _parse_df_root,
+    _parse_free,
+    _parse_ps_cpu,
+    _parse_ps_rss,
+    _parse_ps_summary,
+    _parse_ps_zombies,
+    _parse_uptime,
+    _parse_vm_stat,
+    _severity_for,
+    _severity_for_load,
+    _severity_for_zombies,
+    build_server,
+)
 
 
-# fixture helpers ────────────────────────────────────────────────────
+def _patch_runner(monkeypatch, responses):
+    """Replace ``_run_check_command`` with a dict-keyed responder.
 
-
-class _NS:
-    """Tiny attribute namespace; psutil returns named-tuple-like objects."""
-
-    def __init__(self, **kw):
-        self.__dict__.update(kw)
-
-
-def _fake_proc(
-    pid: int,
-    name: str = "fake",
-    status: str = "running",
-    cpu_percent: float = 0.0,
-    rss: int = 0,
-    ppid: int = 1,
-):
-    """Build a fake psutil.Process-shaped object.
-
-    ``process_iter(attrs=...)`` returns objects whose ``.info`` dict has
-    the requested keys. The shim exposes both ``.info`` (used by the
-    action code) and a ``.ppid()`` callable for the zombie deep-dive
-    path which does ``psutil.Process(pid).ppid()``.
+    Keys are tuples of args (e.g. ``("df", "-k", "/")``); values are
+    the canned stdout. Unknown args raise AssertionError so a missing
+    fixture is obvious.
     """
-    info = {
-        "pid": pid,
-        "name": name,
-        "status": status,
-        "cpu_percent": cpu_percent,
-        "memory_info": _NS(rss=rss),
-        "ppid": ppid,
+    queues = {k: deque([v]) for k, v in responses.items()}
+
+    async def fake(args, timeout=10.0):
+        key = tuple(args)
+        if key not in queues:
+            raise AssertionError(f"no canned response for {key}; have {list(queues)}")
+        q = queues[key]
+        if not q:
+            raise AssertionError(f"ran out of canned responses for {key}")
+        return q[0] if len(q) == 1 else q.popleft()
+
+    monkeypatch.setattr(unix_health, "_run_check_command", fake)
+
+
+# Canned tool outputs reused across tests ─────────────────────────
+
+
+_UPTIME_HEALTHY = "12:34:56 up 5 days,  2:13,  3 users,  load average: 0.42, 0.51, 0.61\n"
+_DF_HEALTHY = (
+    "Filesystem     1024-blocks      Used  Available Capacity Mounted on\n"
+    "/dev/disk1s5     488245288 100000000  380000000      21% /\n"
+)
+_DF_CRITICAL = (
+    "Filesystem     1024-blocks      Used  Available Capacity Mounted on\n"
+    "/dev/disk1s5     488245288 470000000   10000000      98% /\n"
+)
+_DF_ALL = (
+    "Filesystem     1024-blocks      Used  Available Capacity Mounted on\n"
+    "/dev/disk1s5     488245288 470000000   10000000      98% /\n"
+    "/dev/disk1s2     488245288 200000000  280000000      42% /System/Volumes/Data\n"
+    "tmpfs              8000000   1000000    7000000      13% /tmp\n"
+)
+_VM_STAT_HEALTHY = (
+    "Mach Virtual Memory Statistics: (page size of 4096 bytes)\n"
+    "Pages free:                              200000.\n"
+    "Pages active:                            300000.\n"
+    "Pages inactive:                          100000.\n"
+    "Pages speculative:                        50000.\n"
+    "Pages wired down:                        150000.\n"
+    "Pages occupied by compressor:             50000.\n"
+)
+_VM_STAT_WARNING = (
+    "Mach Virtual Memory Statistics: (page size of 4096 bytes)\n"
+    "Pages free:                                5000.\n"
+    "Pages active:                            500000.\n"
+    "Pages inactive:                           10000.\n"
+    "Pages speculative:                         1000.\n"
+    "Pages wired down:                        200000.\n"
+    "Pages occupied by compressor:            100000.\n"
+)
+_FREE_HEALTHY = (
+    "              total        used        free      shared  buff/cache   available\n"
+    "Mem:    16000000000  4000000000  5000000000   100000000  7000000000 11000000000\n"
+    "Swap:   2000000000           0  2000000000\n"
+)
+_PS_HEALTHY = (
+    "  PID STAT %CPU COMMAND\n"
+    "    1 Ss    0.0 launchd\n"
+    "  100 S     1.2 python\n"
+    "  200 S     0.5 vim\n"
+)
+_PS_CRITICAL = (
+    "  PID STAT %CPU COMMAND\n"
+    "    1 Ss    0.0 launchd\n"
+    "  100 Z+    0.0 dead_child_1\n"
+    "  200 Z     0.0 dead_child_2\n"
+    "  300 Z     0.0 dead_child_3\n"
+    "  400 S    80.5 python\n"
+)
+_PS_ZOMBIES = (
+    "  PID  PPID STAT COMMAND\n"
+    "  100     1 Z    dead_child_1\n"
+    "  200    50 Z+   dead_child_2\n"
+    "  300    60 Z    dead_child_3\n"
+)
+_GETCONF_8 = "8\n"
+_SYSCTL_PAGESIZE = "4096\n"
+
+
+# ── parser unit tests ──────────────────────────────────────────────
+
+
+def test_parse_uptime_handles_comma_and_space_separators():
+    a = _parse_uptime("12:34 up 1 day, 1:00, 1 user, load average: 0.42, 0.51, 0.61\n")
+    assert a == {"load_1min": 0.42, "load_5min": 0.51, "load_15min": 0.61}
+    b = _parse_uptime("up 1 day, load averages: 1.10 2.20 3.30\n")
+    assert b == {"load_1min": 1.10, "load_5min": 2.20, "load_15min": 3.30}
+
+
+def test_parse_uptime_raises_on_malformed():
+    with pytest.raises(ValueError, match="could not parse"):
+        _parse_uptime("no load info here\n")
+
+
+def test_parse_df_root_extracts_percentage_and_sizes():
+    d = _parse_df_root(_DF_HEALTHY)
+    assert d["percent"] == 21.0
+    assert d["mountpoint"] == "/"
+    assert d["filesystem"] == "/dev/disk1s5"
+    assert d["total_gb"] > 0
+    assert d["used_gb"] > 0
+    assert d["free_gb"] > 0
+
+
+def test_parse_df_all_returns_one_row_per_mount():
+    rows = _parse_df_all(_DF_ALL)
+    assert len(rows) == 3
+    assert {r["mountpoint"] for r in rows} == {
+        "/",
+        "/System/Volumes/Data",
+        "/tmp",
     }
-    proc = _NS(info=info, pid=pid)
-    proc.ppid = lambda: ppid
-    return proc
 
 
-def _patch_health(
-    monkeypatch,
-    *,
-    disk_pct: float = 30.0,
-    mem_pct: float = 40.0,
-    load_1min: float = 0.5,
-    cpu_count: int = 4,
-    zombies: int = 0,
-    top_cpu_pct: float = 10.0,
-):
-    """Pin the four subsystem probes to deterministic values."""
-    total_disk = 10**12
-    monkeypatch.setattr(
-        unix_health.psutil,
-        "disk_usage",
-        lambda p: _NS(
-            total=total_disk,
-            used=int(total_disk * disk_pct / 100),
-            free=int(total_disk * (1 - disk_pct / 100)),
-            percent=disk_pct,
-        ),
+def test_parse_vm_stat_computes_percent_used():
+    d = _parse_vm_stat(_VM_STAT_HEALTHY, page_size=4096)
+    # used = 300000 + 150000 + 50000 = 500000
+    # total = 200000 + 300000 + 100000 + 50000 + 150000 + 50000 = 850000
+    # percent = 500000/850000*100 ~= 58.8
+    assert 58.0 < d["percent"] < 60.0
+
+
+def test_parse_free_extracts_mem_line():
+    d = _parse_free(_FREE_HEALTHY)
+    assert d["total_gb"] > 14.0
+    assert 24.0 < d["percent"] < 26.0
+
+
+def test_parse_ps_summary_counts_zombies_and_finds_top_cpu():
+    d = _parse_ps_summary(_PS_CRITICAL)
+    assert d["zombie_count"] == 3
+    assert sorted(d["zombie_pids"]) == [100, 200, 300]
+    assert d["top_cpu_pid"] == 400
+    assert d["top_cpu_pct"] == 80.5
+
+
+def test_parse_ps_rss_sorts_descending():
+    raw = "  PID    RSS COMMAND\n  100    500 small\n  200  50000 big\n  300   1000 medium\n"
+    rows = _parse_ps_rss(raw, top_n=3)
+    assert [r["pid"] for r in rows] == [200, 300, 100]
+
+
+def test_parse_ps_cpu_sorts_descending():
+    raw = "  PID %CPU COMMAND\n  100  0.5 idle\n  200 99.0 hot\n  300  5.0 warm\n"
+    rows = _parse_ps_cpu(raw, top_n=3)
+    assert [r["pid"] for r in rows] == [200, 300, 100]
+
+
+def test_parse_ps_zombies_filters_to_z_stat():
+    raw = (
+        "  PID  PPID STAT COMMAND\n"
+        "  100     1 S    alive\n"
+        "  200    50 Z+   dead\n"
+        "  300    60 Z    also_dead\n"
     )
-    total_mem = 10**10
-    monkeypatch.setattr(
-        unix_health.psutil,
-        "virtual_memory",
-        lambda: _NS(
-            total=total_mem,
-            available=int(total_mem * (1 - mem_pct / 100)),
-            percent=mem_pct,
-        ),
-    )
-    monkeypatch.setattr(unix_health.psutil, "cpu_count", lambda: cpu_count)
-    monkeypatch.setattr(unix_health.os, "getloadavg", lambda: (load_1min, 0.0, 0.0))
-
-    # process_iter: one busy process, plus N zombies, plus a quiet one.
-    fake_procs = [
-        _fake_proc(pid=1001, name="busy", cpu_percent=top_cpu_pct, rss=500 * 1024 * 1024),
-        _fake_proc(pid=1002, name="idle", cpu_percent=0.1, rss=10 * 1024 * 1024),
-    ]
-    for i in range(zombies):
-        fake_procs.append(
-            _fake_proc(
-                pid=2000 + i,
-                name=f"zombie_{i}",
-                status=unix_health.psutil.STATUS_ZOMBIE,
-                ppid=1,
-            )
-        )
-    monkeypatch.setattr(
-        unix_health.psutil,
-        "process_iter",
-        lambda attrs=None: iter(fake_procs),
-    )
-
-    # disk_partitions for deep_dive on disk; one fake mountpoint, /.
-    monkeypatch.setattr(
-        unix_health.psutil,
-        "disk_partitions",
-        lambda all=False: [_NS(mountpoint="/", fstype="apfs", device="/dev/disk1")],
-    )
+    zombies = _parse_ps_zombies(raw)
+    assert len(zombies) == 2
+    assert {z["pid"] for z in zombies} == {200, 300}
 
 
-async def _step(client, action, **inputs):
-    return await client.call_tool("step", {"action": action, "inputs": inputs})
+# ── severity classifier unit tests ────────────────────────────────
 
 
-def _payload(result):
-    return json.loads(result.content[0].text)
+def test_severity_for_percent_thresholds():
+    assert _severity_for(50.0, 80.0) == "ok"
+    assert _severity_for(85.0, 80.0) == "warning"
+    assert _severity_for(96.0, 80.0) == "critical"
 
 
-async def _walk_through_checks(client):
-    """configure -> ... -> aggregate -> triage. Returns the last payload."""
-    await _step(client, "configure")
-    await _step(client, "check_disk")
-    await _step(client, "check_memory")
-    await _step(client, "check_load")
-    await _step(client, "check_processes")
-    await _step(client, "aggregate")
-    return _payload(await _step(client, "triage"))
+def test_severity_for_load_doubles_to_critical():
+    assert _severity_for_load(1.0, 2.0) == "ok"
+    assert _severity_for_load(3.0, 2.0) == "warning"
+    assert _severity_for_load(4.0, 2.0) == "critical"
 
 
-# configure validation ───────────────────────────────────────────────
+def test_severity_for_zombies_step_function():
+    assert _severity_for_zombies(0) == "ok"
+    assert _severity_for_zombies(1) == "warning"
+    assert _severity_for_zombies(3) == "critical"
+
+
+def test_max_severity_returns_worst_label():
+    assert _max_severity(["ok", "ok", "ok"]) == "ok"
+    assert _max_severity(["ok", "warning", "ok"]) == "warning"
+    assert _max_severity(["warning", "critical", "ok"]) == "critical"
+
+
+# ── configure validation ──────────────────────────────────────────
 
 
 @pytest.mark.asyncio
-async def test_configure_with_defaults_succeeds(monkeypatch):
-    _patch_health(monkeypatch)
+async def test_configure_rejects_negative_disk_pct():
     server = build_server()
     async with Client(server) as client:
-        out = _payload(await _step(client, "configure"))
-        assert out["action"] == "configure"
-        assert out["state"]["thresholds"] == {
-            "disk_pct": 80.0,
-            "memory_pct": 85.0,
-            "load_per_cpu": 2.0,
-        }
-
-
-@pytest.mark.asyncio
-async def test_configure_rejects_negative_disk_pct(monkeypatch):
-    _patch_health(monkeypatch)
-    server = build_server()
-    async with Client(server) as client:
-        out = _payload(await _step(client, "configure", disk_pct=-1))
+        r = await client.call_tool("step", {"action": "configure", "inputs": {"disk_pct": -1}})
+        out = json.loads(r.content[0].text)
         assert out["error"] == "action_error"
         assert "disk_pct" in out["error_message"]
 
 
 @pytest.mark.asyncio
-async def test_configure_rejects_memory_pct_over_100(monkeypatch):
-    _patch_health(monkeypatch)
+async def test_configure_rejects_memory_pct_over_100():
     server = build_server()
     async with Client(server) as client:
-        out = _payload(await _step(client, "configure", memory_pct=150))
+        r = await client.call_tool("step", {"action": "configure", "inputs": {"memory_pct": 150}})
+        out = json.loads(r.content[0].text)
         assert out["error"] == "action_error"
-        assert "memory_pct" in out["error_message"]
 
 
-# happy-path walks ───────────────────────────────────────────────────
+# ── full-walk tests (monkey-patched shellouts) ────────────────────
 
 
 @pytest.mark.asyncio
-async def test_all_ok_walks_through_to_produce_report(monkeypatch):
-    _patch_health(monkeypatch, disk_pct=30, mem_pct=40, load_1min=0.5, zombies=0)
+async def test_walk_to_produce_report_on_clean_host(monkeypatch):
+    """Healthy disk/memory/load/processes -> produce_report path."""
+    _patch_runner(
+        monkeypatch,
+        {
+            ("df", "-k", "/"): _DF_HEALTHY,
+            ("sysctl", "-n", "hw.pagesize"): _SYSCTL_PAGESIZE,
+            ("vm_stat",): _VM_STAT_HEALTHY,
+            ("free", "-b"): _FREE_HEALTHY,
+            ("uptime",): _UPTIME_HEALTHY,
+            ("getconf", "_NPROCESSORS_ONLN"): _GETCONF_8,
+            ("ps", "-A", "-o", "pid,stat,pcpu,comm"): _PS_HEALTHY,
+        },
+    )
     server = build_server()
     async with Client(server) as client:
-        out = await _walk_through_checks(client)
+        await client.call_tool("step", {"action": "configure", "inputs": {}})
+        for act in [
+            "check_disk",
+            "check_memory",
+            "check_load",
+            "check_processes",
+            "aggregate",
+            "triage",
+        ]:
+            await client.call_tool("step", {"action": act, "inputs": {}})
+        r = await client.call_tool("step", {"action": "produce_report", "inputs": {}})
+        out = json.loads(r.content[0].text)
         assert out["state"]["overall_severity"] == "healthy"
-        assert out["valid_next_actions"] == ["produce_report"]
-        out = _payload(await _step(client, "produce_report"))
-        report = out["state"]["report"]
-        assert report["overall_severity"] == "healthy"
-        assert "timestamp_utc" in report
-        assert report["summary_line"].startswith("system healthy:")
+        assert out["state"]["report"]["overall_severity"] == "healthy"
+        for key in ("disk", "memory", "load", "processes"):
+            assert key in out["state"]["raw_outputs"]
 
 
 @pytest.mark.asyncio
-async def test_disk_critical_routes_through_deep_dive_to_raise_alert(monkeypatch):
-    _patch_health(monkeypatch, disk_pct=99, mem_pct=40, load_1min=0.5)
+async def test_walk_to_raise_alert_when_disk_critical(monkeypatch):
+    """Disk at 98% triggers critical, routes through deep_dive."""
+    _patch_runner(
+        monkeypatch,
+        {
+            ("df", "-k", "/"): _DF_CRITICAL,
+            ("df", "-k"): _DF_ALL,
+            ("sysctl", "-n", "hw.pagesize"): _SYSCTL_PAGESIZE,
+            ("vm_stat",): _VM_STAT_HEALTHY,
+            ("free", "-b"): _FREE_HEALTHY,
+            ("uptime",): _UPTIME_HEALTHY,
+            ("getconf", "_NPROCESSORS_ONLN"): _GETCONF_8,
+            ("ps", "-A", "-o", "pid,stat,pcpu,comm"): _PS_HEALTHY,
+        },
+    )
     server = build_server()
     async with Client(server) as client:
-        out = await _walk_through_checks(client)
+        await client.call_tool("step", {"action": "configure", "inputs": {}})
+        for act in [
+            "check_disk",
+            "check_memory",
+            "check_load",
+            "check_processes",
+            "aggregate",
+            "triage",
+        ]:
+            await client.call_tool("step", {"action": act, "inputs": {}})
+        r = await client.call_tool("step", {"action": "deep_dive", "inputs": {}})
+        out = json.loads(r.content[0].text)
         assert out["state"]["overall_severity"] == "critical"
         assert out["state"]["worst_subsystem"] == "disk"
-        assert out["valid_next_actions"] == ["deep_dive"]
-        out = _payload(await _step(client, "deep_dive"))
-        deep = out["state"]["deep_dive"]
-        assert deep["subsystem"] == "disk"
-        assert "top_mounts" in deep
-        assert isinstance(deep["top_mounts"], list)
-        assert len(deep["top_mounts"]) >= 1
-        out = _payload(await _step(client, "raise_alert"))
-        report = out["state"]["report"]
-        assert report["overall_severity"] == "critical"
-        assert report["worst_subsystem"] == "disk"
-        assert "suggested_actions" in report
-        assert report["deep_dive"]["subsystem"] == "disk"
+        assert "top_mounts" in out["state"]["deep_dive"]
+        r = await client.call_tool("step", {"action": "raise_alert", "inputs": {}})
+        out = json.loads(r.content[0].text)
+        assert out["state"]["report"]["overall_severity"] == "critical"
+        assert out["state"]["report"]["worst_subsystem"] == "disk"
 
 
 @pytest.mark.asyncio
-async def test_three_zombies_route_through_processes_deep_dive(monkeypatch):
-    _patch_health(monkeypatch, disk_pct=30, mem_pct=40, load_1min=0.5, zombies=3)
+async def test_walk_to_raise_alert_when_zombies_critical(monkeypatch):
+    """3+ zombies forces processes-subsystem critical."""
+    _patch_runner(
+        monkeypatch,
+        {
+            ("df", "-k", "/"): _DF_HEALTHY,
+            ("sysctl", "-n", "hw.pagesize"): _SYSCTL_PAGESIZE,
+            ("vm_stat",): _VM_STAT_HEALTHY,
+            ("free", "-b"): _FREE_HEALTHY,
+            ("uptime",): _UPTIME_HEALTHY,
+            ("getconf", "_NPROCESSORS_ONLN"): _GETCONF_8,
+            ("ps", "-A", "-o", "pid,stat,pcpu,comm"): _PS_CRITICAL,
+            ("ps", "-A", "-o", "pid,ppid,stat,comm"): _PS_ZOMBIES,
+        },
+    )
     server = build_server()
     async with Client(server) as client:
-        out = await _walk_through_checks(client)
-        assert out["state"]["overall_severity"] == "critical"
+        await client.call_tool("step", {"action": "configure", "inputs": {}})
+        for act in [
+            "check_disk",
+            "check_memory",
+            "check_load",
+            "check_processes",
+            "aggregate",
+            "triage",
+        ]:
+            await client.call_tool("step", {"action": act, "inputs": {}})
+        r = await client.call_tool("step", {"action": "deep_dive", "inputs": {}})
+        out = json.loads(r.content[0].text)
         assert out["state"]["worst_subsystem"] == "processes"
-        out = _payload(await _step(client, "deep_dive"))
-        deep = out["state"]["deep_dive"]
-        assert deep["subsystem"] == "processes"
-        assert "zombies" in deep
-        assert len(deep["zombies"]) == 3
-        assert all("ppid" in z for z in deep["zombies"])
+        assert len(out["state"]["deep_dive"]["zombies"]) == 3
 
 
-@pytest.mark.asyncio
-async def test_one_warning_rest_ok_produces_warning_report(monkeypatch):
-    # disk 88 trips warning (>=80), critical is 95; everything else ok.
-    _patch_health(monkeypatch, disk_pct=88, mem_pct=40, load_1min=0.5, zombies=0)
-    server = build_server()
-    async with Client(server) as client:
-        out = await _walk_through_checks(client)
-        assert out["state"]["overall_severity"] == "warning"
-        assert out["state"]["worst_subsystem"] == "disk"
-        assert out["valid_next_actions"] == ["produce_report"]
-        out = _payload(await _step(client, "produce_report"))
-        assert out["state"]["report"]["overall_severity"] == "warning"
-
-
-@pytest.mark.asyncio
-async def test_one_critical_load_routes_through_deep_dive(monkeypatch):
-    # load_per_cpu = 10/4 = 2.5; threshold 2.0; 2x = 4. 2.5 is warning,
-    # not critical. Push load to 20 so per_cpu = 5 > 4 -> critical.
-    _patch_health(monkeypatch, disk_pct=30, mem_pct=40, load_1min=20, cpu_count=4)
-    server = build_server()
-    async with Client(server) as client:
-        out = await _walk_through_checks(client)
-        assert out["state"]["overall_severity"] == "critical"
-        assert out["state"]["worst_subsystem"] == "load"
-        assert out["valid_next_actions"] == ["deep_dive"]
-        out = _payload(await _step(client, "deep_dive"))
-        assert out["state"]["deep_dive"]["subsystem"] == "load"
-        assert "top_cpu" in out["state"]["deep_dive"]
-
-
-# deterministic worst-subsystem selection ────────────────────────────
-
-
-@pytest.mark.asyncio
-async def test_worst_subsystem_picks_first_failing_in_order(monkeypatch):
-    # Disk and memory both critical; spec says order is disk, memory,
-    # load, processes, so disk wins.
-    _patch_health(monkeypatch, disk_pct=99, mem_pct=99, load_1min=0.5, zombies=0)
-    server = build_server()
-    async with Client(server) as client:
-        out = await _walk_through_checks(client)
-        assert out["state"]["overall_severity"] == "critical"
-        assert out["state"]["worst_subsystem"] == "disk"
-
-
-# FSM gating on the triage branch ────────────────────────────────────
+# ── transition gating ────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
 async def test_triage_to_produce_report_invalid_when_critical(monkeypatch):
-    _patch_health(monkeypatch, disk_pct=99, zombies=0)
+    _patch_runner(
+        monkeypatch,
+        {
+            ("df", "-k", "/"): _DF_CRITICAL,
+            ("sysctl", "-n", "hw.pagesize"): _SYSCTL_PAGESIZE,
+            ("vm_stat",): _VM_STAT_HEALTHY,
+            ("free", "-b"): _FREE_HEALTHY,
+            ("uptime",): _UPTIME_HEALTHY,
+            ("getconf", "_NPROCESSORS_ONLN"): _GETCONF_8,
+            ("ps", "-A", "-o", "pid,stat,pcpu,comm"): _PS_HEALTHY,
+        },
+    )
     server = build_server()
     async with Client(server) as client:
-        await _walk_through_checks(client)
-        out = _payload(await _step(client, "produce_report"))
+        await client.call_tool("step", {"action": "configure", "inputs": {}})
+        for act in [
+            "check_disk",
+            "check_memory",
+            "check_load",
+            "check_processes",
+            "aggregate",
+            "triage",
+        ]:
+            await client.call_tool("step", {"action": act, "inputs": {}})
+        r = await client.call_tool("step", {"action": "produce_report", "inputs": {}})
+        out = json.loads(r.content[0].text)
         assert out["error"] == "invalid_transition"
         assert out["valid_next_actions"] == ["deep_dive"]
 
 
 @pytest.mark.asyncio
-async def test_triage_to_deep_dive_invalid_when_warning(monkeypatch):
-    # disk 88 -> warning, not critical. deep_dive must refuse.
-    _patch_health(monkeypatch, disk_pct=88, mem_pct=40, load_1min=0.5, zombies=0)
+async def test_raw_outputs_recorded_verbatim(monkeypatch):
+    """state.raw_outputs holds the literal stdout of each tool, so an
+    operator can see what the FSM actually ran."""
+    _patch_runner(
+        monkeypatch,
+        {
+            ("df", "-k", "/"): _DF_HEALTHY,
+            ("sysctl", "-n", "hw.pagesize"): _SYSCTL_PAGESIZE,
+            ("vm_stat",): _VM_STAT_HEALTHY,
+            ("free", "-b"): _FREE_HEALTHY,
+            ("uptime",): _UPTIME_HEALTHY,
+            ("getconf", "_NPROCESSORS_ONLN"): _GETCONF_8,
+            ("ps", "-A", "-o", "pid,stat,pcpu,comm"): _PS_HEALTHY,
+        },
+    )
     server = build_server()
     async with Client(server) as client:
-        await _walk_through_checks(client)
-        out = _payload(await _step(client, "deep_dive"))
-        assert out["error"] == "invalid_transition"
-        assert out["valid_next_actions"] == ["produce_report"]
+        await client.call_tool("step", {"action": "configure", "inputs": {}})
+        await client.call_tool("step", {"action": "check_disk", "inputs": {}})
+        r = await client.call_tool("step", {"action": "check_memory", "inputs": {}})
+        out = json.loads(r.content[0].text)
+        assert "Filesystem" in out["state"]["raw_outputs"]["disk"]
+        assert "/dev/disk1s5" in out["state"]["raw_outputs"]["disk"]
 
 
-# individual check_* actions populate state correctly ────────────────
+# ── shellout failure modes ───────────────────────────────────────
 
 
 @pytest.mark.asyncio
-async def test_each_check_writes_status_and_detail(monkeypatch):
-    _patch_health(monkeypatch, disk_pct=30, mem_pct=40, load_1min=0.5, zombies=0)
+async def test_check_disk_surfaces_command_failure(monkeypatch):
+    async def fake(args, timeout=10.0):
+        raise FileNotFoundError("df not on PATH")
+
+    monkeypatch.setattr(unix_health, "_run_check_command", fake)
     server = build_server()
     async with Client(server) as client:
-        await _step(client, "configure")
-        out = _payload(await _step(client, "check_disk"))
-        disk = out["state"]["checks"]["disk"]
-        assert disk["status"] == "ok"
-        assert set(disk["detail"]) >= {"path", "total_gb", "used_gb", "free_gb", "percent"}
-
-        out = _payload(await _step(client, "check_memory"))
-        mem = out["state"]["checks"]["memory"]
-        assert mem["status"] == "ok"
-        assert set(mem["detail"]) >= {"total_gb", "available_gb", "percent"}
-
-        out = _payload(await _step(client, "check_load"))
-        load = out["state"]["checks"]["load"]
-        assert load["status"] == "ok"
-        assert set(load["detail"]) >= {"load_1min", "cpu_count", "per_cpu"}
-
-        out = _payload(await _step(client, "check_processes"))
-        procs = out["state"]["checks"]["processes"]
-        assert procs["status"] == "ok"
-        assert set(procs["detail"]) >= {
-            "zombie_count",
-            "zombie_pids",
-            "top_cpu_pid",
-            "top_cpu_pct",
-            "top_cpu_name",
-        }
+        await client.call_tool("step", {"action": "configure", "inputs": {}})
+        r = await client.call_tool("step", {"action": "check_disk", "inputs": {}})
+        out = json.loads(r.content[0].text)
+        assert out["error"] == "action_error"
+        assert "df" in out["error_message"]

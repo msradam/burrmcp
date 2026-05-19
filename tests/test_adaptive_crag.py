@@ -71,10 +71,66 @@ def test_retrieval_helpers_reuse_parallel_research_implementations():
 
 
 def test_retrieve_top_returns_source_prefixed_keys():
-    retrieved = _retrieve_top("how do I roll back a deploy")
+    retrieved = _retrieve_top("how do I roll back a deploy", parallel_research._DATA_DIR)
     assert retrieved, "expected hits in the shipped corpus"
     for key in retrieved:
         assert "/" in key, f"expected '<source>/<doc>' key, got {key!r}"
+
+
+@pytest.mark.asyncio
+async def test_ask_accepts_custom_corpus_dir(monkeypatch, tmp_path):
+    """Pointing at a user-supplied corpus directory makes retrieve
+    search that directory instead of the shipped one."""
+    # Build a tiny custom corpus: tmp_path/<source>/<doc>.md
+    src = tmp_path / "ops"
+    src.mkdir()
+    (src / "rollback.md").write_text(
+        "# Rollback runbook\n\nTo roll back, run `deploy-cli rollback`.\n"
+    )
+    # Granite gets canned responses for synth + grade.
+    _patch_granite(monkeypatch, "Run deploy-cli rollback.", "5: grounded.")
+    server = build_server()
+    async with Client(server) as client:
+        await client.call_tool(
+            "step",
+            {
+                "action": "ask",
+                "inputs": {"question": "how do I roll back?", "corpus_dir": str(tmp_path)},
+            },
+        )
+        await client.call_tool("step", {"action": "retrieve", "inputs": {}})
+        r = await client.call_tool("step", {"action": "retrieve", "inputs": {}})
+        # State sanity: corpus_dir resolved to the custom path; retrieved
+        # only includes docs from the custom corpus, not the shipped one.
+        # (retrieve was already called once above; check current state.)
+        await client.call_tool("step", {"action": "synthesize", "inputs": {}})
+        r = await client.call_tool("step", {"action": "grade", "inputs": {}})
+        out = json.loads(r.content[0].text)
+        assert out["state"]["corpus_dir"].rstrip("/") == str(tmp_path).rstrip("/")
+        # Citations come from the custom corpus.
+        assert any("ops/rollback.md" in k for k in out["state"]["retrieved"])
+        assert not any(
+            "services/" in k or "runbooks/" in k or "faqs/" in k for k in out["state"]["retrieved"]
+        )
+
+
+@pytest.mark.asyncio
+async def test_ask_rejects_nonexistent_corpus_dir():
+    server = build_server()
+    async with Client(server) as client:
+        r = await client.call_tool(
+            "step",
+            {
+                "action": "ask",
+                "inputs": {
+                    "question": "x",
+                    "corpus_dir": "/tmp/definitely-does-not-exist-xyz123",
+                },
+            },
+        )
+        out = json.loads(r.content[0].text)
+        assert out["error"] == "action_error"
+        assert "does not exist" in out["error_message"]
 
 
 def test_parse_grade_tolerates_whitespace_and_missing_reason():
