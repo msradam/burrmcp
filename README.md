@@ -3,7 +3,7 @@
 Mount [Burr](https://burr.dagworks.io/) Applications as
 [MCP](https://modelcontextprotocol.io/) servers.
 
-Status: experiment, v0.1.0.
+Status: experiment, v0.2.0.
 
 ## What this is
 
@@ -103,15 +103,38 @@ keep its own model of the graph can recover from one error.
 
 ## Resources
 
-Every mounted server registers two MCP resources:
+Every mounted server registers three MCP resources:
 
 | URI | Returns |
 |---|---|
 | `burr://state` | Current Application state as JSON. Internal Burr keys (`__PRIOR_STEP`, `__SEQUENCE_ID`) filtered. |
 | `burr://next` | Action names reachable from the current state. Empty list after a terminal action. |
+| `burr://history` | Per-session timeline of every action attempted (successes and refusals). |
 
-A client that wants to know "where am I and what can I do next" reads
-those two and has the answer.
+A client that wants to know "where am I, what can I do next, and what
+already happened in this session" reads those three and has the answer.
+
+### History entry shape
+
+Each `burr://history` entry:
+
+```jsonc
+{
+  "seq": 0,
+  "ts": "2026-05-19T15:21:33.456+00:00",
+  "action": "take_order",
+  "inputs": {"item": "latte", "qty": 1},
+  "state_after": {"stage": "ordered", "item": "latte", "qty": 1},
+  "valid_next_actions": ["pay"],
+  "refused": false,
+  "refusal_reason": null
+}
+```
+
+Refused attempts (invalid transitions, unknown actions) appear in the
+same list with `refused: true`, `refusal_reason` set, and
+`state_after: null`. Anyone with the history can replay the session
+or audit it without filesystem access to Burr's tracker output.
 
 ## Install
 
@@ -180,8 +203,8 @@ uv run pytest
 ```
 
 Tests drive each mode through an in-process FastMCP client. No
-subprocess, no stdio framing. Thirty-four tests, runs in about a
-tenth of a second.
+subprocess, no stdio framing. Forty-two tests, runs in about a
+sixth of a second.
 
 ## Design notes
 
@@ -248,11 +271,23 @@ Shipped in v0.1.0:
 - `burr-mcp serve module:attr` CLI.
 - CI on 3.11/3.12/3.13.
 
+Shipped in v0.2.0:
+
+- `burr://history` resource: per-session audit trail of every action
+  attempt (successes and refusals).
+- DYNAMIC mode now uses `ctx.enable_components` / `ctx.disable_components`
+  for true per-session visibility. Concurrent sessions see independent
+  tool lists, verified by `tests/test_dynamic_per_session.py`. The
+  earlier version used the server-wide `mcp.enable`/`mcp.disable`,
+  which leaked visibility across sessions.
+
 Next:
 
-- v0.2: session-store eviction on disconnect, audit-trail resource
-  surfacing Burr's tracker output, HTTP/SSE transport docs.
-- v0.3: subgraph mounting (a Burr subgraph spawned from inside an
+- v0.3: session-store eviction on disconnect (long-running servers
+  currently leak Application + history entries until restart), HTTP
+  and SSE transport examples, optional Burr-tracker passthrough
+  exposing on-disk traces via a resource.
+- v0.4: subgraph mounting (a Burr subgraph spawned from inside an
   action, exposed as a sub-resource), input validation hooks beyond
   Burr's `inputs` declaration.
 

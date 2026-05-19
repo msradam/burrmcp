@@ -1,6 +1,6 @@
 [project]
 name = "burr-mcp"
-version = "0.1.0"
+version = "0.2.0"
 description = "Mount Burr Applications as MCP servers. FSM-as-API, not tools-as-API."
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
