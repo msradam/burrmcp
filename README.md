@@ -13,7 +13,7 @@ are valid, and `burr_app_from_fastmcp(...)` lifts it into a Burr
 Application that mounts the same way, gaining transition enforcement,
 audit history, and per-session isolation.
 
-Status: v1.2.0.
+Status: v1.3.0.
 
 ## What this is
 
@@ -204,6 +204,15 @@ Re-read `burr://state` only for forensic checks; `burr://next` only
 when you need a refresher mid-session. The server-level instructions
 include a one-line hint pointing at this flow, so the model sees it
 before the first tool call.
+
+**Reset.** Every mounted server registers a `reset_session` MCP tool
+that's always callable regardless of FSM state. In factory mode it
+rebuilds the session's Application from the factory, clears
+sub-runs, and appends a `reset_session` marker to history (prior
+entries preserved). Useful when an agent reaches a terminal state or
+a dead-end branch and wants to try a different path without
+disconnecting. Refuses in shared-app mode where the operation would
+affect every connected client.
 
 `burr://history` and `burr://trace` are complementary. History is one
 entry per attempted action (including refusals), structured for the
@@ -402,7 +411,7 @@ burr-mcp serve triage:build_application
 uv run pytest
 ```
 
-One hundred and fourteen tests in about 3.7 seconds. Most use FastMCP's in-process
+One hundred and twenty-three tests in about 3.6 seconds. Most use FastMCP's in-process
 client; `tests/test_http_transport.py` spawns the HTTP example as a
 subprocess and drives it with two real HTTP clients.
 `tests/test_hardening.py` covers action exceptions, concurrent steps
@@ -518,6 +527,26 @@ Shipped in v0.3.0:
 - `tests/test_http_transport.py`: spawns the HTTP example as a
   subprocess and drives it with two concurrent HTTP clients to
   verify per-session isolation on the wire format.
+
+Shipped in v1.3.0:
+
+- `reset_session` MCP tool. Always callable regardless of FSM state.
+  In factory mode, rebuilds the session's Application via the factory,
+  clears any spawned sub-runs, and appends a `reset_session` marker
+  to history (prior entries preserved, so the audit trail shows the
+  reset rather than wiping it). In shared-app mode, refuses with a
+  structured `reset_not_supported` error explaining why. Surfaced in
+  `burr://graph` under a new `meta_tools` field so a connecting agent
+  discovers the escape hatch during cold-start.
+- The cold-start discovery hint in server instructions now mentions
+  `reset_session` so agents know to call it after reaching a terminal
+  state or a dead-end branch, instead of asking the human to restart
+  the server.
+
+Surfaced by a real Claude Code session: an agent that walked the
+adventure to victory wanted to try the alternate path, correctly
+diagnosed that the FSM was terminal, and asked whether the server
+exposed a reset mechanism. It didn't. Now it does.
 
 Shipped in v1.2.0:
 
