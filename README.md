@@ -3,7 +3,7 @@
 Mount [Burr](https://burr.dagworks.io/) Applications as
 [MCP](https://modelcontextprotocol.io/) servers.
 
-Status: experiment, v0.7.0.
+Status: experiment, v0.8.0.
 
 ## What this is
 
@@ -291,7 +291,7 @@ burr-mcp serve triage:build_application
 uv run pytest
 ```
 
-Seventy-six tests in about 2.7 seconds. Most use FastMCP's in-process
+Eighty tests in about 3.4 seconds. Most use FastMCP's in-process
 client; `tests/test_http_transport.py` spawns the HTTP example as a
 subprocess and drives it with two real HTTP clients.
 `tests/test_hardening.py` covers action exceptions, concurrent steps
@@ -304,6 +304,10 @@ get cancelled, fast ones pass through, no-timeout leaves slow work
 alone, and timeouts apply in TOOLS mode too.
 `tests/test_trace.py` covers the tracker passthrough: no-tracker
 error, post-step content, path resolution, traversal safety.
+`tests/test_per_action_timeout.py` covers the per-tool override:
+ToolSpec timeout wins over the server default, applies when there's
+no server default, inheriting when no override is set, and the
+hand-tagged escape hatch for non-importer Burr actions.
 
 ## Design notes
 
@@ -404,6 +408,16 @@ Shipped in v0.3.0:
   subprocess and drives it with two concurrent HTTP clients to
   verify per-session isolation on the wire format.
 
+Shipped in v0.8.0:
+
+- `examples/sse_serve.py`: serve over the older SSE transport for
+  clients that don't yet support Streamable HTTP.
+- Per-action timeout overrides. `ToolSpec(timeout_seconds=N)` in the
+  importer applies a timeout to that action only, regardless of the
+  server-wide `action_timeout_seconds`. Hand-written Burr actions can
+  opt in by setting `fn._burr_mcp_timeout_seconds = N` on the
+  decorated function.
+
 Shipped in v0.7.0:
 
 - `burr://trace` resource: read-through of Burr's on-disk
@@ -459,8 +473,6 @@ Shipped in v0.4.0 (hardening for frontier-model deployments):
 
 Next:
 
-- v0.8: SSE transport example, per-action timeout overrides on
-  `ToolSpec`.
 - v0.9: input validation hooks beyond Burr's `inputs` declaration.
 - v1.0: subgraph mounting (a Burr subgraph spawned from inside an
   action, exposed as a sub-resource).

@@ -86,6 +86,13 @@ class ToolSpec:
     ``rename`` lets the user change the action's name in the resulting
     Burr graph without renaming the original tool. Useful when two
     flat servers each had a ``status`` tool and they're being merged.
+
+    ``timeout_seconds`` declares a per-action timeout. The importer
+    annotates the wrapped action with this value via a function
+    attribute; ``mount`` reads it back and applies it only to this
+    action, taking precedence over the server-wide
+    ``action_timeout_seconds`` on ``mount``. Set to ``None`` (the
+    default) to inherit the server-wide setting.
     """
 
     reads: list[str] = field(default_factory=list)
@@ -93,6 +100,7 @@ class ToolSpec:
     merge_result: bool = False
     state_update: Callable[[Any], dict[str, Any]] | None = None
     rename: str | None = None
+    timeout_seconds: float | None = None
 
 
 def _build_wrapper(
@@ -153,6 +161,11 @@ def _build_wrapper(
     # for downstream schema generation. ``state`` gets no annotation.
     wrapper.__annotations__ = dict(getattr(tool_fn, "__annotations__", {}))
     wrapper.__annotations__.pop("return", None)
+    # Stash the per-tool timeout on the wrapper as a discoverable
+    # attribute. ``mount`` reads ``_burr_mcp_timeout_seconds`` off each
+    # action's ``fn`` to pick up these per-action overrides.
+    if spec.timeout_seconds is not None:
+        wrapper._burr_mcp_timeout_seconds = spec.timeout_seconds  # type: ignore[attr-defined]
     return wrapper
 
 
