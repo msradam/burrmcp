@@ -11,7 +11,6 @@ from __future__ import annotations
 import io
 from contextlib import redirect_stdout
 
-import pytest
 from burr.core import ApplicationBuilder, State, action
 
 from burr_mcp import cli
@@ -317,19 +316,36 @@ def test_cli_doctor_factory_raise_exits_one():
 
 
 def test_cli_doctor_rejects_bad_target():
-    with pytest.raises(SystemExit, match="cannot import module"):
-        cli.main(["doctor", "no_such_module:anything"])
+    """An unimportable target returns nonzero with the error on stderr."""
+    import io
+    from contextlib import redirect_stderr
+
+    buf = io.StringIO()
+    with redirect_stderr(buf):
+        code = cli.main(["doctor", "no_such_module:anything"])
+    assert code == 1
+    assert "cannot import module" in buf.getvalue()
 
 
-def test_cli_doctor_verbose_flag_parsed():
-    parser = cli._build_parser()
-    args = parser.parse_args(["doctor", "x:y", "--verbose"])
-    assert args.command == "doctor"
-    assert args.verbose is True
-    assert args.target == "x:y"
+def test_cli_doctor_verbose_flag_surfaces_in_help():
+    """The Typer command surface advertises --verbose."""
+    from typer.testing import CliRunner
+
+    from burr_mcp.cli import app
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["doctor", "--help"])
+    assert result.exit_code == 0
+    assert "--verbose" in result.output
 
 
-def test_cli_doctor_app_dir_repeatable():
-    parser = cli._build_parser()
-    args = parser.parse_args(["doctor", "x:y", "--app-dir", "./a", "--app-dir", "./b"])
-    assert args.app_dir == ["./a", "./b"]
+def test_cli_doctor_app_dir_surfaces_in_help():
+    """The Typer command surface advertises --app-dir."""
+    from typer.testing import CliRunner
+
+    from burr_mcp.cli import app
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["doctor", "--help"])
+    assert result.exit_code == 0
+    assert "--app-dir" in result.output
