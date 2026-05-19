@@ -9,10 +9,10 @@ from __future__ import annotations
 import json
 
 import pytest
+from coffee_order import build_server
 from fastmcp import Client
 
 from burr_mcp import ServingMode
-from coffee_order import build_server
 
 
 @pytest.mark.asyncio

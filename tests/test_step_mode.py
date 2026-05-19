@@ -10,10 +10,10 @@ from __future__ import annotations
 import json
 
 import pytest
+from coffee_order import build_server
 from fastmcp import Client
 
 from burr_mcp import ServingMode
-from coffee_order import build_server
 
 
 @pytest.mark.asyncio
@@ -87,8 +87,6 @@ async def test_next_resource_lists_valid_actions():
     async with Client(server) as client:
         result = await client.read_resource("burr://next")
         assert json.loads(result[0].text) == ["take_order"]
-        await client.call_tool(
-            "step", {"action": "take_order", "inputs": {"item": "latte"}}
-        )
+        await client.call_tool("step", {"action": "take_order", "inputs": {"item": "latte"}})
         result = await client.read_resource("burr://next")
         assert json.loads(result[0].text) == ["pay"]

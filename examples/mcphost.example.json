@@ -1,5 +1,5 @@
 {
-  "_comment": "Copy to ~/.mcp.json (or pass --config <this-file>) after editing the absolute path under args[1] to match your checkout.",
+  "_comment": "Copy to ~/.mcp.json (or pass --config <this-file>) after editing the absolute paths. coffee runs the example script directly; triage uses the burr-mcp CLI with --app-dir to make examples/ importable.",
   "mcpServers": {
     "burr-mcp-coffee": {
       "type": "stdio",
@@ -10,6 +10,20 @@
         "run",
         "python",
         "examples/coffee_order.py"
+      ]
+    },
+    "burr-mcp-triage": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/ABSOLUTE/PATH/TO/burr-mcp",
+        "run",
+        "burr-mcp",
+        "serve",
+        "triage:build_application",
+        "--app-dir",
+        "examples"
       ]
     }
   }
