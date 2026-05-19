@@ -1,27 +1,55 @@
 # burr-mcp
 
-Mount [Burr](https://burr.dagworks.io/) Applications as
-[MCP](https://modelcontextprotocol.io/) servers.
+**An adapter that turns a [Burr](https://burr.dagworks.io/) state
+machine into an [MCP](https://modelcontextprotocol.io/) server.** Each
+`@action` becomes a tool, state lives on the server, and an agent
+connecting over MCP can only call actions reachable from the current
+state. Calls to unreachable actions come back as structured errors
+that list the actions that *are* reachable.
 
-Status: v1.1.0.
+Or, in the other direction: take an existing flat FastMCP server,
+declare which tools mutate which state keys and which transitions
+are valid, and `burr_app_from_fastmcp(...)` lifts it into a Burr
+Application that mounts the same way, gaining transition enforcement,
+audit history, and per-session isolation.
+
+Status: v1.2.0.
 
 ## What this is
 
-A small adapter. You define a state machine with Burr (`@action`,
-`ApplicationBuilder`, transitions). `burr_mcp.mount(application)`
-returns a FastMCP server that exposes the state machine over the MCP
-wire protocol.
+An adapter library. You write a Burr state machine. `mount(application)`
+returns a FastMCP server. That's the whole pitch.
 
-Each Burr action becomes an MCP tool. State lives on the server.
-Transitions can be enforced by the server, so a client that calls an
-action which isn't reachable from current state gets back a structured
-error listing the actions that *are* reachable.
+The adapter does the wiring:
+
+- Each Burr `@action` becomes an MCP tool (or one meta-tool, or a
+  state-gated tool list; see "serving modes" below).
+- The full graph is advertised as a static `burr://graph` resource so
+  a connecting agent learns the topology in one read.
+- Current state and valid-next-actions are inlined on every tool
+  response so the agent doesn't have to keep polling.
+- Per-session isolation via factory mode; TTL/LRU eviction; session
+  locks so concurrent calls don't race on Burr's not-thread-safe
+  Application instance.
+- Sub-Application composition: an action can call
+  `spawn_subapp(sub_app)` and the nested timeline becomes addressable
+  at `burr://subruns/{id}`.
+- Five structured refusal classes (invalid transition, unknown action,
+  action error, action timeout, validation failed) recorded in a
+  per-session history resource.
 
 `mount(...)` accepts either a built `Application` (shared across all
 connected clients) or a callable `() -> Application` (each MCP
 session gets its own state). The factory form is the right default
 for multi-client servers; the instance form is fine for single-user
 local tooling.
+
+The example library covers the common shapes: see [Examples](#examples)
+for a CLI-wrapping git review server, a text adventure, an incident-
+response showcase, a flat-server lift, a sub-graph composition, and
+the toy coffee/triage FSMs. These mirror patterns from
+[Burr's own example library](https://github.com/apache/burr/tree/main/examples)
+applied to the MCP wire format.
 
 ## Why bother
 
@@ -233,6 +261,30 @@ uv sync
 
 Python 3.11 through 3.13.
 
+## Examples
+
+The `examples/` directory has eight self-contained servers covering
+the patterns most people will hit. Each is runnable as
+`uv run python examples/<file>.py` and can be wired into Claude Code
+via the snippet in `examples/claude-code.example.json`.
+
+| File | Pattern | Notes |
+|---|---|---|
+| `coffee_order.py` | Linear FSM | Smallest interesting example: `take_order → pay → fulfill`. |
+| `triage.py` | Branching FSM | Classify input, then route to one of three branches based on the result. |
+| `subgraphs.py` | Sub-Application composition | Parent action spawns a sub-FSM via `spawn_subapp`; nested timeline at `burr://subruns/{id}`. |
+| `incident_response.py` | Showcase | Realistic ops workflow with all features (validators, sub-graphs, branching, conditional loop). The canonical Claude Code demo. |
+| `git_review.py` | CLI wrapping | An FSM whose actions wrap `git status` / `log` / `show` via subprocess. Demonstrates the "agent driving CLIs" pattern with FSM-enforced sequence. |
+| `adventure.py` | State-space traversal | Tiny text adventure where rooms are states and moves are gated transitions. Mirrors Burr's `llm-adventure-game`. Sharpest illustration of FSM-as-API. |
+| `import_flat.py` | Reverse direction | Lift an existing flat FastMCP server into a Burr graph via `burr_app_from_fastmcp(...)`. |
+| `http_serve.py` / `sse_serve.py` | Transports | Same coffee FSM served over Streamable HTTP / SSE. |
+
+For more FSM patterns to draw from, [Burr's example library](https://github.com/apache/burr/tree/main/examples)
+has 30+ Applications covering chatbots, RAG pipelines, ML training
+orchestration, recursive agents, and parallelism. Most of them can be
+mounted via `burr_mcp.mount(...)` without modification, and the
+audit/transition/validator surface comes along for free.
+
 ## Try it with Claude Code
 
 The included `examples/incident_response.py` is a realistic ops
@@ -350,7 +402,7 @@ burr-mcp serve triage:build_application
 uv run pytest
 ```
 
-One hundred and six tests in about 3.4 seconds. Most use FastMCP's in-process
+One hundred and fourteen tests in about 3.7 seconds. Most use FastMCP's in-process
 client; `tests/test_http_transport.py` spawns the HTTP example as a
 subprocess and drives it with two real HTTP clients.
 `tests/test_hardening.py` covers action exceptions, concurrent steps
@@ -466,6 +518,28 @@ Shipped in v0.3.0:
 - `tests/test_http_transport.py`: spawns the HTTP example as a
   subprocess and drives it with two concurrent HTTP clients to
   verify per-session isolation on the wire format.
+
+Shipped in v1.2.0:
+
+- Two new examples for the quickstart library:
+  - `examples/git_review.py`: CLI-wrapping FSM that runs real `git`
+    commands via subprocess and forces a useful inspection sequence
+    (`status → recent_commits → show_commit → summarize`). The
+    canonical example of the "wrap CLIs as gated actions" pattern.
+  - `examples/adventure.py`: text adventure with rooms as states
+    and inventory-gated moves, mirroring Burr's `llm-adventure-game`.
+    The FSM-as-API pitch at its sharpest.
+- Sharpened README opening to lead with the one-line definition
+  ("an adapter that turns a Burr state machine into an MCP server")
+  and a new `## Examples` table indexing all eight examples.
+- Bug fix: `_step_application` now forces Burr to execute the
+  specifically-requested action via a one-call override of
+  `app.get_next_action`. Previously, in branching graphs where two
+  transitions from the same source both satisfied their conditions,
+  Burr's `astep` ran whichever was listed first regardless of what
+  the client asked for. The adventure example surfaced it; the fix
+  is contained and tracker hooks still fire normally through Burr's
+  regular `_astep` machinery.
 
 Shipped in v1.1.0:
 

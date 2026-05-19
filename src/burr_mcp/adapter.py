@@ -800,6 +800,18 @@ async def _step_application(
     if validator is not None:
         inputs = await _run_validator(validator, _public_state(app.state.get_all()), inputs)
 
+    # Force Burr to run the specifically-requested action. ``astep``
+    # picks via ``self.get_next_action()``, which returns the first
+    # transition whose condition is true. In a branching graph that
+    # isn't necessarily the action the client named, so we override
+    # ``get_next_action`` for one call. Tracker hooks, state updates,
+    # and ``__PRIOR_STEP`` housekeeping all flow through Burr's normal
+    # ``_astep`` machinery; only the action selection is forced.
+    target_action = app.graph.get_action(action_name)
+    if target_action is None:
+        raise InvalidTransitionError(action_name, valid)
+    original_get_next_action = app.get_next_action
+    app.get_next_action = lambda: target_action  # type: ignore[method-assign]
     try:
         if timeout_seconds is not None:
             a, result, new_state = await asyncio.wait_for(
@@ -815,6 +827,8 @@ async def _step_application(
         # Anything raised by the wrapped action's fn comes out here.
         # Wrap so the handler can record a structured refusal entry.
         raise ActionExecutionError(action_name, exc) from exc
+    finally:
+        app.get_next_action = original_get_next_action  # type: ignore[method-assign]
     state, coerced = _serializable_state(_public_state(new_state.get_all()))
     if coerced:
         state["_burr_mcp"] = {"coerced_keys": coerced}
