@@ -659,6 +659,7 @@ def _record_history(
         record["error_type"] = error_type
     if subruns:
         record["subruns"] = subruns
+        record["subrun_uris"] = [f"burr://subruns/{sid}" for sid in subruns]
     entry.history.append(record)
     entry.last_access = time.monotonic()
 
@@ -1123,10 +1124,12 @@ def mount(
     async def _subruns_resource(ctx: Context) -> str:
         """Index of sub-Application runs spawned in this session.
 
-        Each entry has ``id``, ``label``, ``started_ts``, ``ended_ts``,
-        and the ``parent_action`` that spawned it. Full per-subrun
-        timelines live at ``burr://subruns/{id}``. Empty list if no
-        actions in this session called ``spawn_subapp``.
+        Each entry has ``id``, ``uri``, ``label``, ``started_ts``,
+        ``ended_ts``, and the ``parent_action`` that spawned it. The
+        ``uri`` field is the fully-rendered ``burr://subruns/{id}``
+        address, ready to read without constructing it from a template.
+        Empty list if no actions in this session called
+        ``spawn_subapp``.
         """
         if ctx is None:
             return json.dumps([])
@@ -1141,6 +1144,7 @@ def mount(
             index.append(
                 {
                     "id": sid,
+                    "uri": f"burr://subruns/{sid}",
                     "label": record.get("label"),
                     "started_ts": record.get("started_ts"),
                     "ended_ts": record.get("ended_ts"),
