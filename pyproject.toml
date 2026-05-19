@@ -27,6 +27,9 @@ dependencies = [
     "burr>=0.40.2,<0.41",
     "fastmcp>=3.2,<3.3",
     "pydantic>=2,<3",
+    # Typer for the burr-mcp CLI (serve, doctor). Brings click as a
+    # transitive; that's fine.
+    "typer>=0.12,<1.0",
 ]
 
 [project.optional-dependencies]

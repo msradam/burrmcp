@@ -1,16 +1,23 @@
-"""CLI: import-target resolution and error messages.
+"""CLI: import-target resolution and Typer command surface.
 
-The CLI's serve command is hard to test end-to-end without spawning a
-subprocess (server.run blocks on stdio). Cover the importable-target
-resolution and argument parsing here; the integration is covered by
-exercising the same code path the CLI uses (``mount``) in other tests.
+The CLI's ``serve`` command is hard to test end-to-end without spawning
+a subprocess (``server.run`` blocks on stdio). Cover the importable-
+target resolver and the Typer command shape here; the integration is
+covered by exercising the same code path (``mount``) in other tests.
 """
 
 from __future__ import annotations
 
 import pytest
+from typer.testing import CliRunner
 
-from burr_mcp.cli import _build_parser, _import_target
+from burr_mcp import cli
+from burr_mcp.cli import _import_target, app
+
+runner = CliRunner()
+
+
+# ── import-target resolver ────────────────────────────────────────
 
 
 def test_import_target_resolves_module_and_attr():
@@ -38,23 +45,67 @@ def test_import_target_rejects_missing_attr():
         _import_target("coffee_order:does_not_exist")
 
 
-def test_parser_defaults_serve_to_step_mode():
-    parser = _build_parser()
-    args = parser.parse_args(["serve", "coffee_order:build_application"])
-    assert args.command == "serve"
-    assert args.mode == "step"
-    assert args.target == "coffee_order:build_application"
-    assert args.name is None
+# ── Typer command surface ────────────────────────────────────────
 
 
-def test_parser_accepts_mode_and_name_overrides():
-    parser = _build_parser()
-    args = parser.parse_args(["serve", "x:y", "--mode", "dynamic", "--name", "my-server"])
-    assert args.mode == "dynamic"
-    assert args.name == "my-server"
+def test_root_help_lists_subcommands():
+    result = runner.invoke(app, ["--help"])
+    assert result.exit_code == 0
+    assert "serve" in result.output
+    assert "doctor" in result.output
 
 
-def test_parser_rejects_unknown_mode():
-    parser = _build_parser()
-    with pytest.raises(SystemExit):
-        parser.parse_args(["serve", "x:y", "--mode", "bogus"])
+def test_no_args_prints_help():
+    """`burr-mcp` with no args should show help (no_args_is_help=True)
+    rather than dropping the user into an unhelpful error."""
+    result = runner.invoke(app, [])
+    # Typer convention: no-args + no_args_is_help -> exit 2 with help printed.
+    assert "serve" in result.output
+    assert "doctor" in result.output
+
+
+def test_serve_help_mentions_mode_default():
+    result = runner.invoke(app, ["serve", "--help"])
+    assert result.exit_code == 0
+    assert "--mode" in result.output
+    # step is the default ServingMode; render varies by Typer version so
+    # just check the mode name appears.
+    assert "step" in result.output.lower()
+
+
+def test_serve_rejects_unknown_mode():
+    result = runner.invoke(app, ["serve", "x:y", "--mode", "bogus"])
+    assert result.exit_code != 0
+
+
+def test_doctor_help_mentions_verbose_flag():
+    result = runner.invoke(app, ["doctor", "--help"])
+    assert result.exit_code == 0
+    assert "--verbose" in result.output
+
+
+# ── main() entry point (still callable with argv for tests) ──────
+
+
+def test_main_returns_zero_on_doctor_clean_target():
+    code = cli.main(["doctor", "coffee_order:build_application"])
+    assert code == 0
+
+
+def test_main_returns_nonzero_on_doctor_failure():
+    """A target whose factory raises should make doctor exit nonzero."""
+    import sys
+    import types
+
+    mod = types.ModuleType("cli_test_broken")
+
+    def broken_factory():
+        raise RuntimeError("intentional")
+
+    mod.broken_factory = broken_factory
+    sys.modules["cli_test_broken"] = mod
+    try:
+        code = cli.main(["doctor", "cli_test_broken:broken_factory"])
+        assert code == 1
+    finally:
+        del sys.modules["cli_test_broken"]

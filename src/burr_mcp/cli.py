@@ -1,5 +1,9 @@
 """``burr-mcp`` CLI: launch or validate an importable Burr Application.
 
+Built with Typer, so ``burr-mcp --help`` and ``burr-mcp <subcommand>
+--help`` render structured help with the option types, defaults, and
+short descriptions baked in.
+
 Usage:
 
     burr-mcp serve coffee_order:build_application --mode step
@@ -7,22 +11,30 @@ Usage:
     burr-mcp doctor coffee_order:build_application
 
 The ``module:attr`` syntax matches uvicorn / gunicorn conventions. The
-referenced attribute can be either a built ``Application`` (shared
-across sessions) or a callable factory returning one (per-session
-isolation). See ``burr_mcp.mount`` for the distinction. The ``doctor``
-subcommand runs static validation against the resolved Application
-before you mount it.
+referenced attribute is either a built ``burr.core.Application``
+(shared across sessions) or a callable factory returning one (one
+build per session for state isolation). See ``burr_mcp.mount`` for
+the distinction. The ``doctor`` subcommand runs static validation
+against the resolved Application before you mount it.
 """
 
 from __future__ import annotations
 
-import argparse
 import importlib
 import os
 import sys
-from typing import Any
+from typing import Annotated, Any
+
+import typer
 
 from burr_mcp.adapter import ServingMode, mount
+
+app = typer.Typer(
+    name="burr-mcp",
+    help="Mount a Burr Application as an MCP server.",
+    no_args_is_help=True,
+    add_completion=False,
+)
 
 
 def _import_target(target: str, extra_paths: list[str] | None = None) -> Any:
@@ -58,94 +70,108 @@ def _import_target(target: str, extra_paths: list[str] | None = None) -> Any:
     return getattr(module, attr)
 
 
-def _build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(
-        prog="burr-mcp",
-        description="Mount a Burr Application as an MCP server.",
+@app.command()
+def serve(
+    target: Annotated[
+        str,
+        typer.Argument(
+            help=(
+                "Import target in module:attr form. The attr is either a "
+                "burr.core.Application or a callable returning one."
+            ),
+        ),
+    ],
+    mode: Annotated[
+        ServingMode,
+        typer.Option(
+            "--mode",
+            help="Serving mode.",
+            case_sensitive=False,
+        ),
+    ] = ServingMode.STEP,
+    name: Annotated[
+        str | None,
+        typer.Option(
+            "--name",
+            help="MCP server name surfaced to clients (default: derived from target).",
+        ),
+    ] = None,
+    app_dir: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--app-dir",
+            help=(
+                "Extra directory to prepend to sys.path before importing the target. "
+                "Repeatable. Use this when your FSM module lives in a subdirectory "
+                "of the project (e.g. --app-dir ./examples)."
+            ),
+        ),
+    ] = None,
+) -> None:
+    """Launch an importable Burr Application or factory as an MCP server."""
+    application_or_factory = _import_target(target, app_dir or [])
+    server_name = name or target.split(":", 1)[0].split(".")[-1]
+    server = mount(
+        application_or_factory,
+        mode=mode,
+        name=server_name,
     )
-    sub = p.add_subparsers(dest="command", required=True)
+    server.run()
 
-    serve = sub.add_parser(
-        "serve",
-        help="Launch an importable Burr Application or factory as an MCP server.",
-    )
-    serve.add_argument(
-        "target",
-        help="Import target in module:attr form. The attr is either a "
-        "burr.core.Application or a callable returning one.",
-    )
-    serve.add_argument(
-        "--mode",
-        choices=[m.value for m in ServingMode],
-        default=ServingMode.STEP.value,
-        help="Serving mode (default: step).",
-    )
-    serve.add_argument(
-        "--name",
-        default=None,
-        help="MCP server name surfaced to clients (default: derived from target).",
-    )
-    serve.add_argument(
-        "--app-dir",
-        action="append",
-        default=[],
-        metavar="PATH",
-        help="Extra directory to prepend to sys.path before importing the target. "
-        "Repeatable. Use this when your FSM module lives in a subdirectory of "
-        "the project (e.g. --app-dir ./examples).",
-    )
 
-    doctor = sub.add_parser(
-        "doctor",
-        help="Statically validate a Burr Application or factory before mounting.",
-    )
-    doctor.add_argument(
-        "target",
-        help="Import target in module:attr form. Same shape as `serve`.",
-    )
-    doctor.add_argument(
-        "--app-dir",
-        action="append",
-        default=[],
-        metavar="PATH",
-        help="Extra directory to prepend to sys.path before importing the target.",
-    )
-    doctor.add_argument(
-        "--verbose",
-        action="store_true",
-        help="Print message and details for every check, not just failures and warnings.",
-    )
-    return p
+@app.command()
+def doctor(
+    target: Annotated[
+        str,
+        typer.Argument(help="Import target in module:attr form. Same shape as `serve`."),
+    ],
+    app_dir: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--app-dir",
+            help="Extra directory to prepend to sys.path before importing the target.",
+        ),
+    ] = None,
+    verbose: Annotated[
+        bool,
+        typer.Option(
+            "--verbose",
+            help="Print message and details for every check, not just failures and warnings.",
+        ),
+    ] = False,
+) -> None:
+    """Statically validate a Burr Application or factory before mounting."""
+    from burr_mcp.doctor import format_report, run_checks
+
+    application_or_factory = _import_target(target, app_dir or [])
+    report = run_checks(application_or_factory)
+    typer.echo(format_report(report, verbose=verbose))
+    if not report.ok:
+        raise typer.Exit(code=1)
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = _build_parser()
-    args = parser.parse_args(argv)
-
-    if args.command == "serve":
-        application_or_factory = _import_target(args.target, args.app_dir)
-        server_name = args.name or args.target.split(":", 1)[0].split(".")[-1]
-        server = mount(
-            application_or_factory,
-            mode=ServingMode(args.mode),
-            name=server_name,
-        )
-        # FastMCP.run() handles stdio by default; HTTP/SSE transports
-        # are configured at the FastMCP layer if needed (out of scope
-        # for v0.1).
-        server.run()
-        return 0
-
-    if args.command == "doctor":
-        from burr_mcp.doctor import format_report, run_checks
-
-        application_or_factory = _import_target(args.target, args.app_dir)
-        report = run_checks(application_or_factory)
-        print(format_report(report, verbose=args.verbose))
-        return 0 if report.ok else 1
-
-    parser.print_help()
-    return 1
+    """Entry point. ``argv`` is for testing; ``None`` lets Typer read
+    ``sys.argv`` normally."""
+    try:
+        rv = app(args=argv, standalone_mode=False)
+        # With ``standalone_mode=False`` Typer/Click returns the exit
+        # code from any in-callback ``typer.Exit(code=N)`` as the call's
+        # return value rather than raising. Pass it through.
+        return rv if isinstance(rv, int) else 0
+    except typer.Exit as e:
+        return e.exit_code or 0
+    except SystemExit as e:
+        # ``_import_target`` raises ``SystemExit(message)`` with a string
+        # code on import/attribute failure. Surface the message to stderr
+        # and return a clean nonzero so callers see a structured error
+        # rather than a stack trace.
+        if e.code is None:
+            return 0
+        if isinstance(e.code, int):
+            return e.code
+        print(e.code, file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":
