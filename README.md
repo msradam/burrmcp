@@ -3,7 +3,7 @@
 Mount [Burr](https://burr.dagworks.io/) Applications as
 [MCP](https://modelcontextprotocol.io/) servers.
 
-Status: experiment, v0.4.0.
+Status: experiment, v0.5.0.
 
 ## What this is
 
@@ -53,6 +53,60 @@ Cursor [doesn't refresh on its own](https://forum.cursor.com/t/mcps-tool-list-ch
 Claude Desktop's behavior is inconsistent across versions. `STEP` keeps
 the tool list static; the server enforces transitions inside the meta
 tool.
+
+## Lifting an existing FastMCP server
+
+The most common starting point isn't "I have a Burr graph and I want
+to serve it" but "I have a FastMCP server with a bunch of tools and
+I want to add transition enforcement and an audit trail." For that,
+the importer:
+
+```python
+from fastmcp import FastMCP
+from burr_mcp import ServingMode, ToolSpec, burr_app_from_fastmcp, mount
+
+flat = FastMCP("legacy")
+
+@flat.tool
+async def create_order(item: str) -> dict:
+    return {"order_id": "ORD-1", "item": item}
+
+@flat.tool
+async def pay(order_id: str, amount: float) -> dict:
+    return {"paid": True, "receipt": "R-99"}
+
+@flat.tool
+async def fulfill(order_id: str) -> dict:
+    return {"status": "fulfilled"}
+
+# Declare the implicit state machine.
+app = await burr_app_from_fastmcp(
+    flat,
+    entrypoint="create_order",
+    initial_state={"order_id": None, "paid": False},
+    tool_specs={
+        "create_order": ToolSpec(writes=["order_id"], merge_result=True),
+        "pay":          ToolSpec(reads=["order_id"], writes=["paid"], merge_result=True),
+        "fulfill":      ToolSpec(reads=["order_id", "paid"]),
+    },
+    transitions=[("create_order", "pay"), ("pay", "fulfill")],
+)
+
+server = mount(app, mode=ServingMode.STEP, name="lifted")
+```
+
+The verbosity sits on `tool_specs` and `transitions`. That's the user
+articulating the state machine their tools were already describing.
+The library doesn't try to guess: declaring it explicitly is the only
+honest move because parameter names don't tell you which tools mutate
+shared state. What carries over from the original tools without any
+declaration: parameter names, types, defaults, docstrings, async/sync
+nature. See `examples/import_flat.py` for the full pattern.
+
+`ToolSpec` also accepts `state_update` (an explicit callable taking
+the tool's result and returning state mutations, overrides
+`merge_result`) and `rename` (change the action's name in the Burr
+graph, useful when merging multiple flat servers).
 
 ## Coffee in 30 lines
 
@@ -231,11 +285,14 @@ burr-mcp serve triage:build_application
 uv run pytest
 ```
 
-Fifty-five tests in about 1.6 seconds. Most use FastMCP's in-process
+Sixty-five tests in about 1.6 seconds. Most use FastMCP's in-process
 client; `tests/test_http_transport.py` spawns the HTTP example as a
 subprocess and drives it with two real HTTP clients.
 `tests/test_hardening.py` covers action exceptions, concurrent steps
 within one session, and non-JSON state coercion.
+`tests/test_importing.py` covers the lift-a-flat-server path: sync
+and async tools, branching transitions, signature preservation, and
+the `only`/`rename`/`state_update` options.
 
 ## Design notes
 
@@ -336,6 +393,18 @@ Shipped in v0.3.0:
   subprocess and drives it with two concurrent HTTP clients to
   verify per-session isolation on the wire format.
 
+Shipped in v0.5.0:
+
+- `burr_app_from_fastmcp(...)` importer: lift an existing FastMCP
+  server's tools into a Burr Application by declaring per-tool
+  reads/writes plus the legal transitions. The result re-mounts via
+  `mount()` like any other Burr Application, gaining transition
+  enforcement, audit history, per-session isolation, eviction, and
+  everything else burr-mcp provides.
+- `ToolSpec` dataclass for the per-tool declarations:
+  `reads`/`writes`/`merge_result`/`state_update`/`rename`.
+- `examples/import_flat.py` shows the full pattern end-to-end.
+
 Shipped in v0.4.0 (hardening for frontier-model deployments):
 
 - Action exceptions are captured. If an action's wrapped function
@@ -357,11 +426,11 @@ Shipped in v0.4.0 (hardening for frontier-model deployments):
 
 Next:
 
-- v0.5: optional Burr-tracker passthrough exposing on-disk traces
+- v0.6: optional Burr-tracker passthrough exposing on-disk traces
   as a resource, SSE transport example, public PyPI release.
-- v0.6: subgraph mounting (a Burr subgraph spawned from inside an
+- v0.7: subgraph mounting (a Burr subgraph spawned from inside an
   action, exposed as a sub-resource), input validation hooks beyond
-  Burr's `inputs` declaration.
+  Burr's `inputs` declaration, action-call timeout / cancellation.
 
 ## License
 
