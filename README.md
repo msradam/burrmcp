@@ -3,7 +3,7 @@
 Mount [Burr](https://burr.dagworks.io/) Applications as
 [MCP](https://modelcontextprotocol.io/) servers.
 
-Status: experiment, v0.3.0.
+Status: experiment, v0.4.0.
 
 ## What this is
 
@@ -131,10 +131,20 @@ Each `burr://history` entry:
 }
 ```
 
-Refused attempts (invalid transitions, unknown actions) appear in the
-same list with `refused: true`, `refusal_reason` set, and
-`state_after: null`. Anyone with the history can replay the session
-or audit it without filesystem access to Burr's tracker output.
+Refused attempts appear in the same list with `refused: true` and one
+of three `refusal_reason` values:
+
+- `invalid_transition`: the requested action isn't reachable from
+  current state. `valid_next_actions` lists what is.
+- `unknown_action`: the action name isn't in the graph.
+- `action_error`: the action's wrapped function raised during
+  execution. The entry also carries `error_type` and `error_message`
+  so the client can distinguish "the FSM said no" from "the action's
+  code blew up." State is not advanced; the FSM stays at its prior
+  position.
+
+Anyone with the history can replay the session or audit it without
+filesystem access to Burr's tracker output.
 
 ## Install
 
@@ -221,9 +231,11 @@ burr-mcp serve triage:build_application
 uv run pytest
 ```
 
-Fifty tests in about 1.5 seconds. Most use FastMCP's in-process
+Fifty-five tests in about 1.6 seconds. Most use FastMCP's in-process
 client; `tests/test_http_transport.py` spawns the HTTP example as a
 subprocess and drives it with two real HTTP clients.
+`tests/test_hardening.py` covers action exceptions, concurrent steps
+within one session, and non-JSON state coercion.
 
 ## Design notes
 
@@ -324,11 +336,30 @@ Shipped in v0.3.0:
   subprocess and drives it with two concurrent HTTP clients to
   verify per-session isolation on the wire format.
 
+Shipped in v0.4.0 (hardening for frontier-model deployments):
+
+- Action exceptions are captured. If an action's wrapped function
+  raises, the adapter wraps it as `ActionExecutionError`, returns a
+  structured `{"error": "action_error", "error_type": "...",
+  "error_message": "..."}` to the client, records the same shape in
+  `burr://history` with `refusal_reason: "action_error"`, and does
+  not advance state. The session stays at its prior position.
+- Per-session `asyncio.Lock` around `app.astep`. Burr Applications
+  are not thread-safe and the MCP protocol permits parallel tool
+  calls within one session; the lock serialises them. Different
+  sessions still proceed in parallel.
+- Non-JSON-serialisable state values are coerced to strings rather
+  than silently breaking the resource. The state response surfaces
+  affected keys under `_burr_mcp.coerced_keys` so the client knows
+  the round-trip is lossy.
+- Burr pinned to `>=0.40.2,<0.41` since we rely on internal API
+  surface (`Action.fn`, `Action.inputs` tuple shape, `__PRIOR_STEP`).
+
 Next:
 
-- v0.4: optional Burr-tracker passthrough exposing on-disk traces
+- v0.5: optional Burr-tracker passthrough exposing on-disk traces
   as a resource, SSE transport example, public PyPI release.
-- v0.5: subgraph mounting (a Burr subgraph spawned from inside an
+- v0.6: subgraph mounting (a Burr subgraph spawned from inside an
   action, exposed as a sub-resource), input validation hooks beyond
   Burr's `inputs` declaration.
 
