@@ -18,7 +18,13 @@ patchy as of mid-2026: Claude Code ignores list_changed, Cursor
 doesn't refresh on its own.
 """
 
-from burr_mcp.adapter import ServingMode, mount
+from burr_mcp.adapter import ServingMode, ValidationFailed, mount
 from burr_mcp.importing import ToolSpec, burr_app_from_fastmcp
 
-__all__ = ["ServingMode", "ToolSpec", "burr_app_from_fastmcp", "mount"]
+__all__ = [
+    "ServingMode",
+    "ToolSpec",
+    "ValidationFailed",
+    "burr_app_from_fastmcp",
+    "mount",
+]
