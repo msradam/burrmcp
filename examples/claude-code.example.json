@@ -85,6 +85,48 @@
         "examples"
       ]
     },
+    "unix-health": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/ABSOLUTE/PATH/TO/burr-mcp",
+        "run",
+        "burr-mcp",
+        "serve",
+        "unix_health:build_application",
+        "--app-dir",
+        "examples"
+      ]
+    },
+    "codebase-security": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/ABSOLUTE/PATH/TO/burr-mcp",
+        "run",
+        "burr-mcp",
+        "serve",
+        "codebase_security:build_application",
+        "--app-dir",
+        "examples"
+      ]
+    },
+    "adaptive-crag": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/ABSOLUTE/PATH/TO/burr-mcp",
+        "run",
+        "burr-mcp",
+        "serve",
+        "adaptive_crag:build_application",
+        "--app-dir",
+        "examples"
+      ]
+    },
     "incident-response": {
       "type": "stdio",
       "command": "uv",
