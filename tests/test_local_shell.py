@@ -154,6 +154,82 @@ async def test_commit_clears_pending_and_resets_test_result():
 
 
 @pytest.mark.asyncio
+async def test_create_file_then_test_then_commit_adds_file_to_workspace():
+    """Happy path for creation: create -> run_tests -> commit lands
+    the new file in workspace."""
+    server = build_server()
+    async with Client(server) as client:
+        await _start(client)
+        await _step(client, "create_file", path="notes.md", content="# Notes\n\nhi\n")
+        await _step(client, "run_tests", result="passed")
+        out = _payload(await _step(client, "commit", message="add notes"))
+        assert out["state"]["workspace"]["notes.md"] == "# Notes\n\nhi\n"
+        assert out["state"]["pending_edits"] == {}
+
+
+@pytest.mark.asyncio
+async def test_create_file_refuses_to_overwrite_existing_workspace_file():
+    """The safety rule: create_file is for *new* files only. To modify
+    an existing file you go through read_file then edit_file."""
+    server = build_server()
+    async with Client(server) as client:
+        await _start(client)
+        out = _payload(await _step(client, "create_file", path="main.py", content="x = 1\n"))
+        assert out["error"] == "action_error"
+        assert "already exists" in out["error_message"]
+        assert "read_file then edit_file" in out["error_message"]
+
+
+@pytest.mark.asyncio
+async def test_create_file_refuses_to_overwrite_pending_create():
+    server = build_server()
+    async with Client(server) as client:
+        await _start(client)
+        await _step(client, "create_file", path="new.py", content="a\n")
+        out = _payload(await _step(client, "create_file", path="new.py", content="b\n"))
+        assert out["error"] == "action_error"
+        assert "already staged" in out["error_message"]
+
+
+@pytest.mark.asyncio
+async def test_after_create_file_edit_file_works_on_same_path():
+    """A freshly created file is implicitly 'read' since the agent
+    just wrote it, so edit_file is allowed without a read_file
+    detour."""
+    server = build_server()
+    async with Client(server) as client:
+        await _start(client)
+        await _step(client, "create_file", path="new.py", content="a = 1\n")
+        out = _payload(await _step(client, "edit_file", path="new.py", new_content="a = 2\n"))
+        assert "error" not in out
+        assert out["state"]["pending_edits"]["new.py"] == "a = 2\n"
+
+
+@pytest.mark.asyncio
+async def test_create_file_invalidates_prior_test_result():
+    server = build_server()
+    async with Client(server) as client:
+        await _start(client)
+        await _step(client, "read_file", path="main.py")
+        await _step(client, "edit_file", path="main.py", new_content="x = 1\n")
+        await _step(client, "run_tests", result="passed")
+        # Now create a fresh file. Prior pass is no longer authoritative.
+        await _step(client, "create_file", path="extra.py", content="y = 2\n")
+        out = _payload(await _step(client, "commit", message="both"))
+        assert out["error"] == "invalid_transition"
+
+
+@pytest.mark.asyncio
+async def test_create_file_with_empty_path_refused():
+    server = build_server()
+    async with Client(server) as client:
+        await _start(client)
+        out = _payload(await _step(client, "create_file", path="   ", content="x\n"))
+        assert out["error"] == "action_error"
+        assert "path must not be empty" in out["error_message"]
+
+
+@pytest.mark.asyncio
 async def test_burr_next_advertises_legal_actions_only():
     """A fresh session has no pending edits and no pending delete, so
     commit and confirm_delete should be absent from burr://next."""
@@ -167,3 +243,4 @@ async def test_burr_next_advertises_legal_actions_only():
         assert "read_file" in nxt
         assert "list_files" in nxt
         assert "run_tests" in nxt
+        assert "create_file" in nxt
