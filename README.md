@@ -13,7 +13,7 @@ are valid, and `burr_app_from_fastmcp(...)` lifts it into a Burr
 Application that mounts the same way, gaining transition enforcement,
 audit history, and per-session isolation.
 
-Status: v1.6.0.
+Status: v1.7.0.
 
 ## What this is
 
@@ -284,6 +284,7 @@ via the snippet in `examples/claude-code.example.json`.
 | `subgraphs.py` | Sub-Application composition | Parent action spawns a sub-FSM via `spawn_subapp`; nested timeline at `burr://subruns/{id}`. |
 | `parallel_research.py` | Parallel fan-out | One parent action spawns N sub-applications concurrently via `asyncio.gather`. Each is its own subrun; the parent gathers their findings into the parent state. |
 | `streaming_narrate.py` | Streaming action | An action that yields intermediate chunks; each becomes an MCP progress notification, the final state arrives in the tool response. |
+| `with_otel.py` | OpenTelemetry spans | Burr's `OpenTelemetryBridge` wired into the factory; every action run emits a span. Console exporter for demo; swap for OTLP/Jaeger in production. |
 | `incident_response.py` | Showcase | Realistic ops workflow with all features (validators, sub-graphs, branching, conditional loop). The canonical Claude Code demo. |
 | `git_review.py` | CLI wrapping | An FSM whose actions wrap `git status` / `log` / `show` via subprocess. Demonstrates the "agent driving CLIs" pattern with FSM-enforced sequence. |
 | `adventure.py` | State-space traversal | Tiny text adventure where rooms are states and moves are gated transitions. Mirrors Burr's `llm-adventure-game`. Sharpest illustration of FSM-as-API. |
@@ -413,7 +414,7 @@ burr-mcp serve triage:build_application
 uv run pytest
 ```
 
-One hundred and forty tests in about 4 seconds. Most use FastMCP's in-process
+One hundred and forty-four tests in about 4 seconds. Most use FastMCP's in-process
 client; `tests/test_http_transport.py` spawns the HTTP example as a
 subprocess and drives it with two real HTTP clients.
 `tests/test_hardening.py` covers action exceptions, concurrent steps
@@ -529,6 +530,21 @@ Shipped in v0.3.0:
 - `tests/test_http_transport.py`: spawns the HTTP example as a
   subprocess and drives it with two concurrent HTTP clients to
   verify per-session isolation on the wire format.
+
+Shipped in v1.7.0:
+
+- OpenTelemetry observability via Burr's `OpenTelemetryBridge`
+  lifecycle adapter. Wire it into your Application factory with
+  `.with_hooks(OpenTelemetryBridge(tracer_name=...))` and every
+  action run emits a span. Works transparently through the MCP wire:
+  spans from `step`, `spawn_subapp`, streaming actions, `fork_at`,
+  all flow through the same bridge.
+- New `[observability]` install extra: `pip install
+  'burr-mcp[observability]'` pulls Burr's opentelemetry extra plus
+  the core OTel API/SDK.
+- `examples/with_otel.py` demonstrates the full wire-up with a
+  console span exporter. Swap the exporter for OTLP/Jaeger/Honeycomb
+  by changing one line.
 
 Shipped in v1.6.0:
 
