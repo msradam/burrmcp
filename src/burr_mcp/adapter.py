@@ -17,13 +17,17 @@ Three serving modes:
                              ``tools/list_changed`` after each step.
                              Best when the client honors it.
 
-All modes register three resources:
+All modes register four resources:
 
   • ``burr://state``:   current Application state as JSON.
   • ``burr://next``:    list of action names reachable from now.
   • ``burr://history``: per-session timeline of every action attempt
                         (successes + refusals), each with timestamp,
                         inputs, resulting state, and valid-next set.
+  • ``burr://trace``:   Burr's on-disk LocalTrackingClient log for the
+                        current session's Application. Empty if no
+                        tracker attached. Cross-reference for full
+                        Burr replay format.
 
 Per-session isolation:
 
@@ -48,6 +52,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
+from pathlib import Path
 from typing import Any
 
 from burr.core import Application
@@ -104,6 +109,64 @@ def _serializable_state(
             out[key] = str(value)
             coerced.append(key)
     return out, coerced
+
+
+_TRACE_MAX_ENTRIES = 1000  # cap burr://trace response to the last N records
+
+
+def _tracker_log_path(app: Application) -> Path | None:
+    """Locate the on-disk log file for this Application's Burr tracker.
+
+    Reads ``app._tracker`` which is Burr's internal slot for the
+    ``LocalTrackingClient``. We pin Burr to a minor version range
+    because of this and similar internals (see ``pyproject.toml``).
+    Returns ``None`` when the Application has no tracker, or has a
+    non-local one, or the resolved path is outside the tracker's
+    own storage directory.
+    """
+    try:
+        from burr.tracking.client import LocalTrackingClient
+    except ImportError:
+        return None
+    tracker = getattr(app, "_tracker", None)
+    if not isinstance(tracker, LocalTrackingClient):
+        return None
+    try:
+        storage_dir = Path(tracker.storage_dir).expanduser().resolve()
+        log_path = (storage_dir / app.uid / LocalTrackingClient.LOG_FILENAME).resolve()
+    except (OSError, AttributeError):
+        return None
+    # Defence in depth: the computed log path must sit under the tracker's
+    # storage dir. If app.uid contained a traversal sequence (it shouldn't,
+    # Burr generates UUIDs, but belt-and-braces), refuse to read it.
+    try:
+        log_path.relative_to(storage_dir)
+    except ValueError:
+        return None
+    return log_path
+
+
+def _read_trace(path: Path, *, tail: int = _TRACE_MAX_ENTRIES) -> list[dict]:
+    """Read a JSONL trace file and return the last ``tail`` records.
+
+    Malformed lines are skipped silently rather than tanking the whole
+    response. The cap is in place because Burr's tracker is append-only;
+    long-running sessions accumulate; an MCP client doesn't want the
+    full 50 MB log returned over the wire on every read.
+    """
+    entries: list[dict] = []
+    with path.open() as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entries.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+    if tail and len(entries) > tail:
+        entries = entries[-tail:]
+    return entries
 
 
 def valid_next_action_names(app: Application) -> list[str]:
@@ -803,6 +866,44 @@ def mount(
         """
         history = store.history(ctx.session_id) if ctx is not None else []
         return json.dumps(history, default=str, indent=2)
+
+    @mcp.resource("burr://trace")
+    async def _trace_resource(ctx: Context) -> str:
+        """Burr's on-disk LocalTrackingClient log for this session's Application.
+
+        Returns the JSONL records Burr writes for every action step
+        (action enter/exit, state diff, timing). The Application must
+        have been built with ``.with_tracker(LocalTrackingClient(...))``
+        for this resource to return data; otherwise the response is
+        ``{"error": "no_tracker", "message": "..."}``.
+
+        Responses are capped at the most recent 1000 records to keep
+        the wire payload bounded. For full traces, read the log file
+        directly off disk at the path Burr's tracker writes to.
+
+        This is the cross-reference between burr-mcp's in-memory
+        ``burr://history`` (one entry per attempted action, including
+        refusals) and Burr's own structured trace format (one entry
+        per state transition, full Burr replay shape).
+        """
+        app, _ = _session_app_and_lock(ctx, shared_app, shared_lock, factory, store)
+        path = _tracker_log_path(app)
+        if path is None:
+            return json.dumps(
+                {
+                    "error": "no_tracker",
+                    "message": (
+                        "This Application has no LocalTrackingClient attached. "
+                        "Pass tracker=LocalTrackingClient(project='...') to "
+                        "ApplicationBuilder.with_tracker(...) when building "
+                        "the Application to enable burr://trace."
+                    ),
+                },
+                indent=2,
+            )
+        if not path.exists():
+            return json.dumps([])
+        return json.dumps(_read_trace(path), default=str, indent=2)
 
     # ── tools, per mode ──────────────────────────────────────────────
 

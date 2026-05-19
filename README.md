@@ -3,7 +3,7 @@
 Mount [Burr](https://burr.dagworks.io/) Applications as
 [MCP](https://modelcontextprotocol.io/) servers.
 
-Status: experiment, v0.6.0.
+Status: experiment, v0.7.0.
 
 ## What this is
 
@@ -157,16 +157,20 @@ keep its own model of the graph can recover from one error.
 
 ## Resources
 
-Every mounted server registers three MCP resources:
+Every mounted server registers four MCP resources:
 
 | URI | Returns |
 |---|---|
 | `burr://state` | Current Application state as JSON. Internal Burr keys (`__PRIOR_STEP`, `__SEQUENCE_ID`) filtered. |
 | `burr://next` | Action names reachable from the current state. Empty list after a terminal action. |
 | `burr://history` | Per-session timeline of every action attempted (successes and refusals). |
+| `burr://trace` | Burr's on-disk `LocalTrackingClient` log for the current session's Application. Capped at 1000 most-recent records. Returns `{"error": "no_tracker"}` if no `LocalTrackingClient` was attached. |
 
-A client that wants to know "where am I, what can I do next, and what
-already happened in this session" reads those three and has the answer.
+`burr://history` and `burr://trace` are complementary. History is one
+entry per attempted action (including refusals), structured for the
+client to act on. Trace is one entry per state transition in Burr's
+native format, suitable for replay through Burr's UI or for cross-
+reference with the in-memory history.
 
 ### History entry shape
 
@@ -287,7 +291,7 @@ burr-mcp serve triage:build_application
 uv run pytest
 ```
 
-Seventy-one tests in about 2.6 seconds. Most use FastMCP's in-process
+Seventy-six tests in about 2.7 seconds. Most use FastMCP's in-process
 client; `tests/test_http_transport.py` spawns the HTTP example as a
 subprocess and drives it with two real HTTP clients.
 `tests/test_hardening.py` covers action exceptions, concurrent steps
@@ -298,6 +302,8 @@ the `only`/`rename`/`state_update` options.
 `tests/test_timeouts.py` covers the action-timeout knob: slow actions
 get cancelled, fast ones pass through, no-timeout leaves slow work
 alone, and timeouts apply in TOOLS mode too.
+`tests/test_trace.py` covers the tracker passthrough: no-tracker
+error, post-step content, path resolution, traversal safety.
 
 ## Design notes
 
@@ -398,6 +404,18 @@ Shipped in v0.3.0:
   subprocess and drives it with two concurrent HTTP clients to
   verify per-session isolation on the wire format.
 
+Shipped in v0.7.0:
+
+- `burr://trace` resource: read-through of Burr's on-disk
+  `LocalTrackingClient` log for the current session's Application.
+  Closes the cross-reference gap between burr-mcp's in-memory
+  `burr://history` and Burr's own structured trace format. Capped at
+  1000 most-recent records to keep the wire payload bounded. Path
+  resolution is safe against `app.uid` containing traversal sequences.
+  Requires the Application to have been built with
+  `.with_tracker(LocalTrackingClient(project=...))`; otherwise
+  returns a `no_tracker` error explaining how to enable it.
+
 Shipped in v0.6.0:
 
 - Action timeouts. `mount(..., action_timeout_seconds=N)` wraps every
@@ -441,12 +459,11 @@ Shipped in v0.4.0 (hardening for frontier-model deployments):
 
 Next:
 
-- v0.7: optional Burr-tracker passthrough exposing on-disk traces
-  as a resource, SSE transport example.
-- v0.8: subgraph mounting (a Burr subgraph spawned from inside an
-  action, exposed as a sub-resource), per-action timeout overrides on
-  `ToolSpec`, input validation hooks beyond Burr's `inputs`
-  declaration.
+- v0.8: SSE transport example, per-action timeout overrides on
+  `ToolSpec`.
+- v0.9: input validation hooks beyond Burr's `inputs` declaration.
+- v1.0: subgraph mounting (a Burr subgraph spawned from inside an
+  action, exposed as a sub-resource).
 
 ## License
 
