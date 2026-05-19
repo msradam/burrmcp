@@ -13,7 +13,7 @@ are valid, and `burr_app_from_fastmcp(...)` lifts it into a Burr
 Application that mounts the same way, gaining transition enforcement,
 audit history, and per-session isolation.
 
-Status: v1.3.0.
+Status: v1.4.0.
 
 ## What this is
 
@@ -411,7 +411,7 @@ burr-mcp serve triage:build_application
 uv run pytest
 ```
 
-One hundred and twenty-three tests in about 3.6 seconds. Most use FastMCP's in-process
+One hundred and thirty-four tests in about 3.9 seconds. Most use FastMCP's in-process
 client; `tests/test_http_transport.py` spawns the HTTP example as a
 subprocess and drives it with two real HTTP clients.
 `tests/test_hardening.py` covers action exceptions, concurrent steps
@@ -527,6 +527,24 @@ Shipped in v0.3.0:
 - `tests/test_http_transport.py`: spawns the HTTP example as a
   subprocess and drives it with two concurrent HTTP clients to
   verify per-session isolation on the wire format.
+
+Shipped in v1.4.0:
+
+- `fork_at(sequence_id)` meta-tool. Rewind the session's Application
+  to the state captured after any prior history entry, letting an
+  agent explore alternate paths without disconnecting. Implemented
+  via the in-memory `burr://history`, so it works without users
+  having to wire up a Burr `LocalTrackingClient`. Refuses to fork to
+  a refusal entry, to a meta-tool entry (would be a hall of mirrors),
+  or in shared-app mode.
+- Typed state schemas in `burr://graph`. If the Application is built
+  with Burr's `PydanticTypingSystem`, the full state JSON schema
+  (one Pydantic model) is surfaced under `state_schema` so an MCP
+  client gets the typed shape without inspecting each action's
+  writes. Untyped state shows `state_schema: null`.
+- Discovery hint in server instructions now mentions both
+  `reset_session` and `fork_at` so an agent learns both escape
+  hatches at cold start.
 
 Shipped in v1.3.0:
 
