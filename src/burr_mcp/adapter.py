@@ -113,6 +113,29 @@ def _serializable_state(
 
 _TRACE_MAX_ENTRIES = 1000  # cap burr://trace response to the last N records
 
+# Function attribute set by ``burr_mcp.importing`` (and any other code
+# that wants to annotate an action with a per-call timeout). ``mount``
+# reads this off each action's ``fn`` and uses it in preference to the
+# server-wide default.
+_PER_ACTION_TIMEOUT_ATTR = "_burr_mcp_timeout_seconds"
+
+
+def _action_timeout(action: Action, server_default: float | None) -> float | None:
+    """Return the timeout to use for ``action``.
+
+    Per-action override (set by ``ToolSpec.timeout_seconds`` via the
+    importer, or by hand-tagging a function with
+    ``fn._burr_mcp_timeout_seconds = N``) wins over the server-wide
+    default. ``None`` at either level disables timeout for that level;
+    a numeric override on the action applies even when the server
+    default is ``None``.
+    """
+    fn = getattr(action, "fn", None)
+    per_action = getattr(fn, _PER_ACTION_TIMEOUT_ATTR, None) if fn is not None else None
+    if per_action is not None:
+        return float(per_action)
+    return server_default
+
 
 def _tracker_log_path(app: Application) -> Path | None:
     """Locate the on-disk log file for this Application's Burr tracker.
@@ -946,6 +969,7 @@ def mount(
                     "known_actions": action_names,
                 }
             app, lock = _session_app_and_lock(ctx, shared_app, shared_lock, factory, store)
+            effective_timeout = _action_timeout(action_map[action], action_timeout_seconds)
             try:
                 async with lock:
                     out = await _step_application(
@@ -953,7 +977,7 @@ def mount(
                         action_name=action,
                         inputs=inputs or {},
                         enforce_transitions=True,
-                        timeout_seconds=action_timeout_seconds,
+                        timeout_seconds=effective_timeout,
                     )
             except InvalidTransitionError as e:
                 _record_history(
@@ -1037,7 +1061,7 @@ def mount(
                 store=store,
                 action=action,
                 enforce_transitions=False,
-                timeout_seconds=action_timeout_seconds,
+                timeout_seconds=_action_timeout(action, action_timeout_seconds),
             )
             mcp.tool(name=action.name, description=handler.__doc__)(handler)
 
@@ -1051,7 +1075,7 @@ def mount(
                 action=action,
                 enforce_transitions=True,
                 refresh_session_visibility=True,
-                timeout_seconds=action_timeout_seconds,
+                timeout_seconds=_action_timeout(action, action_timeout_seconds),
             )
             mcp.tool(
                 name=action.name,
