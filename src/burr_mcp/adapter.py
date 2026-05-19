@@ -77,6 +77,35 @@ def _public_state(state_dict: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in state_dict.items() if k not in _INTERNAL_STATE_KEYS}
 
 
+def _serializable_state(
+    state_dict: dict[str, Any],
+) -> tuple[dict[str, Any], list[str]]:
+    """Return a JSON-serialisable copy of ``state_dict`` plus a list of
+    keys whose values had to be stringified.
+
+    Burr lets actions put anything in state (numpy arrays, connection
+    objects, Pydantic models, callables). The wire format is JSON, so
+    we test each top-level value with strict ``json.dumps`` and fall
+    back to ``str(value)`` for anything that fails. The list of coerced
+    keys is surfaced to the client via ``_burr_mcp.coerced_keys`` on
+    the state resource so it knows the round-trip is lossy and can
+    flag downstream.
+
+    Nested structures inside a successfully-serialised value are not
+    re-checked: ``json.dumps`` already vetted them as a whole.
+    """
+    out: dict[str, Any] = {}
+    coerced: list[str] = []
+    for key, value in state_dict.items():
+        try:
+            json.dumps(value)
+            out[key] = value
+        except (TypeError, ValueError):
+            out[key] = str(value)
+            coerced.append(key)
+    return out, coerced
+
+
 def valid_next_action_names(app: Application) -> list[str]:
     """Names of actions reachable from the current state.
 
@@ -190,6 +219,21 @@ class InvalidTransitionError(Exception):
         super().__init__(msg)
 
 
+class ActionExecutionError(Exception):
+    """Raised when an action's wrapped function raises during execution.
+
+    Wraps the original exception so callers can record a structured
+    refusal entry (with the underlying error message) in the session's
+    history. ``original`` is the wrapped exception for callers that
+    want the traceback or the exact type.
+    """
+
+    def __init__(self, action_name: str, original: BaseException) -> None:
+        self.action_name = action_name
+        self.original = original
+        super().__init__(f"action {action_name!r} raised {type(original).__name__}: {original}")
+
+
 def _resolve(application: ApplicationOrFactory) -> tuple[Application, ApplicationFactory | None]:
     """Split ``application`` into a template instance + optional factory.
 
@@ -224,11 +268,19 @@ class _SessionEntry:
     Application that all sessions mutate; per-session apps aren't
     created). ``history`` is always per-session: each session sees
     only the timeline of its own calls.
+
+    ``lock`` serializes ``app.astep`` calls within one session. Burr
+    Applications are not thread-safe, and frontier clients can fire
+    parallel tool calls within one MCP session (the protocol permits
+    it). The lock means concurrent step calls from the same session
+    queue rather than racing on the Application's state pointer.
+    Different sessions still proceed in parallel.
     """
 
     application: Application | None
     history: list[dict[str, Any]] = field(default_factory=list)
     last_access: float = field(default_factory=time.monotonic)
+    lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
 
 class _SessionStore:
@@ -304,59 +356,66 @@ def _record_history(
     valid_next_actions: list[str],
     refused: bool = False,
     refusal_reason: str | None = None,
+    error_message: str | None = None,
+    error_type: str | None = None,
 ) -> None:
     """Append one timeline entry to this session's history.
 
-    Records successes and refusals alike. No-op when ``ctx`` is None
-    (calls outside an MCP request, e.g. the initial dynamic-mode
-    visibility refresh).
+    Records successes and refusals alike. When ``refusal_reason`` is
+    ``"action_error"``, the entry also carries ``error_message`` and
+    ``error_type`` so a client can distinguish "the FSM said no" from
+    "the action's code raised." No-op when ``ctx`` is None (calls
+    outside an MCP request, e.g. the initial dynamic-mode visibility
+    refresh).
     """
     if ctx is None:
         return
     entry = store.get_or_create(ctx.session_id, factory)
-    entry.history.append(
-        {
-            "seq": len(entry.history),
-            "ts": datetime.now(UTC).isoformat(),
-            "action": action,
-            "inputs": inputs,
-            "state_after": state_after,
-            "valid_next_actions": valid_next_actions,
-            "refused": refused,
-            "refusal_reason": refusal_reason,
-        }
-    )
+    record: dict[str, Any] = {
+        "seq": len(entry.history),
+        "ts": datetime.now(UTC).isoformat(),
+        "action": action,
+        "inputs": inputs,
+        "state_after": state_after,
+        "valid_next_actions": valid_next_actions,
+        "refused": refused,
+        "refusal_reason": refusal_reason,
+    }
+    if error_message is not None:
+        record["error_message"] = error_message
+    if error_type is not None:
+        record["error_type"] = error_type
+    entry.history.append(record)
     entry.last_access = time.monotonic()
 
 
-def _session_app(
+def _session_app_and_lock(
     ctx: Context | None,
     shared_app: Application,
+    shared_lock: asyncio.Lock,
     factory: ApplicationFactory | None,
     store: _SessionStore,
-) -> Application:
-    """Resolve the Application for this request.
+) -> tuple[Application, asyncio.Lock]:
+    """Resolve the (Application, lock) pair for this request.
 
-    Shared-app mode (factory is None): returns ``shared_app`` regardless
-    of session id. Factory mode: looks up the session entry in ``store``,
-    creating a new Application via the factory on first access.
+    Shared-app mode (factory is None): returns ``shared_app`` plus the
+    server-wide ``shared_lock``. All sessions serialise their step
+    calls on this lock, because they're all mutating one Application.
 
-    The store backs both Application caching and history recording.
-    Lazy TTL + max-size eviction lives on the store itself. FastMCP's
-    own ``ctx.set_state(serializable=False)`` is request-scoped rather
-    than session-scoped, so it's not suitable for caching across calls
-    in one session.
+    Factory mode: returns the session's own Application and the
+    session entry's own lock. Different sessions' steps run in
+    parallel; calls within one session queue on its lock.
 
-    ``ctx`` is None when invoked outside an MCP request (e.g. the
-    initial dynamic-mode visibility refresh at mount time). In that
-    case the shared app is returned even in factory mode; the refresh
+    ``ctx`` may be None when invoked outside an MCP request (e.g. the
+    initial dynamic-mode visibility refresh). In that case we fall back
+    to ``shared_app``/``shared_lock`` even in factory mode; the refresh
     operates on the template's graph shape.
     """
     if factory is None or ctx is None:
-        return shared_app
+        return shared_app, shared_lock
     entry = store.get_or_create(ctx.session_id, factory)
     assert entry.application is not None  # factory mode guarantees this
-    return entry.application
+    return entry.application, entry.lock
 
 
 async def _step_application(
@@ -371,6 +430,10 @@ async def _step_application(
     ``action_name`` is in the current valid-next set. When False
     (``ServingMode.TOOLS``), runs the action directly against current
     state, bypassing Burr's transition machinery.
+
+    Exceptions raised by the action's wrapped function are caught and
+    re-raised as ``ActionExecutionError`` so callers can record them
+    structurally in the session's history.
     """
     valid = valid_next_action_names(app)
     if enforce_transitions:
@@ -383,11 +446,21 @@ async def _step_application(
                 raise InvalidTransitionError(action_name, valid)
             return await _run_action_bare(app, action_obj, inputs)
 
-    a, result, new_state = await app.astep(inputs=inputs)
+    try:
+        a, result, new_state = await app.astep(inputs=inputs)
+    except (InvalidTransitionError, ActionExecutionError):
+        raise
+    except Exception as exc:
+        # Anything raised by the wrapped action's fn comes out here.
+        # Wrap so the handler can record a structured refusal entry.
+        raise ActionExecutionError(action_name, exc) from exc
+    state, coerced = _serializable_state(_public_state(new_state.get_all()))
+    if coerced:
+        state["_burr_mcp"] = {"coerced_keys": coerced}
     return {
         "action": a.name,
         "result": result,
-        "state": _public_state(new_state.get_all()),
+        "state": state,
         "valid_next_actions": valid_next_action_names(app),
     }
 
@@ -403,15 +476,24 @@ async def _run_action_bare(
     the standard valid-next set. Bypasses Burr's transition machinery
     while still updating ``app.state``. Burr's tracker is not invoked
     on this path; tools mode opts into that trade-off.
+
+    Exceptions raised by the wrapped function are caught and re-raised
+    as ``ActionExecutionError`` (same shape as ``_step_application``).
     """
     state = app.state
-    raw = action_obj.fn(state, **inputs)
-    new_state = await raw if asyncio.iscoroutine(raw) else raw
+    try:
+        raw = action_obj.fn(state, **inputs)
+        new_state = await raw if asyncio.iscoroutine(raw) else raw
+    except Exception as exc:
+        raise ActionExecutionError(action_obj.name, exc) from exc
     app.update_state(new_state)
+    out_state, coerced = _serializable_state(_public_state(app.state.get_all()))
+    if coerced:
+        out_state["_burr_mcp"] = {"coerced_keys": coerced}
     return {
         "action": action_obj.name,
         "result": {},
-        "state": _public_state(app.state.get_all()),
+        "state": out_state,
         "valid_next_actions": valid_next_action_names(app),
         "note": "ran without transition enforcement (tools mode)",
     }
@@ -419,6 +501,7 @@ async def _run_action_bare(
 
 def _make_tool_handler(
     shared_app: Application,
+    shared_lock: asyncio.Lock,
     factory: ApplicationFactory | None,
     store: _SessionStore,
     action: Action,
@@ -445,14 +528,15 @@ def _make_tool_handler(
 
     async def handler(**kwargs: Any) -> dict[str, Any]:
         ctx = kwargs.pop("ctx", None)
-        app = _session_app(ctx, shared_app, factory, store)
+        app, lock = _session_app_and_lock(ctx, shared_app, shared_lock, factory, store)
         try:
-            out = await _step_application(
-                app,
-                action_name=action_name,
-                inputs=kwargs,
-                enforce_transitions=enforce_transitions,
-            )
+            async with lock:
+                out = await _step_application(
+                    app,
+                    action_name=action_name,
+                    inputs=kwargs,
+                    enforce_transitions=enforce_transitions,
+                )
         except InvalidTransitionError as e:
             _record_history(
                 store,
@@ -470,6 +554,27 @@ def _make_tool_handler(
                 "requested": e.requested,
                 "valid_next_actions": e.valid,
                 "message": str(e),
+            }
+        except ActionExecutionError as e:
+            _record_history(
+                store,
+                ctx,
+                factory,
+                action=action_name,
+                inputs=kwargs,
+                state_after=None,
+                valid_next_actions=valid_next_action_names(app),
+                refused=True,
+                refusal_reason="action_error",
+                error_message=str(e.original),
+                error_type=type(e.original).__name__,
+            )
+            return {
+                "error": "action_error",
+                "requested": action_name,
+                "error_type": type(e.original).__name__,
+                "error_message": str(e.original),
+                "valid_next_actions": valid_next_action_names(app),
             }
         _record_history(
             store,
@@ -576,6 +681,12 @@ def mount(
         ttl_seconds=session_ttl_seconds,
         max_sessions=max_sessions,
     )
+    # Lock used in shared-app mode (one Application, many sessions). In
+    # factory mode each session has its own lock on its session entry,
+    # so this one is only touched outside an MCP request (no concurrent
+    # use) and for tools-mode ``_run_action_bare`` paths against the
+    # template. Kept on the closure either way.
+    shared_lock = asyncio.Lock()
 
     server_name = name or "burr-mcp"
     mcp = FastMCP(server_name, instructions=instructions)
@@ -587,11 +698,15 @@ def mount(
         """Current Application state as JSON.
 
         Internal Burr keys (``__PRIOR_STEP``, ``__SEQUENCE_ID``) are
-        filtered. Use this to inspect what the FSM has accumulated
-        across tool calls.
+        filtered. Non-JSON-representable values are coerced to strings,
+        with the affected keys listed under ``_burr_mcp.coerced_keys``
+        so the client knows the round-trip is lossy.
         """
-        app = _session_app(ctx, shared_app, factory, store)
-        return json.dumps(_public_state(app.state.get_all()), default=str, indent=2)
+        app, _ = _session_app_and_lock(ctx, shared_app, shared_lock, factory, store)
+        state, coerced = _serializable_state(_public_state(app.state.get_all()))
+        if coerced:
+            state["_burr_mcp"] = {"coerced_keys": coerced}
+        return json.dumps(state, indent=2)
 
     @mcp.resource("burr://next")
     async def _next_resource(ctx: Context) -> str:
@@ -601,7 +716,7 @@ def mount(
         all conditionally-reachable next actions are listed. After a
         terminal action this is an empty list, meaning the FSM is done.
         """
-        app = _session_app(ctx, shared_app, factory, store)
+        app, _ = _session_app_and_lock(ctx, shared_app, shared_lock, factory, store)
         return json.dumps(valid_next_action_names(app))
 
     @mcp.resource("burr://history")
@@ -659,14 +774,15 @@ def mount(
                     "requested": action,
                     "known_actions": action_names,
                 }
-            app = _session_app(ctx, shared_app, factory, store)
+            app, lock = _session_app_and_lock(ctx, shared_app, shared_lock, factory, store)
             try:
-                out = await _step_application(
-                    app,
-                    action_name=action,
-                    inputs=inputs or {},
-                    enforce_transitions=True,
-                )
+                async with lock:
+                    out = await _step_application(
+                        app,
+                        action_name=action,
+                        inputs=inputs or {},
+                        enforce_transitions=True,
+                    )
             except InvalidTransitionError as e:
                 _record_history(
                     store,
@@ -685,6 +801,27 @@ def mount(
                     "valid_next_actions": e.valid,
                     "message": str(e),
                 }
+            except ActionExecutionError as e:
+                _record_history(
+                    store,
+                    ctx,
+                    factory,
+                    action=action,
+                    inputs=inputs or {},
+                    state_after=None,
+                    valid_next_actions=valid_next_action_names(app),
+                    refused=True,
+                    refusal_reason="action_error",
+                    error_message=str(e.original),
+                    error_type=type(e.original).__name__,
+                )
+                return {
+                    "error": "action_error",
+                    "requested": action,
+                    "error_type": type(e.original).__name__,
+                    "error_message": str(e.original),
+                    "valid_next_actions": valid_next_action_names(app),
+                }
             _record_history(
                 store,
                 ctx,
@@ -702,6 +839,7 @@ def mount(
         for action in shared_app.graph.actions:
             handler = _make_tool_handler(
                 shared_app=shared_app,
+                shared_lock=shared_lock,
                 factory=factory,
                 store=store,
                 action=action,
@@ -713,6 +851,7 @@ def mount(
         for action in shared_app.graph.actions:
             handler = _make_tool_handler(
                 shared_app=shared_app,
+                shared_lock=shared_lock,
                 factory=factory,
                 store=store,
                 action=action,

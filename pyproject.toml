@@ -1,6 +1,6 @@
 [project]
 name = "burr-mcp"
-version = "0.3.0"
+version = "0.4.0"
 description = "Mount Burr Applications as MCP servers. FSM-as-API, not tools-as-API."
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
@@ -18,7 +18,13 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "burr>=0.40.2",
+    # Burr's public API is stable, but burr-mcp depends on some details
+    # that aren't part of Burr's public surface: ``Action.fn``, the shape
+    # of ``Action.inputs`` as a (required, optional) tuple, and Burr's
+    # internal ``__PRIOR_STEP`` state key. Pin to a minor range so a
+    # Burr release that changes any of these fails install rather than
+    # breaking silently. Bump the upper bound when we've verified.
+    "burr>=0.40.2,<0.41",
     "fastmcp>=3.2,<3.3",
     "pydantic>=2,<3",
 ]
