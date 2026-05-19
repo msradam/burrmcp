@@ -1,0 +1,16 @@
+{
+  "_comment": "Copy to ~/.mcp.json (or pass --config <this-file>) after editing the absolute path under args[1] to match your checkout.",
+  "mcpServers": {
+    "burr-mcp-coffee": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/ABSOLUTE/PATH/TO/burr-mcp",
+        "run",
+        "python",
+        "examples/coffee_order.py"
+      ]
+    }
+  }
+}
