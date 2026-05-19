@@ -234,6 +234,22 @@ class ActionExecutionError(Exception):
         super().__init__(f"action {action_name!r} raised {type(original).__name__}: {original}")
 
 
+class ActionTimeoutError(Exception):
+    """Raised when an action exceeds its allotted execution time.
+
+    The action's coroutine is cancelled via ``asyncio.wait_for``; for
+    async actions doing I/O, cancellation is prompt. For sync or
+    CPU-bound actions, cancellation is best-effort and the underlying
+    work may continue running on its event-loop slot until it yields.
+    The session's FSM does not advance.
+    """
+
+    def __init__(self, action_name: str, timeout_seconds: float) -> None:
+        self.action_name = action_name
+        self.timeout_seconds = timeout_seconds
+        super().__init__(f"action {action_name!r} exceeded the {timeout_seconds}s timeout")
+
+
 def _resolve(application: ApplicationOrFactory) -> tuple[Application, ApplicationFactory | None]:
     """Split ``application`` into a template instance + optional factory.
 
@@ -423,6 +439,7 @@ async def _step_application(
     action_name: str,
     inputs: dict[str, Any],
     enforce_transitions: bool,
+    timeout_seconds: float | None = None,
 ) -> dict[str, Any]:
     """Run one step of the Application.
 
@@ -430,6 +447,10 @@ async def _step_application(
     ``action_name`` is in the current valid-next set. When False
     (``ServingMode.TOOLS``), runs the action directly against current
     state, bypassing Burr's transition machinery.
+
+    When ``timeout_seconds`` is set, the call is wrapped in
+    ``asyncio.wait_for``; on expiry the action's coroutine is cancelled
+    and ``ActionTimeoutError`` is raised. None means no timeout.
 
     Exceptions raised by the action's wrapped function are caught and
     re-raised as ``ActionExecutionError`` so callers can record them
@@ -444,12 +465,19 @@ async def _step_application(
             action_obj = app.graph.get_action(action_name)
             if action_obj is None:
                 raise InvalidTransitionError(action_name, valid)
-            return await _run_action_bare(app, action_obj, inputs)
+            return await _run_action_bare(app, action_obj, inputs, timeout_seconds)
 
     try:
-        a, result, new_state = await app.astep(inputs=inputs)
-    except (InvalidTransitionError, ActionExecutionError):
+        if timeout_seconds is not None:
+            a, result, new_state = await asyncio.wait_for(
+                app.astep(inputs=inputs), timeout=timeout_seconds
+            )
+        else:
+            a, result, new_state = await app.astep(inputs=inputs)
+    except (InvalidTransitionError, ActionExecutionError, ActionTimeoutError):
         raise
+    except TimeoutError as exc:
+        raise ActionTimeoutError(action_name, timeout_seconds or 0.0) from exc
     except Exception as exc:
         # Anything raised by the wrapped action's fn comes out here.
         # Wrap so the handler can record a structured refusal entry.
@@ -469,6 +497,7 @@ async def _run_action_bare(
     app: Application,
     action_obj: Action,
     inputs: dict[str, Any],
+    timeout_seconds: float | None = None,
 ) -> dict[str, Any]:
     """Run an action against current state without graph enforcement.
 
@@ -479,11 +508,21 @@ async def _run_action_bare(
 
     Exceptions raised by the wrapped function are caught and re-raised
     as ``ActionExecutionError`` (same shape as ``_step_application``).
+    Honours ``timeout_seconds`` if set, raising ``ActionTimeoutError``
+    on expiry.
     """
     state = app.state
     try:
         raw = action_obj.fn(state, **inputs)
-        new_state = await raw if asyncio.iscoroutine(raw) else raw
+        if asyncio.iscoroutine(raw):
+            if timeout_seconds is not None:
+                new_state = await asyncio.wait_for(raw, timeout=timeout_seconds)
+            else:
+                new_state = await raw
+        else:
+            new_state = raw
+    except TimeoutError as exc:
+        raise ActionTimeoutError(action_obj.name, timeout_seconds or 0.0) from exc
     except Exception as exc:
         raise ActionExecutionError(action_obj.name, exc) from exc
     app.update_state(new_state)
@@ -507,6 +546,7 @@ def _make_tool_handler(
     action: Action,
     enforce_transitions: bool,
     refresh_session_visibility: bool = False,
+    timeout_seconds: float | None = None,
 ) -> Callable:
     """Build an async MCP tool handler for one Burr action.
 
@@ -536,6 +576,7 @@ def _make_tool_handler(
                     action_name=action_name,
                     inputs=kwargs,
                     enforce_transitions=enforce_transitions,
+                    timeout_seconds=timeout_seconds,
                 )
         except InvalidTransitionError as e:
             _record_history(
@@ -554,6 +595,27 @@ def _make_tool_handler(
                 "requested": e.requested,
                 "valid_next_actions": e.valid,
                 "message": str(e),
+            }
+        except ActionTimeoutError as e:
+            _record_history(
+                store,
+                ctx,
+                factory,
+                action=action_name,
+                inputs=kwargs,
+                state_after=None,
+                valid_next_actions=valid_next_action_names(app),
+                refused=True,
+                refusal_reason="action_timeout",
+                error_message=str(e),
+                error_type="TimeoutError",
+            )
+            return {
+                "error": "action_timeout",
+                "requested": action_name,
+                "timeout_seconds": e.timeout_seconds,
+                "message": str(e),
+                "valid_next_actions": valid_next_action_names(app),
             }
         except ActionExecutionError as e:
             _record_history(
@@ -649,6 +711,7 @@ def mount(
     instructions: str | None = None,
     session_ttl_seconds: int | None = _DEFAULT_SESSION_TTL_SECONDS,
     max_sessions: int | None = _DEFAULT_MAX_SESSIONS,
+    action_timeout_seconds: float | None = None,
 ) -> FastMCP:
     """Return a FastMCP server that exposes ``application`` per ``mode``.
 
@@ -671,6 +734,13 @@ def mount(
             store. When exceeded, the least-recently-accessed entry
             is evicted on insert. Set to ``None`` to disable size
             eviction. Default 100.
+        action_timeout_seconds: Server-wide timeout applied to every
+            action invocation. Wraps ``app.astep`` in
+            ``asyncio.wait_for``; on expiry the action's coroutine is
+            cancelled and the call returns an ``action_timeout`` error
+            without advancing state. ``None`` (default) means no
+            timeout. Cancellation is prompt for async actions doing
+            I/O; for sync or CPU-bound work it's best-effort.
     """
     shared_app, factory = _resolve(application)
     # Per-session store keyed by ctx.session_id; populated lazily on
@@ -782,6 +852,7 @@ def mount(
                         action_name=action,
                         inputs=inputs or {},
                         enforce_transitions=True,
+                        timeout_seconds=action_timeout_seconds,
                     )
             except InvalidTransitionError as e:
                 _record_history(
@@ -800,6 +871,27 @@ def mount(
                     "requested": e.requested,
                     "valid_next_actions": e.valid,
                     "message": str(e),
+                }
+            except ActionTimeoutError as e:
+                _record_history(
+                    store,
+                    ctx,
+                    factory,
+                    action=action,
+                    inputs=inputs or {},
+                    state_after=None,
+                    valid_next_actions=valid_next_action_names(app),
+                    refused=True,
+                    refusal_reason="action_timeout",
+                    error_message=str(e),
+                    error_type="TimeoutError",
+                )
+                return {
+                    "error": "action_timeout",
+                    "requested": action,
+                    "timeout_seconds": e.timeout_seconds,
+                    "message": str(e),
+                    "valid_next_actions": valid_next_action_names(app),
                 }
             except ActionExecutionError as e:
                 _record_history(
@@ -844,6 +936,7 @@ def mount(
                 store=store,
                 action=action,
                 enforce_transitions=False,
+                timeout_seconds=action_timeout_seconds,
             )
             mcp.tool(name=action.name, description=handler.__doc__)(handler)
 
@@ -857,6 +950,7 @@ def mount(
                 action=action,
                 enforce_transitions=True,
                 refresh_session_visibility=True,
+                timeout_seconds=action_timeout_seconds,
             )
             mcp.tool(
                 name=action.name,

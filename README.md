@@ -3,7 +3,7 @@
 Mount [Burr](https://burr.dagworks.io/) Applications as
 [MCP](https://modelcontextprotocol.io/) servers.
 
-Status: experiment, v0.5.0.
+Status: experiment, v0.6.0.
 
 ## What this is
 
@@ -186,7 +186,7 @@ Each `burr://history` entry:
 ```
 
 Refused attempts appear in the same list with `refused: true` and one
-of three `refusal_reason` values:
+of four `refusal_reason` values:
 
 - `invalid_transition`: the requested action isn't reachable from
   current state. `valid_next_actions` lists what is.
@@ -194,8 +194,10 @@ of three `refusal_reason` values:
 - `action_error`: the action's wrapped function raised during
   execution. The entry also carries `error_type` and `error_message`
   so the client can distinguish "the FSM said no" from "the action's
-  code blew up." State is not advanced; the FSM stays at its prior
-  position.
+  code blew up." State is not advanced.
+- `action_timeout`: the action exceeded `action_timeout_seconds` and
+  was cancelled. The entry carries `error_type: "TimeoutError"` and
+  the configured timeout. State is not advanced.
 
 Anyone with the history can replay the session or audit it without
 filesystem access to Burr's tracker output.
@@ -285,7 +287,7 @@ burr-mcp serve triage:build_application
 uv run pytest
 ```
 
-Sixty-five tests in about 1.6 seconds. Most use FastMCP's in-process
+Seventy-one tests in about 2.6 seconds. Most use FastMCP's in-process
 client; `tests/test_http_transport.py` spawns the HTTP example as a
 subprocess and drives it with two real HTTP clients.
 `tests/test_hardening.py` covers action exceptions, concurrent steps
@@ -293,6 +295,9 @@ within one session, and non-JSON state coercion.
 `tests/test_importing.py` covers the lift-a-flat-server path: sync
 and async tools, branching transitions, signature preservation, and
 the `only`/`rename`/`state_update` options.
+`tests/test_timeouts.py` covers the action-timeout knob: slow actions
+get cancelled, fast ones pass through, no-timeout leaves slow work
+alone, and timeouts apply in TOOLS mode too.
 
 ## Design notes
 
@@ -393,6 +398,16 @@ Shipped in v0.3.0:
   subprocess and drives it with two concurrent HTTP clients to
   verify per-session isolation on the wire format.
 
+Shipped in v0.6.0:
+
+- Action timeouts. `mount(..., action_timeout_seconds=N)` wraps every
+  action invocation in `asyncio.wait_for`. On expiry the coroutine is
+  cancelled, the call returns `{"error": "action_timeout"}` to the
+  client, the timeout is recorded in `burr://history` with
+  `refusal_reason: "action_timeout"`, and the FSM does not advance.
+  Default is `None` (no timeout, original behavior). Cancellation is
+  prompt for async I/O work; best-effort for sync or CPU-bound work.
+
 Shipped in v0.5.0:
 
 - `burr_app_from_fastmcp(...)` importer: lift an existing FastMCP
@@ -426,11 +441,12 @@ Shipped in v0.4.0 (hardening for frontier-model deployments):
 
 Next:
 
-- v0.6: optional Burr-tracker passthrough exposing on-disk traces
-  as a resource, SSE transport example, public PyPI release.
-- v0.7: subgraph mounting (a Burr subgraph spawned from inside an
-  action, exposed as a sub-resource), input validation hooks beyond
-  Burr's `inputs` declaration, action-call timeout / cancellation.
+- v0.7: optional Burr-tracker passthrough exposing on-disk traces
+  as a resource, SSE transport example.
+- v0.8: subgraph mounting (a Burr subgraph spawned from inside an
+  action, exposed as a sub-resource), per-action timeout overrides on
+  `ToolSpec`, input validation hooks beyond Burr's `inputs`
+  declaration.
 
 ## License
 
