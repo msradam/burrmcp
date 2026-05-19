@@ -3,7 +3,7 @@
 Mount [Burr](https://burr.dagworks.io/) Applications as
 [MCP](https://modelcontextprotocol.io/) servers.
 
-Status: experiment, v0.2.0.
+Status: experiment, v0.3.0.
 
 ## What this is
 
@@ -157,6 +157,25 @@ uv run python examples/coffee_order.py
 That starts the FastMCP server in stdio mode. Wire it into any MCP
 client with a config that points at the command.
 
+For HTTP deployments:
+
+```bash
+uv run python examples/http_serve.py            # binds 127.0.0.1:8765
+BURR_MCP_PORT=9000 uv run python examples/http_serve.py
+```
+
+Connect with a FastMCP client by URL:
+
+```python
+from fastmcp import Client
+async with Client("http://127.0.0.1:8765/mcp") as client:
+    await client.call_tool("step", {"action": "take_order", "inputs": {"item": "latte"}})
+```
+
+`tests/test_http_transport.py` spawns this example as a subprocess
+and connects two concurrent HTTP clients to verify session isolation
+on the wire format.
+
 To drive it from a local LLM with [mcphost](https://github.com/mark3labs/mcphost),
 copy `examples/mcphost.example.json` somewhere, edit the absolute path
 to match your checkout, then:
@@ -202,9 +221,9 @@ burr-mcp serve triage:build_application
 uv run pytest
 ```
 
-Tests drive each mode through an in-process FastMCP client. No
-subprocess, no stdio framing. Forty-two tests, runs in about a
-sixth of a second.
+Fifty tests in about 1.5 seconds. Most use FastMCP's in-process
+client; `tests/test_http_transport.py` spawns the HTTP example as a
+subprocess and drives it with two real HTTP clients.
 
 ## Design notes
 
@@ -249,9 +268,23 @@ server = mount(build_application, mode=ServingMode.STEP)
 FastMCP 3.2's built-in `ctx.set_state(serializable=False)` is
 **request-scoped**, not session-scoped, so it's not suitable for
 caching the Application across calls in one session. The session
-store is a plain dict held in `mount`'s closure scope. Entries are
-not currently evicted on session end; for long-running servers with
-many short sessions this is on the v0.2 list.
+store is a plain dict held in `mount`'s closure scope, with lazy
+TTL + max-size eviction.
+
+```python
+mount(
+    build_application,
+    mode=ServingMode.STEP,
+    session_ttl_seconds=3600,  # evict after 1 hour idle (default)
+    max_sessions=100,          # evict LRU when this many live (default)
+)
+```
+
+Set either knob to `None` to disable that form of eviction. Eviction
+is lazy: stale entries are dropped on the next access, not on a
+background timer. The unit tests in `tests/test_eviction.py` cover
+TTL drop, max-size drop, and the post-eviction "fresh Application
+on next call" behavior.
 
 ### What this is not
 
@@ -281,13 +314,21 @@ Shipped in v0.2.0:
   earlier version used the server-wide `mcp.enable`/`mcp.disable`,
   which leaked visibility across sessions.
 
+Shipped in v0.3.0:
+
+- Session-store eviction: TTL + max-size, lazy, configurable via
+  `mount(..., session_ttl_seconds=..., max_sessions=...)`. Defaults
+  to 3600 seconds and 100 sessions.
+- `examples/http_serve.py`: Streamable HTTP example.
+- `tests/test_http_transport.py`: spawns the HTTP example as a
+  subprocess and drives it with two concurrent HTTP clients to
+  verify per-session isolation on the wire format.
+
 Next:
 
-- v0.3: session-store eviction on disconnect (long-running servers
-  currently leak Application + history entries until restart), HTTP
-  and SSE transport examples, optional Burr-tracker passthrough
-  exposing on-disk traces via a resource.
-- v0.4: subgraph mounting (a Burr subgraph spawned from inside an
+- v0.4: optional Burr-tracker passthrough exposing on-disk traces
+  as a resource, SSE transport example, public PyPI release.
+- v0.5: subgraph mounting (a Burr subgraph spawned from inside an
   action, exposed as a sub-resource), input validation hooks beyond
   Burr's `inputs` declaration.
 
