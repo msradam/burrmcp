@@ -396,7 +396,7 @@ def start_audit(state: State, repo_path: str, max_rescans: int = 3) -> State:
         max_rescans: Hard cap on rescan rounds before the FSM
             forces a finalize_blocked verdict. Default 3.
     """
-    p = Path(repo_path)
+    p = Path(repo_path).expanduser()
     if not p.exists():
         raise ValueError(f"repo_path does not exist: {repo_path}")
     if not p.is_dir():

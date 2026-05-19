@@ -227,3 +227,54 @@ async def test_sources_run_concurrently_not_sequentially():
         # Soft upper bound; mostly a smoke check that we're not
         # accidentally running serially or hanging.
         assert elapsed < 2.0, f"research took {elapsed:.2f}s"
+
+
+@pytest.mark.asyncio
+async def test_research_accepts_custom_corpus_dir(tmp_path):
+    """Pointing at a user-supplied corpus directory makes the fan-out
+    search that directory instead of the shipped one."""
+    # Build a tiny custom corpus: tmp_path/<source>/<doc>.md
+    src_a = tmp_path / "kb"
+    src_a.mkdir()
+    (src_a / "intro.md").write_text(
+        "# Intro\n\nThe quokka is a small marsupial native to Western Australia.\n"
+    )
+    src_b = tmp_path / "trivia"
+    src_b.mkdir()
+    (src_b / "facts.md").write_text("# Facts\n\nQuokkas are known for their friendly faces.\n")
+    server = build_server()
+    async with Client(server) as client:
+        r = await client.call_tool(
+            "step",
+            {
+                "action": "research",
+                "inputs": {"query": "quokka", "corpus_dir": str(tmp_path)},
+            },
+        )
+        out = json.loads(r.content[0].text)
+        assert "error" not in out
+        assert sorted(out["state"]["sources"]) == ["kb", "trivia"]
+        # Resolved corpus_dir lands in state.
+        assert out["state"]["corpus_dir"].rstrip("/") == str(tmp_path).rstrip("/")
+        # Each per-source report references its source label.
+        assert "[kb]" in out["state"]["report"]
+        assert "[trivia]" in out["state"]["report"]
+
+
+@pytest.mark.asyncio
+async def test_research_rejects_nonexistent_corpus_dir():
+    server = build_server()
+    async with Client(server) as client:
+        r = await client.call_tool(
+            "step",
+            {
+                "action": "research",
+                "inputs": {
+                    "query": "x",
+                    "corpus_dir": "/tmp/definitely-does-not-exist-xyz123",
+                },
+            },
+        )
+        out = json.loads(r.content[0].text)
+        assert out["error"] == "action_error"
+        assert "does not exist" in out["error_message"]
