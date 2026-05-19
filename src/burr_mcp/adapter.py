@@ -336,6 +336,82 @@ class ActionTimeoutError(Exception):
         super().__init__(f"action {action_name!r} exceeded the {timeout_seconds}s timeout")
 
 
+class ValidationFailed(Exception):
+    """Raised by an input validator to refuse a call before execution.
+
+    Validators run between MCP wire arrival and action execution. They
+    receive the current public state and the inputs the client sent;
+    they may raise this to refuse, return a dict to substitute
+    normalised inputs, or return None to accept the originals.
+
+    The handler catches ``ValidationFailed``, returns a structured
+    ``{"error": "validation_failed", "reason": ..., "details": ...}``
+    to the client, and records a refusal in ``burr://history`` with
+    ``refusal_reason: "validation_failed"``. The FSM does not advance.
+
+    Use ``details`` to attach structured per-field information (e.g.
+    Pydantic validation errors) without baking it into the reason
+    string.
+    """
+
+    def __init__(self, reason: str, *, details: dict[str, Any] | None = None) -> None:
+        self.reason = reason
+        self.details = details or {}
+        super().__init__(reason)
+
+
+# Function attribute that lets hand-written Burr actions declare a
+# validator without going through the importer's ``ToolSpec``. ``mount``
+# reads ``_burr_mcp_validator`` off each action's ``fn`` like the
+# timeout attribute, so the same escape hatch works for both.
+_PER_ACTION_VALIDATOR_ATTR = "_burr_mcp_validator"
+
+
+def _action_validator(
+    action: Action,
+    mount_overrides: dict[str, Callable] | None,
+) -> Callable | None:
+    """Return the input validator for ``action``, or None.
+
+    A ``mount(input_validators={...})`` mapping wins over a
+    function-attribute. Either source produces the same effect.
+    """
+    if mount_overrides is not None:
+        v = mount_overrides.get(action.name)
+        if v is not None:
+            return v
+    fn = getattr(action, "fn", None)
+    if fn is None:
+        return None
+    return getattr(fn, _PER_ACTION_VALIDATOR_ATTR, None)
+
+
+async def _run_validator(
+    validator: Callable,
+    state_dict: dict[str, Any],
+    inputs: dict[str, Any],
+) -> dict[str, Any]:
+    """Invoke a validator (sync or async); return normalised inputs.
+
+    The validator may raise ``ValidationFailed`` to refuse, return a
+    dict to substitute, or return None to accept the originals. Other
+    exceptions propagate to the caller which wraps them as
+    ``ActionExecutionError``.
+    """
+    if asyncio.iscoroutinefunction(validator):
+        result = await validator(state_dict, inputs)
+    else:
+        result = validator(state_dict, inputs)
+    if result is None:
+        return inputs
+    if not isinstance(result, dict):
+        raise ValidationFailed(
+            "validator returned a non-dict result",
+            details={"returned_type": type(result).__name__},
+        )
+    return result
+
+
 def _resolve(application: ApplicationOrFactory) -> tuple[Application, ApplicationFactory | None]:
     """Split ``application`` into a template instance + optional factory.
 
@@ -526,6 +602,7 @@ async def _step_application(
     inputs: dict[str, Any],
     enforce_transitions: bool,
     timeout_seconds: float | None = None,
+    validator: Callable | None = None,
 ) -> dict[str, Any]:
     """Run one step of the Application.
 
@@ -537,6 +614,11 @@ async def _step_application(
     When ``timeout_seconds`` is set, the call is wrapped in
     ``asyncio.wait_for``; on expiry the action's coroutine is cancelled
     and ``ActionTimeoutError`` is raised. None means no timeout.
+
+    When ``validator`` is set, it runs after the transition check and
+    before action dispatch. It receives (public_state, inputs) and may
+    raise ``ValidationFailed``, return None to accept the originals, or
+    return a dict to substitute normalised inputs.
 
     Exceptions raised by the action's wrapped function are caught and
     re-raised as ``ActionExecutionError`` so callers can record them
@@ -551,7 +633,10 @@ async def _step_application(
             action_obj = app.graph.get_action(action_name)
             if action_obj is None:
                 raise InvalidTransitionError(action_name, valid)
-            return await _run_action_bare(app, action_obj, inputs, timeout_seconds)
+            return await _run_action_bare(app, action_obj, inputs, timeout_seconds, validator)
+
+    if validator is not None:
+        inputs = await _run_validator(validator, _public_state(app.state.get_all()), inputs)
 
     try:
         if timeout_seconds is not None:
@@ -584,6 +669,7 @@ async def _run_action_bare(
     action_obj: Action,
     inputs: dict[str, Any],
     timeout_seconds: float | None = None,
+    validator: Callable | None = None,
 ) -> dict[str, Any]:
     """Run an action against current state without graph enforcement.
 
@@ -594,9 +680,10 @@ async def _run_action_bare(
 
     Exceptions raised by the wrapped function are caught and re-raised
     as ``ActionExecutionError`` (same shape as ``_step_application``).
-    Honours ``timeout_seconds`` if set, raising ``ActionTimeoutError``
-    on expiry.
+    Honours ``timeout_seconds`` and ``validator`` the same way.
     """
+    if validator is not None:
+        inputs = await _run_validator(validator, _public_state(app.state.get_all()), inputs)
     state = app.state
     try:
         raw = action_obj.fn(state, **inputs)
@@ -633,6 +720,7 @@ def _make_tool_handler(
     enforce_transitions: bool,
     refresh_session_visibility: bool = False,
     timeout_seconds: float | None = None,
+    validator: Callable | None = None,
 ) -> Callable:
     """Build an async MCP tool handler for one Burr action.
 
@@ -663,7 +751,29 @@ def _make_tool_handler(
                     inputs=kwargs,
                     enforce_transitions=enforce_transitions,
                     timeout_seconds=timeout_seconds,
+                    validator=validator,
                 )
+        except ValidationFailed as e:
+            _record_history(
+                store,
+                ctx,
+                factory,
+                action=action_name,
+                inputs=kwargs,
+                state_after=None,
+                valid_next_actions=valid_next_action_names(app),
+                refused=True,
+                refusal_reason="validation_failed",
+                error_message=e.reason,
+                error_type="ValidationFailed",
+            )
+            return {
+                "error": "validation_failed",
+                "requested": action_name,
+                "reason": e.reason,
+                "details": e.details,
+                "valid_next_actions": valid_next_action_names(app),
+            }
         except InvalidTransitionError as e:
             _record_history(
                 store,
@@ -798,6 +908,7 @@ def mount(
     session_ttl_seconds: int | None = _DEFAULT_SESSION_TTL_SECONDS,
     max_sessions: int | None = _DEFAULT_MAX_SESSIONS,
     action_timeout_seconds: float | None = None,
+    input_validators: dict[str, Callable] | None = None,
 ) -> FastMCP:
     """Return a FastMCP server that exposes ``application`` per ``mode``.
 
@@ -827,6 +938,14 @@ def mount(
             without advancing state. ``None`` (default) means no
             timeout. Cancellation is prompt for async actions doing
             I/O; for sync or CPU-bound work it's best-effort.
+        input_validators: Optional mapping of action name to a
+            validator callable ``(state_dict, inputs) -> dict | None``.
+            Runs before action dispatch. May raise ``ValidationFailed``
+            to refuse the call, return a dict to substitute normalised
+            inputs, or return None to accept the originals. Async
+            validators are supported. ToolSpec-declared validators
+            from the importer also work; per-action attribute
+            ``fn._burr_mcp_validator`` is the hand-tagged escape hatch.
     """
     shared_app, factory = _resolve(application)
     # Per-session store keyed by ctx.session_id; populated lazily on
@@ -970,6 +1089,7 @@ def mount(
                 }
             app, lock = _session_app_and_lock(ctx, shared_app, shared_lock, factory, store)
             effective_timeout = _action_timeout(action_map[action], action_timeout_seconds)
+            effective_validator = _action_validator(action_map[action], input_validators)
             try:
                 async with lock:
                     out = await _step_application(
@@ -978,7 +1098,29 @@ def mount(
                         inputs=inputs or {},
                         enforce_transitions=True,
                         timeout_seconds=effective_timeout,
+                        validator=effective_validator,
                     )
+            except ValidationFailed as e:
+                _record_history(
+                    store,
+                    ctx,
+                    factory,
+                    action=action,
+                    inputs=inputs or {},
+                    state_after=None,
+                    valid_next_actions=valid_next_action_names(app),
+                    refused=True,
+                    refusal_reason="validation_failed",
+                    error_message=e.reason,
+                    error_type="ValidationFailed",
+                )
+                return {
+                    "error": "validation_failed",
+                    "requested": action,
+                    "reason": e.reason,
+                    "details": e.details,
+                    "valid_next_actions": valid_next_action_names(app),
+                }
             except InvalidTransitionError as e:
                 _record_history(
                     store,
@@ -1062,6 +1204,7 @@ def mount(
                 action=action,
                 enforce_transitions=False,
                 timeout_seconds=_action_timeout(action, action_timeout_seconds),
+                validator=_action_validator(action, input_validators),
             )
             mcp.tool(name=action.name, description=handler.__doc__)(handler)
 
@@ -1076,6 +1219,7 @@ def mount(
                 enforce_transitions=True,
                 refresh_session_visibility=True,
                 timeout_seconds=_action_timeout(action, action_timeout_seconds),
+                validator=_action_validator(action, input_validators),
             )
             mcp.tool(
                 name=action.name,

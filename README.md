@@ -3,7 +3,7 @@
 Mount [Burr](https://burr.dagworks.io/) Applications as
 [MCP](https://modelcontextprotocol.io/) servers.
 
-Status: experiment, v0.8.0.
+Status: experiment, v0.9.0.
 
 ## What this is
 
@@ -190,7 +190,7 @@ Each `burr://history` entry:
 ```
 
 Refused attempts appear in the same list with `refused: true` and one
-of four `refusal_reason` values:
+of five `refusal_reason` values:
 
 - `invalid_transition`: the requested action isn't reachable from
   current state. `valid_next_actions` lists what is.
@@ -202,6 +202,10 @@ of four `refusal_reason` values:
 - `action_timeout`: the action exceeded `action_timeout_seconds` and
   was cancelled. The entry carries `error_type: "TimeoutError"` and
   the configured timeout. State is not advanced.
+- `validation_failed`: an input validator declared on the action
+  raised `ValidationFailed`. The entry carries the reason in
+  `error_message` and any structured `details` from the validator.
+  State is not advanced.
 
 Anyone with the history can replay the session or audit it without
 filesystem access to Burr's tracker output.
@@ -291,7 +295,7 @@ burr-mcp serve triage:build_application
 uv run pytest
 ```
 
-Eighty tests in about 3.4 seconds. Most use FastMCP's in-process
+Eighty-nine tests in about 3.3 seconds. Most use FastMCP's in-process
 client; `tests/test_http_transport.py` spawns the HTTP example as a
 subprocess and drives it with two real HTTP clients.
 `tests/test_hardening.py` covers action exceptions, concurrent steps
@@ -408,6 +412,20 @@ Shipped in v0.3.0:
   subprocess and drives it with two concurrent HTTP clients to
   verify per-session isolation on the wire format.
 
+Shipped in v0.9.0:
+
+- Input validators. A callable that runs between MCP arrival and
+  action execution; can refuse the call with `ValidationFailed`,
+  return a dict to substitute normalised inputs, or return None to
+  accept the originals. Sync and async both supported. Three ways to
+  declare:
+  - `mount(input_validators={"action_name": fn, ...})` server-wide.
+  - `ToolSpec(validator=fn)` per-tool via the importer.
+  - `fn._burr_mcp_validator = callable` on a hand-written Burr action.
+  Refusals show up as `error: "validation_failed"` on the wire and
+  `refusal_reason: "validation_failed"` in history, with the validator's
+  reason and details preserved.
+
 Shipped in v0.8.0:
 
 - `examples/sse_serve.py`: serve over the older SSE transport for
@@ -473,7 +491,6 @@ Shipped in v0.4.0 (hardening for frontier-model deployments):
 
 Next:
 
-- v0.9: input validation hooks beyond Burr's `inputs` declaration.
 - v1.0: subgraph mounting (a Burr subgraph spawned from inside an
   action, exposed as a sub-resource).
 

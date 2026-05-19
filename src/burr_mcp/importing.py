@@ -93,6 +93,14 @@ class ToolSpec:
     action, taking precedence over the server-wide
     ``action_timeout_seconds`` on ``mount``. Set to ``None`` (the
     default) to inherit the server-wide setting.
+
+    ``validator`` declares an input validator that runs before the
+    tool fires. It receives ``(state_dict, inputs)`` and may raise
+    ``burr_mcp.ValidationFailed`` to refuse, return a dict to
+    substitute normalised inputs, or return None to accept the
+    originals unchanged. Same shape as the ``input_validators={}``
+    mapping on ``mount``; per-tool here takes precedence over the
+    server-wide map.
     """
 
     reads: list[str] = field(default_factory=list)
@@ -101,6 +109,7 @@ class ToolSpec:
     state_update: Callable[[Any], dict[str, Any]] | None = None
     rename: str | None = None
     timeout_seconds: float | None = None
+    validator: Callable[[dict, dict], dict | None] | None = None
 
 
 def _build_wrapper(
@@ -161,11 +170,13 @@ def _build_wrapper(
     # for downstream schema generation. ``state`` gets no annotation.
     wrapper.__annotations__ = dict(getattr(tool_fn, "__annotations__", {}))
     wrapper.__annotations__.pop("return", None)
-    # Stash the per-tool timeout on the wrapper as a discoverable
-    # attribute. ``mount`` reads ``_burr_mcp_timeout_seconds`` off each
-    # action's ``fn`` to pick up these per-action overrides.
+    # Stash per-tool overrides on the wrapper as discoverable
+    # attributes. ``mount`` reads them off each action's ``fn`` to
+    # pick up these per-action settings.
     if spec.timeout_seconds is not None:
         wrapper._burr_mcp_timeout_seconds = spec.timeout_seconds  # type: ignore[attr-defined]
+    if spec.validator is not None:
+        wrapper._burr_mcp_validator = spec.validator  # type: ignore[attr-defined]
     return wrapper
 
 
