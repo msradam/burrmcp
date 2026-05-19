@@ -15,8 +15,11 @@ Run:
 from __future__ import annotations
 
 from burr.core import ApplicationBuilder, State, action
+from burr.tracking.client import LocalTrackingClient
 
 from burr_mcp import ServingMode, mount, spawn_subapp
+
+_TRACKER_PROJECT = "subgraphs-demo"
 
 # ── sub-graph ────────────────────────────────────────────────────────
 
@@ -43,6 +46,7 @@ def build_subgraph(source: str):
         ApplicationBuilder()
         .with_actions(gather=gather, analyse=analyse, report=report)
         .with_transitions(("gather", "analyse"), ("analyse", "report"))
+        .with_tracker(LocalTrackingClient(project=f"{_TRACKER_PROJECT}-investigation"))
         .with_state(gathered=None, analysis=None, report=None)
         .with_entrypoint("gather")
         .build()
@@ -68,6 +72,7 @@ def build_application():
     return (
         ApplicationBuilder()
         .with_actions(investigate=investigate)
+        .with_tracker(LocalTrackingClient(project=_TRACKER_PROJECT))
         .with_state(investigation_report=None)
         .with_entrypoint("investigate")
         .build()

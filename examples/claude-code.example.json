@@ -1,6 +1,76 @@
 {
-  "_comment": "Wire the incident-response sample into Claude Code. Copy this to your project's .mcp.json (or paste into ~/.claude.json under mcpServers) after editing the absolute path. Then run `claude` from this project and use /mcp to confirm the server connected.",
+  "_comment": "Several burr-mcp example servers wired up for Claude Code. Copy this to your project's .mcp.json (or paste into ~/.claude.json under mcpServers) after editing the absolute path. Then run `claude` from this project and use /mcp to confirm. Each server is self-contained: no APIs, no shell, no auth. Just prompt and try to break the gates.",
   "mcpServers": {
+    "coffee": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/ABSOLUTE/PATH/TO/burr-mcp",
+        "run",
+        "burr-mcp",
+        "serve",
+        "coffee_order:build_application",
+        "--app-dir",
+        "examples"
+      ]
+    },
+    "adventure": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/ABSOLUTE/PATH/TO/burr-mcp",
+        "run",
+        "burr-mcp",
+        "serve",
+        "adventure:build_application",
+        "--app-dir",
+        "examples"
+      ]
+    },
+    "chargen": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/ABSOLUTE/PATH/TO/burr-mcp",
+        "run",
+        "burr-mcp",
+        "serve",
+        "chargen:build_application",
+        "--app-dir",
+        "examples"
+      ]
+    },
+    "release-pipeline": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/ABSOLUTE/PATH/TO/burr-mcp",
+        "run",
+        "burr-mcp",
+        "serve",
+        "release_pipeline:build_application",
+        "--app-dir",
+        "examples"
+      ]
+    },
+    "local-shell": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/ABSOLUTE/PATH/TO/burr-mcp",
+        "run",
+        "burr-mcp",
+        "serve",
+        "local_shell:build_application",
+        "--app-dir",
+        "examples"
+      ]
+    },
     "incident-response": {
       "type": "stdio",
       "command": "uv",

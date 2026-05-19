@@ -40,8 +40,11 @@ from __future__ import annotations
 
 from burr.core import ApplicationBuilder, State, action
 from burr.core.action import Condition
+from burr.tracking.client import LocalTrackingClient
 
 from burr_mcp import ServingMode, mount
+
+_TRACKER_PROJECT = "adventure-demo"
 
 # ── rooms ───────────────────────────────────────────────────────────
 
@@ -130,6 +133,7 @@ def build_application():
                 Condition.expr("door_unlocked == True"),
             ),
         )
+        .with_tracker(LocalTrackingClient(project=_TRACKER_PROJECT))
         .with_state(
             room=None,
             has_key=False,
