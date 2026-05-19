@@ -283,6 +283,7 @@ via the snippet in `examples/claude-code.example.json`.
 | `triage.py` | Branching FSM | Classify input, then route to one of three branches based on the result. |
 | `subgraphs.py` | Sub-Application composition | Parent action spawns a sub-FSM via `spawn_subapp`; nested timeline at `burr://subruns/{id}`. |
 | `parallel_research.py` | Parallel fan-out | Research agent over a shipped markdown corpus at `examples/data/parallel_research/{services,runbooks,faqs}/`. Parent action fans out one search sub-Application per source via `asyncio.gather`; each sub-app runs a four-step pipeline (`load_documents → score_documents → extract_snippets → summarize`). Pure-Python term-frequency search, no external deps. Each sub-run is its own subrun with the source as label. |
+| `granite_oncall.py` | LLM call inside the graph | On-call alert triage where two nodes call a real Granite model via Ollama. FSM provides the structure around the LLM: malformed outputs trigger retry-as-transition (max 3) before escalating to `route_to_human`. Requires `ollama serve` with `granite4.1:3b` pulled. |
 | `streaming_narrate.py` | Streaming action | An action that yields intermediate chunks; each becomes an MCP progress notification, the final state arrives in the tool response. |
 | `with_otel.py` | OpenTelemetry spans | Burr's `OpenTelemetryBridge` wired into the factory; every action run emits a span. Console exporter for demo; swap for OTLP/Jaeger in production. |
 | `incident_response.py` | Showcase | Realistic ops workflow with all features (validators, sub-graphs, branching, conditional loop). The canonical Claude Code demo. |
@@ -458,13 +459,28 @@ exists in workspace; the agent rewires to read-then-edit.
 All three work with no external dependencies. Wire them into Claude
 Code via `examples/claude-code.example.json`.
 
+`examples/granite_oncall.py` puts a real LLM call inside the graph.
+An on-call alert text comes in; the FSM runs two Granite calls
+(via Ollama) sandwiched around a deterministic corpus lookup:
+`report_alert -> classify_severity -> extract_service ->
+suggest_runbook -> format_response`. Each LLM step auto-retries up
+to three times on malformed output (severity not in `{P0,P1,P2,P3}`,
+service not in the known list), and after three strikes the FSM
+routes to a `route_to_human` terminal action with every Granite
+attempt captured in state so an operator can see what the model
+was saying. The retry loop is encoded as transitions, so each
+attempt is its own visible step in `burr://history` and the trace,
+not buried in a Python `while`. Requires Ollama running with
+`granite4.1:3b` pulled; tests monkey-patch the Granite call so
+they stay hermetic.
+
 ## Tests
 
 ```bash
 uv run pytest
 ```
 
-Two hundred and fifteen tests in about 5 seconds. Most use FastMCP's in-process
+Two hundred and twenty-four tests in about 6 seconds. Most use FastMCP's in-process
 client; `tests/test_http_transport.py` spawns the HTTP example as a
 subprocess and drives it with two real HTTP clients.
 `tests/test_hardening.py` covers action exceptions, concurrent steps

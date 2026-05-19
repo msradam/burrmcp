@@ -71,6 +71,20 @@
         "examples"
       ]
     },
+    "granite-oncall": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/ABSOLUTE/PATH/TO/burr-mcp",
+        "run",
+        "burr-mcp",
+        "serve",
+        "granite_oncall:build_application",
+        "--app-dir",
+        "examples"
+      ]
+    },
     "incident-response": {
       "type": "stdio",
       "command": "uv",
