@@ -282,7 +282,7 @@ via the snippet in `examples/claude-code.example.json`.
 | `coffee_order.py` | Linear FSM | Smallest interesting example: `take_order → pay → fulfill`. |
 | `triage.py` | Branching FSM | Classify input, then route to one of three branches based on the result. |
 | `subgraphs.py` | Sub-Application composition | Parent action spawns a sub-FSM via `spawn_subapp`; nested timeline at `burr://subruns/{id}`. |
-| `parallel_research.py` | Parallel fan-out | One parent action spawns N sub-applications concurrently via `asyncio.gather`. Each is its own subrun; the parent gathers their findings into the parent state. |
+| `parallel_research.py` | Parallel fan-out | Research agent over a shipped markdown corpus at `examples/data/parallel_research/{services,runbooks,faqs}/`. Parent action fans out one search sub-Application per source via `asyncio.gather`; each sub-app runs a four-step pipeline (`load_documents → score_documents → extract_snippets → summarize`). Pure-Python term-frequency search, no external deps. Each sub-run is its own subrun with the source as label. |
 | `streaming_narrate.py` | Streaming action | An action that yields intermediate chunks; each becomes an MCP progress notification, the final state arrives in the tool response. |
 | `with_otel.py` | OpenTelemetry spans | Burr's `OpenTelemetryBridge` wired into the factory; every action run emits a span. Console exporter for demo; swap for OTLP/Jaeger in production. |
 | `incident_response.py` | Showcase | Realistic ops workflow with all features (validators, sub-graphs, branching, conditional loop). The canonical Claude Code demo. |
@@ -460,7 +460,7 @@ Code via `examples/claude-code.example.json`.
 uv run pytest
 ```
 
-Two hundred tests in about 4 seconds. Most use FastMCP's in-process
+Two hundred and nine tests in about 5 seconds. Most use FastMCP's in-process
 client; `tests/test_http_transport.py` spawns the HTTP example as a
 subprocess and drives it with two real HTTP clients.
 `tests/test_hardening.py` covers action exceptions, concurrent steps
