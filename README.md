@@ -13,7 +13,7 @@ are valid, and `burr_app_from_fastmcp(...)` lifts it into a Burr
 Application that mounts the same way, gaining transition enforcement,
 audit history, and per-session isolation.
 
-Status: v1.7.0.
+Status: v1.8.0.
 
 ## What this is
 
@@ -414,7 +414,7 @@ burr-mcp serve triage:build_application
 uv run pytest
 ```
 
-One hundred and forty-four tests in about 4 seconds. Most use FastMCP's in-process
+One hundred and fifty tests in about 4 seconds. Most use FastMCP's in-process
 client; `tests/test_http_transport.py` spawns the HTTP example as a
 subprocess and drives it with two real HTTP clients.
 `tests/test_hardening.py` covers action exceptions, concurrent steps
@@ -530,6 +530,21 @@ Shipped in v0.3.0:
 - `tests/test_http_transport.py`: spawns the HTTP example as a
   subprocess and drives it with two concurrent HTTP clients to
   verify per-session isolation on the wire format.
+
+Shipped in v1.8.0:
+
+- `fork_from_past(app_id, sequence_id)` meta-tool. Loads a persisted
+  Burr run from disk and rewinds the session to that state. Lets an
+  agent resume a session across server restarts (track the app_id
+  on the client, restore here after reconnect) or fork from any
+  past persisted run, not just the current session's in-memory
+  history. Requires the Application to have a `LocalTrackingClient`
+  attached (the same setup that powers `burr://trace`). Refuses
+  cleanly when the app_id doesn't exist on disk, when no tracker is
+  attached, or in shared-app mode.
+- `fork_from_past` joins `reset_session`, `fork_at`, and the others
+  in `burr://graph`'s `meta_tools` advertisement so a connecting
+  agent discovers it during cold-start.
 
 Shipped in v1.7.0:
 
