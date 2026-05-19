@@ -1,6 +1,6 @@
 [project]
 name = "burr-mcp"
-version = "1.10.0"
+version = "1.11.0"
 description = "Mount Burr Applications as MCP servers. FSM-as-API, not tools-as-API."
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
@@ -62,6 +62,13 @@ dev = [
     # OTel testing uses the in-memory exporter; the [observability]
     # extra carries the rest.
     "burr-mcp[observability]",
+    # Example-demo deps: psutil for unix_health, bandit + detect-secrets
+    # for codebase_security. Dev-only because the examples are not
+    # part of the published wheel; end users running those demos
+    # install them separately.
+    "psutil>=5.9",
+    "bandit>=1.8",
+    "detect-secrets>=1.5",
 ]
 
 [tool.ruff]

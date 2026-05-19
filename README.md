@@ -284,6 +284,9 @@ via the snippet in `examples/claude-code.example.json`.
 | `subgraphs.py` | Sub-Application composition | Parent action spawns a sub-FSM via `spawn_subapp`; nested timeline at `burr://subruns/{id}`. |
 | `parallel_research.py` | Parallel fan-out | Research agent over a shipped markdown corpus at `examples/data/parallel_research/{services,runbooks,faqs}/`. Parent action fans out one search sub-Application per source via `asyncio.gather`; each sub-app runs a four-step pipeline (`load_documents → score_documents → extract_snippets → summarize`). Pure-Python term-frequency search, no external deps. Each sub-run is its own subrun with the source as label. |
 | `granite_oncall.py` | LLM call inside the graph | On-call alert triage where two nodes call a real Granite model via Ollama. FSM provides the structure around the LLM: malformed outputs trigger retry-as-transition (max 3) before escalating to `route_to_human`. Requires `ollama serve` with `granite4.1:3b` pulled. |
+| `unix_health.py` | Deterministic ops checks | System-health FSM using `psutil` for disk / memory / load / process checks. Triages overall severity, branches to clean report or critical alert with deep-dive detail on the worst subsystem. No LLM. |
+| `codebase_security.py` | Vulnerability audit with patch-overlay loop | Runs `bandit` + `detect-secrets` against a shipped vulnerable Python repo (`examples/data/codebase_security/vuln_demo/`), normalizes findings to a common schema with CWE IDs, severity, and per-CWE remediation hints. Remediation is search/replace patches recorded in state and applied to a tmpdir overlay on rescan; the original codebase on disk is never modified. Loop caps at 3 rounds; escalates when ≥2 critical/high findings persist across a rescan. |
+| `adaptive_crag.py` | Self-correcting RAG | Granite-graded RAG over the parallel_research corpus. After retrieval and synthesis, a grader scores the answer 1-5 on grounding + relevance; bad grade rewrites the query and loops back to retrieval. Cap at 3 rounds. Based on CRAG ([Yan et al 2024](https://arxiv.org/abs/2401.15884)) with a simplified LLM-as-judge instead of a trained T5 evaluator. |
 | `streaming_narrate.py` | Streaming action | An action that yields intermediate chunks; each becomes an MCP progress notification, the final state arrives in the tool response. |
 | `with_otel.py` | OpenTelemetry spans | Burr's `OpenTelemetryBridge` wired into the factory; every action run emits a span. Console exporter for demo; swap for OTLP/Jaeger in production. |
 | `incident_response.py` | Showcase | Realistic ops workflow with all features (validators, sub-graphs, branching, conditional loop). The canonical Claude Code demo. |
@@ -474,13 +477,57 @@ not buried in a Python `while`. Requires Ollama running with
 `granite4.1:3b` pulled; tests monkey-patch the Granite call so
 they stay hermetic.
 
+`examples/unix_health.py` is a pure-deterministic Unix system-health
+FSM. No LLM. Walks four checks (disk, memory, load, processes) via
+`psutil`, computes overall severity as the max of the per-check
+statuses, then branches: a healthy or warning system goes straight
+to `produce_report`; a critical system routes through `deep_dive`
+(top-5 disk-by-usage, top-5 processes-by-RSS or CPU, or the zombie
+list, depending on which subsystem is worst) into `raise_alert`.
+The triage node refuses the wrong terminal: `produce_report` is
+unreachable when any check is critical, and `deep_dive` is
+unreachable when nothing is critical. Cross-platform via psutil; no
+shell-outs, no privileged access required.
+
+`examples/codebase_security.py` is the vulnerability-audit FSM.
+Points at a Python repo, runs real `bandit` and `detect-secrets`
+subprocesses, normalizes every finding to a common schema with CWE
+ID, severity, file:line, offending snippet, and a per-CWE
+remediation hint. The remediation loop is the interesting bit: the
+agent calls `propose_patch(file_path, search, replace)` one or more
+times (every patch is recorded in `state.patch_log` and visible in
+`burr://history`), optionally `acknowledge_finding` to suppress
+known-OK findings, then `confirm_fixes_applied` to trigger a
+rescan. The rescan copies the repo to a tmpdir, applies every
+recorded patch via literal string replace, runs the scanners
+against the overlay, and cleans the tmpdir up. The original
+codebase on disk is never modified, so the demo is re-runnable
+indefinitely. A stuck-counter forces escalation when ≥2 critical or
+high findings persist across a rescan; the budget caps at 3 rounds.
+Ships with a deliberately-vulnerable Python micro-app at
+`examples/data/codebase_security/vuln_demo/` covering CWE-89
+(SQL injection), CWE-78 (command injection), CWE-502 (insecure
+deserialization), CWE-95 (eval), CWE-327 (weak crypto), and CWE-798
+(hardcoded credentials).
+
+`examples/adaptive_crag.py` is self-correcting RAG over the
+`parallel_research` corpus. After retrieval and Granite synthesis,
+a second Granite call grades the answer 1-5 on grounding +
+relevance. A bad grade prompts a third Granite call to rewrite the
+search query, and the FSM loops back to retrieval. Cap at 3 rounds.
+Implements a simplified version of the CRAG pattern from
+[Yan et al 2024](https://arxiv.org/abs/2401.15884), with two
+simplifications: the trained T5 evaluator is replaced by an
+LLM-as-judge, and the corrective branch is a query rewrite rather
+than an external web fallback.
+
 ## Tests
 
 ```bash
 uv run pytest
 ```
 
-Two hundred and twenty-four tests in about 6 seconds. Most use FastMCP's in-process
+Two hundred and ninety-one tests in about 16 seconds (real bandit + detect-secrets subprocess scans in the codebase_security tests account for most of the runtime; the rest of the suite is in-process and lands in well under a second). Most use FastMCP's in-process
 client; `tests/test_http_transport.py` spawns the HTTP example as a
 subprocess and drives it with two real HTTP clients.
 `tests/test_hardening.py` covers action exceptions, concurrent steps
