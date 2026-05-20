@@ -53,6 +53,8 @@ including parallelism, persistence, telemetry, and library coexistence:
 | Sub-Application composition | Yes; `burr://subruns` indexes `spawn_subapp` calls | `incident_response`, `subgraphs` |
 | OpenTelemetry (`OpenTelemetryBridge`) | Yes | `with_otel` |
 | User-defined lifecycle hooks (`PreRunStepHook` / `PostRunStepHook` / etc.) | Yes; via `ApplicationBuilder.with_hooks(...)` | `pipeline_hooks` |
+| `with_graph(Graph)` / `with_graphs(...)` (reusable graph fragments) | Yes; same `Graph` object embedded in multiple Applications | `subgraph_composition` |
+| Class-based `Action` subclasses (escape from `@action`) | Yes; one class, configured instances | `class_action` |
 | Hamilton driver inside an action body | Yes (no special integration) | `hamilton_features` |
 | `app.run(halt_after=...)` auto-routing | Burr-level only | MCP path always uses agent-chosen actions via `step` |
 
