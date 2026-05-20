@@ -16,6 +16,14 @@ models cannot substitute for. Use ``ctx.sample`` when the FSM's LLM
 work is general-purpose and the connected agent already has a capable
 model attached.
 
+**Client compat (mid-2026):** Claude Code's headless CLI does NOT
+support MCP server-to-client sampling; it returns the explicit error
+"Client does not support sampling" and the action surfaces this as
+``action_error``. MCP Inspector and ``fastmcp.Client`` with a
+``sampling_handler`` work normally. The hermetic test suite uses the
+latter; the smoke test asserts the Claude Code refusal as documented
+compat.
+
 The Burr-side glue: ``burrmcp.current_mcp_context()`` returns the
 FastMCP ``Context`` BurrMCP's step handler threads into each action.
 Action bodies pull it out and call any ``Context`` method. Outside an

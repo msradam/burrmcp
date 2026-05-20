@@ -23,6 +23,14 @@ step. No agent-side prompt engineering can bypass the gate because the
 elicitation happens server-side, in the action body, before any state
 mutation that depends on the user's choice.
 
+**Client compat (mid-2026):** Claude Code's headless CLI auto-declines
+elicitation requests (no interactive prompt in headless mode); the
+demo's not-accepted branch defaults to ``outcome="aborted"``. This is
+the correct defensive behavior: when the client cannot confirm with
+a user, default-deny. MCP Inspector and ``fastmcp.Client`` with an
+``elicitation_handler`` can surface the accept path; hermetic tests
+cover it.
+
 Run:
 
     uv run python examples/elicit_confirm.py
