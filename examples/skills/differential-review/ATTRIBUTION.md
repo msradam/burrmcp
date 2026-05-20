@@ -1,10 +1,17 @@
 # Attribution
 
-Source: https://raw.githubusercontent.com/trailofbits/skills/main/plugins/differential-review/skills/differential-review/SKILL.md
+Source: https://github.com/trailofbits/skills/tree/main/plugins/differential-review/skills/differential-review
 Original author / org: Trail of Bits (https://github.com/trailofbits)
 License: CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/)
 Pulled on: 2026-05-20
-Original filename: SKILL.md
+
+Files in this directory pulled verbatim from upstream:
+
+- `SKILL.md` -- the SKILL entry point
+- `methodology.md` -- Pre-Analysis + Phases 0-4 detail
+- `adversarial.md` -- Phase 5 attacker modeling
+- `reporting.md` -- Phase 6 report structure
+- `patterns.md` -- common vulnerability patterns reference
 
 This skill is included verbatim in the BurrMCP examples folder
 to demonstrate the "SKILL-to-FSM" pattern: a real Claude Code

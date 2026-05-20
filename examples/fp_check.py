@@ -50,68 +50,74 @@ _VALID_PATHS = {"standard", "deep"}
 
 
 _PROMPT_STEP0 = """\
-You are verifying a suspected security bug using Trail of Bits' fp-check
-SKILL. Original claim:
+Trail of Bits fp-check SKILL. Original claim:
 
     {bug_summary}
 
-STEP 0 of 8: UNDERSTAND THE CLAIM AND CONTEXT.
+STEP 0: UNDERSTAND THE CLAIM AND CONTEXT.
 
-The SKILL says half of false positives collapse at this step because
-the claim does not make coherent sense when restated precisely. Before
-any analysis, restate the bug in your own words and document:
+From `SKILL.md#step-0-understand-the-claim-and-context`: "Half of
+false positives collapse at this step -- the claim doesn't make
+coherent sense when restated precisely." Restate the bug in your own
+words and document (verbatim list from the SKILL):
 
-- exact_claim: the precise vulnerability claim (e.g., "heap buffer
-  overflow in parse_header() when content_length exceeds 4096")
-- alleged_root_cause: what specifically is wrong (e.g., "missing
-  bounds check before memcpy at line 142")
-- supposed_trigger: how the bug fires (e.g., "attacker sends HTTP
-  request with oversized Content-Length header")
-- claimed_impact: what bad thing happens (e.g., "RCE via controlled
-  heap corruption")
-- threat_model: privilege level + sandbox + attacker preconditions
-  (e.g., "unauthenticated remote attacker; runs in Chrome renderer
-  sandbox")
-- bug_class: bug-class label (memory_corruption, logic, race, integer,
-  crypto, injection, info_disclosure, dos, or deserialization)
-- execution_context: when this code path is normally reached
-- caller_analysis: who calls this code + what input constraints they
-  impose
-- architectural_context: is this part of a multi-layer security system?
-- historical_context: recent changes, known issues, prior reviews
-- can_restate_clearly: bool. If False, ask the user for clarification
-  via AskUserQuestion before continuing; do not proceed.
+- exact_claim: e.g. "heap buffer overflow in parse_header() when
+  content_length exceeds 4096"
+- alleged_root_cause: e.g. "missing bounds check before memcpy at
+  line 142"
+- supposed_trigger: e.g. "attacker sends HTTP request with oversized
+  Content-Length header"
+- claimed_impact: e.g. "remote code execution via controlled heap
+  corruption"
+- threat_model: privilege level, sandbox, attacker preconditions
+- bug_class: classify and consult
+  `bug-class-verification.md` for class-specific requirements
+- execution_context: when is this code path reached during normal
+  execution?
+- caller_analysis: what functions call this code, what input
+  constraints do they impose?
+- architectural_context: is this part of a larger security system
+  with multiple protection layers?
+- historical_context: recent changes, known issues, previous reviews
+- can_restate_clearly: bool. The SKILL: "If you cannot do this
+  clearly, ask the user for clarification using AskUserQuestion."
 
-Call `step0_restate(restated={{...}})` with these fields. If
-can_restate_clearly is False the FSM will refuse to continue; the
-SKILL forbids guessing your way through Step 0.
+Call `step0_restate(restated={{...}})`. The FSM refuses to advance
+when can_restate_clearly is False; the SKILL forbids guessing past
+Step 0.
 """
 
 
 _PROMPT_ROUTE = """\
-STEP 1 of 8: ROUTE TO STANDARD OR DEEP VERIFICATION.
+ROUTE: STANDARD VS DEEP VERIFICATION.
 
-Choose `standard` when ALL of these hold:
-  - Clear specific claim (not vague)
-  - Single component, no cross-component interaction
-  - Well-understood bug class (buffer overflow, SQLi, XSS, int overflow)
-  - No concurrency or async in the trigger
+From `SKILL.md#route-standard-vs-deep-verification`:
+
+Use `standard` (linear single-pass checklist, see
+`standard-verification.md`) when ALL hold:
+  - Clear, specific vulnerability claim (not vague or ambiguous)
+  - Single component -- no cross-component interaction in bug path
+  - Well-understood bug class (buffer overflow, SQL injection, XSS,
+    integer overflow, etc.)
+  - No concurrency or async involved in the trigger
   - Straightforward data flow from source to sink
 
-Choose `deep` when ANY of these hold:
-  - Ambiguous claim with multiple interpretations
-  - Cross-component bug path (3+ modules / services)
-  - Race conditions, TOCTOU, concurrency in trigger
-  - Logic bug with no clear spec to verify against
-  - User explicitly requested full verification
-  - Standard verification was inconclusive
+Use `deep` (full task-based orchestration, see `deep-verification.md`)
+when ANY hold:
+  - Ambiguous claim that could be interpreted multiple ways
+  - Cross-component bug path (data flows through 3+ modules / services)
+  - Race conditions, TOCTOU, concurrency in the trigger mechanism
+  - Logic bugs without a clear spec to verify against
+  - Standard verification was inconclusive or escalated
+  - User explicitly requests full verification
 
-Default: `standard`. The SKILL has built-in escalation checkpoints so
-a standard run can route to deep mid-stream if needed.
+Default: `standard`. Standard verification has two built-in escalation
+checkpoints that route to deep when complexity exceeds the linear
+checklist.
 
 Call `route_path(path="standard"|"deep", justification="...")`. The
-same six mandatory gates fire on both paths (per gate-reviews.md);
-the path determines how you collect evidence, not which gates apply.
+same six gates from `gate-reviews.md` fire on both paths; the path
+controls how you collect evidence, not which gates apply.
 """
 
 
