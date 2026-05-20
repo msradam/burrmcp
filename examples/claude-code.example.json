@@ -43,20 +43,6 @@
         "examples"
       ]
     },
-    "release-pipeline": {
-      "type": "stdio",
-      "command": "uv",
-      "args": [
-        "--directory",
-        "/ABSOLUTE/PATH/TO/burrmcp",
-        "run",
-        "burrmcp",
-        "serve",
-        "release_pipeline:build_application",
-        "--app-dir",
-        "examples"
-      ]
-    },
     "local-shell": {
       "type": "stdio",
       "command": "uv",

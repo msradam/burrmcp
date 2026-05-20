@@ -42,7 +42,7 @@ including parallelism, persistence, telemetry, and library coexistence:
 | Burr surface | Through `mount()` | Demo / evidence |
 |---|---|---|
 | `@action`, `with_transitions`, `with_state`, `with_entrypoint` | Yes (core path) | every demo |
-| `Condition.expr` / `.when` / `.default` | Yes | `release_pipeline`, `chargen` |
+| `Condition.expr` / `.when` / `.default` | Yes | `coffee_order`, `chargen`, `incident_response` |
 | `with_tracker(LocalTrackingClient)` | Yes; surfaced at `burr://trace` | every narrative demo |
 | `with_state_persister(BaseStatePersister)` | Yes | `sqlite_persister` |
 | `with_typed_state(Pydantic)` | Yes; JSON schema exported via `burr://graph` `state_schema` | `typed_state_loan` |
@@ -301,7 +301,6 @@ Python 3.11 through 3.13.
 | `triage.py` | Branching FSM with conditional transitions. |
 | `adventure.py` | State-space traversal. Rooms are states, moves are gated transitions. |
 | `chargen.py` | Sequential narrowing wizard with strict ordering. |
-| `release_pipeline.py` | Agent refuses to skip-ahead. Gated tests/canary/promote. |
 | `local_shell.py` | Read-before-edit safety rails; patch-overlay via state. |
 | `incident_response.py` | Realistic ops workflow with all features. Canonical Claude Code demo. |
 | `subgraphs.py` | Sub-Application composition via `spawn_subapp`. |
