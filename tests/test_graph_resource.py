@@ -15,7 +15,7 @@ from burr.core import ApplicationBuilder, State, action
 from burr.core.action import Condition
 from fastmcp import Client
 
-from burr_mcp import ServingMode, mount
+from burrmcp import ServingMode, mount
 
 
 @action(reads=[], writes=["stage"])

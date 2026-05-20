@@ -49,7 +49,7 @@ from burr.core import ApplicationBuilder, State, action
 from burr.core.action import Condition
 from burr.tracking.client import LocalTrackingClient
 
-from burr_mcp import ServingMode, mount
+from burrmcp import ServingMode, mount
 
 _TRACKER_PROJECT = "granite-oncall-demo"
 _DEFAULT_MODEL = os.environ.get("BURR_MCP_GRANITE_MODEL", "granite4.1:3b")

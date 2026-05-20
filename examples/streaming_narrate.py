@@ -27,7 +27,7 @@ from __future__ import annotations
 from burr.core import ApplicationBuilder, State
 from burr.core.action import streaming_action
 
-from burr_mcp import ServingMode, mount
+from burrmcp import ServingMode, mount
 
 
 @streaming_action(reads=[], writes=["story"])

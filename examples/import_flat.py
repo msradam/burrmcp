@@ -29,7 +29,7 @@ import asyncio
 
 from fastmcp import FastMCP
 
-from burr_mcp import ServingMode, ToolSpec, burr_app_from_fastmcp, mount
+from burrmcp import ServingMode, ToolSpec, burr_app_from_fastmcp, mount
 
 # ── starting point: a flat FastMCP server ────────────────────────────
 

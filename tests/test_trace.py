@@ -18,8 +18,8 @@ from burr.core import ApplicationBuilder, State, action
 from burr.tracking.client import LocalTrackingClient
 from fastmcp import Client
 
-from burr_mcp import ServingMode, mount
-from burr_mcp.adapter import _tracker_log_path
+from burrmcp import ServingMode, mount
+from burrmcp.adapter import _tracker_log_path
 
 
 @action(reads=[], writes=["counter"])

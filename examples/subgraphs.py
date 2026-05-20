@@ -17,7 +17,7 @@ from __future__ import annotations
 from burr.core import ApplicationBuilder, State, action
 from burr.tracking.client import LocalTrackingClient
 
-from burr_mcp import ServingMode, mount, spawn_subapp
+from burrmcp import ServingMode, mount, spawn_subapp
 
 _TRACKER_PROJECT = "subgraphs-demo"
 
@@ -60,7 +60,7 @@ def build_subgraph(source: str):
 async def investigate(state: State, source: str) -> State:
     """Run the three-step investigation sub-graph against ``source``.
 
-    Uses ``burr_mcp.spawn_subapp`` to delegate. The sub-run's per-step
+    Uses ``burrmcp.spawn_subapp`` to delegate. The sub-run's per-step
     timeline appears at ``burr://subruns/{id}`` automatically.
     """
     sub = build_subgraph(source)

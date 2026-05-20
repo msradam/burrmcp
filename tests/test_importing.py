@@ -14,7 +14,7 @@ import json
 import pytest
 from fastmcp import Client, FastMCP
 
-from burr_mcp import ServingMode, ToolSpec, burr_app_from_fastmcp, mount
+from burrmcp import ServingMode, ToolSpec, burr_app_from_fastmcp, mount
 
 
 def _make_flat_server() -> FastMCP:

@@ -20,7 +20,7 @@ import os
 
 from coffee_order import build_application
 
-from burr_mcp import ServingMode, mount
+from burrmcp import ServingMode, mount
 
 HOST = os.environ.get("BURR_MCP_HOST", "127.0.0.1")
 PORT = int(os.environ.get("BURR_MCP_PORT", "8766"))

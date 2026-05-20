@@ -24,7 +24,7 @@ What each piece of the library this exercises:
     via ``burr://subruns/{id}``.
   • Input validator: severity must be one of P1/P2/P3.
   • Per-action timeout via ``ToolSpec`` isn't used here (no flat-MCP
-    import), but you'd add one with ``fn._burr_mcp_timeout_seconds = N``.
+    import), but you'd add one with ``fn._burrmcp_timeout_seconds = N``.
   • Per-session isolation via factory (each on-call engineer gets
     their own incident, even on a shared server).
 
@@ -48,7 +48,7 @@ from burr.core import ApplicationBuilder, State, action
 from burr.core.action import Condition
 from burr.tracking.client import LocalTrackingClient
 
-from burr_mcp import (
+from burrmcp import (
     ServingMode,
     ValidationFailed,
     mount,

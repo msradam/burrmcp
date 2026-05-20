@@ -11,8 +11,8 @@ from __future__ import annotations
 import pytest
 from typer.testing import CliRunner
 
-from burr_mcp import cli
-from burr_mcp.cli import _import_target, app
+from burrmcp import cli
+from burrmcp.cli import _import_target, app
 
 runner = CliRunner()
 

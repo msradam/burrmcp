@@ -27,7 +27,7 @@ from opentelemetry.sdk.trace.export import (
     ConsoleSpanExporter,
 )
 
-from burr_mcp import ServingMode, mount
+from burrmcp import ServingMode, mount
 
 # ── OTel wiring (do once at process start) ──────────────────────────
 

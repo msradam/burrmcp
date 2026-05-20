@@ -22,7 +22,7 @@ from __future__ import annotations
 from burr.core import ApplicationBuilder, State, action
 from burr.tracking.client import LocalTrackingClient
 
-from burr_mcp import ServingMode, mount
+from burrmcp import ServingMode, mount
 
 _TRACKER_PROJECT = "coffee-order-demo"
 

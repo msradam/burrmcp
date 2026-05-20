@@ -107,7 +107,7 @@ async def test_session_without_subapp_spawn_has_empty_subruns():
     """A normal session that never calls spawn_subapp has an empty index."""
     from burr.core import ApplicationBuilder, State, action
 
-    from burr_mcp import ServingMode, mount
+    from burrmcp import ServingMode, mount
 
     @action(reads=[], writes=["x"])
     def plain(state: State) -> State:
@@ -143,7 +143,7 @@ async def test_two_subruns_from_one_session_both_recorded():
     from burr.core import ApplicationBuilder, action
     from subgraphs import build_subgraph
 
-    from burr_mcp import ServingMode, mount, spawn_subapp
+    from burrmcp import ServingMode, mount, spawn_subapp
 
     @action(reads=[], writes=["last"])
     async def investigate_loop(state, source: str):

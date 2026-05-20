@@ -97,7 +97,7 @@ def _serializable_state(
     objects, Pydantic models, callables). The wire format is JSON, so
     we test each top-level value with strict ``json.dumps`` and fall
     back to ``str(value)`` for anything that fails. The list of coerced
-    keys is surfaced to the client via ``_burr_mcp.coerced_keys`` on
+    keys is surfaced to the client via ``_burrmcp.coerced_keys`` on
     the state resource so it knows the round-trip is lossy and can
     flag downstream.
 
@@ -118,11 +118,11 @@ def _serializable_state(
 
 _TRACE_MAX_ENTRIES = 1000  # cap burr://trace response to the last N records
 
-# Function attribute set by ``burr_mcp.importing`` (and any other code
+# Function attribute set by ``burrmcp.importing`` (and any other code
 # that wants to annotate an action with a per-call timeout). ``mount``
 # reads this off each action's ``fn`` and uses it in preference to the
 # server-wide default.
-_PER_ACTION_TIMEOUT_ATTR = "_burr_mcp_timeout_seconds"
+_PER_ACTION_TIMEOUT_ATTR = "_burrmcp_timeout_seconds"
 
 
 def _action_timeout(action: Action, server_default: float | None) -> float | None:
@@ -130,7 +130,7 @@ def _action_timeout(action: Action, server_default: float | None) -> float | Non
 
     Per-action override (set by ``ToolSpec.timeout_seconds`` via the
     importer, or by hand-tagging a function with
-    ``fn._burr_mcp_timeout_seconds = N``) wins over the server-wide
+    ``fn._burrmcp_timeout_seconds = N``) wins over the server-wide
     default. ``None`` at either level disables timeout for that level;
     a numeric override on the action applies even when the server
     default is ``None``.
@@ -449,7 +449,7 @@ class ActionTimeoutError(Exception):
 #: their session's entry, which is what ``spawn_subapp`` needs to
 #: record sub-run timelines back into the parent session.
 _current_session_entry: contextvars.ContextVar[_SessionEntry | None] = contextvars.ContextVar(
-    "_burr_mcp_current_session", default=None
+    "_burrmcp_current_session", default=None
 )
 
 
@@ -563,9 +563,9 @@ class ValidationFailed(Exception):
 
 # Function attribute that lets hand-written Burr actions declare a
 # validator without going through the importer's ``ToolSpec``. ``mount``
-# reads ``_burr_mcp_validator`` off each action's ``fn`` like the
+# reads ``_burrmcp_validator`` off each action's ``fn`` like the
 # timeout attribute, so the same escape hatch works for both.
-_PER_ACTION_VALIDATOR_ATTR = "_burr_mcp_validator"
+_PER_ACTION_VALIDATOR_ATTR = "_burrmcp_validator"
 
 
 def _action_validator(
@@ -656,7 +656,7 @@ class _SessionEntry:
     Different sessions still proceed in parallel.
 
     ``subruns`` holds the timelines of any sub-Applications spawned
-    from inside this session's actions via ``burr_mcp.spawn_subapp``.
+    from inside this session's actions via ``burrmcp.spawn_subapp``.
     Each entry has its own id, label, started/ended timestamps,
     history list, and optional final state. Subrun ids are surfaced
     on the parent action's history entry via the ``subruns`` key so
@@ -898,7 +898,7 @@ async def _step_application(
         app.get_next_action = original_get_next_action  # type: ignore[method-assign]
     state, coerced = _serializable_state(_public_state(new_state.get_all()))
     if coerced:
-        state["_burr_mcp"] = {"coerced_keys": coerced}
+        state["_burrmcp"] = {"coerced_keys": coerced}
     return {
         "action": a.name,
         "result": result,
@@ -963,7 +963,7 @@ async def _step_streaming_action(
 
     state, coerced = _serializable_state(_public_state(final_state_dict))
     if coerced:
-        state["_burr_mcp"] = {"coerced_keys": coerced}
+        state["_burrmcp"] = {"coerced_keys": coerced}
     return {
         "action": a.name,
         "result": final_chunk,
@@ -1012,7 +1012,7 @@ async def _run_action_bare(
     app.update_state(new_state)
     out_state, coerced = _serializable_state(_public_state(app.state.get_all()))
     if coerced:
-        out_state["_burr_mcp"] = {"coerced_keys": coerced}
+        out_state["_burrmcp"] = {"coerced_keys": coerced}
     return {
         "action": action_obj.name,
         "result": {},
@@ -1269,7 +1269,7 @@ def mount(
             inputs, or return None to accept the originals. Async
             validators are supported. ToolSpec-declared validators
             from the importer also work; per-action attribute
-            ``fn._burr_mcp_validator`` is the hand-tagged escape hatch.
+            ``fn._burrmcp_validator`` is the hand-tagged escape hatch.
         state_loader: Optional Burr ``BaseStateLoader`` (or compatible)
             used by ``fork_from_past`` to load persisted state from a
             non-``LocalTrackingClient`` backend (SQLite, S3, postgres,
@@ -1354,13 +1354,13 @@ def mount(
 
         Internal Burr keys (``__PRIOR_STEP``, ``__SEQUENCE_ID``) are
         filtered. Non-JSON-representable values are coerced to strings,
-        with the affected keys listed under ``_burr_mcp.coerced_keys``
+        with the affected keys listed under ``_burrmcp.coerced_keys``
         so the client knows the round-trip is lossy.
         """
         app, _, _ = _session_app_and_lock(ctx, shared_app, shared_lock, factory, store)
         state, coerced = _serializable_state(_public_state(app.state.get_all()))
         if coerced:
-            state["_burr_mcp"] = {"coerced_keys": coerced}
+            state["_burrmcp"] = {"coerced_keys": coerced}
         return json.dumps(state, indent=2)
 
     @mcp.resource("burr://next")
@@ -1729,7 +1729,7 @@ def mount(
             assert new_app is not None
             new_state, coerced = _serializable_state(_public_state(new_app.state.get_all()))
             if coerced:
-                new_state["_burr_mcp"] = {"coerced_keys": coerced}
+                new_state["_burrmcp"] = {"coerced_keys": coerced}
             valid_next = valid_next_action_names(new_app)
             entry.last_access = time.monotonic()
 
@@ -1851,7 +1851,7 @@ def mount(
 
             new_state, coerced = _serializable_state(_public_state(new_app.state.get_all()))
             if coerced:
-                new_state["_burr_mcp"] = {"coerced_keys": coerced}
+                new_state["_burrmcp"] = {"coerced_keys": coerced}
             valid_next = valid_next_action_names(new_app)
             entry.last_access = time.monotonic()
 
@@ -2023,7 +2023,7 @@ def mount(
 
             new_state, coerced = _serializable_state(_public_state(new_app.state.get_all()))
             if coerced:
-                new_state["_burr_mcp"] = {"coerced_keys": coerced}
+                new_state["_burrmcp"] = {"coerced_keys": coerced}
             valid_next = valid_next_action_names(new_app)
             entry.last_access = time.monotonic()
 

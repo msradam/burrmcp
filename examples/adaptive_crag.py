@@ -65,7 +65,7 @@ from parallel_research import (
     _score_documents,
 )
 
-from burr_mcp import ServingMode, mount
+from burrmcp import ServingMode, mount
 
 _TRACKER_PROJECT = "adaptive-crag-demo"
 _DATA_DIR = Path(__file__).parent / "data" / "parallel_research"

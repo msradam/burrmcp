@@ -16,7 +16,7 @@ import pytest
 from coffee_order import build_application
 from fastmcp import Client
 
-from burr_mcp import ServingMode, mount
+from burrmcp import ServingMode, mount
 
 
 @pytest.mark.asyncio

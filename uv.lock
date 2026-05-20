@@ -140,8 +140,8 @@ opentelemetry = [
 ]
 
 [[package]]
-name = "burr-mcp"
-version = "1.11.0"
+name = "burrmcp"
+version = "1.12.0"
 source = { editable = "." }
 dependencies = [
     { name = "burr" },
@@ -160,7 +160,7 @@ observability = [
 [package.dev-dependencies]
 dev = [
     { name = "bandit" },
-    { name = "burr-mcp", extra = ["observability"] },
+    { name = "burrmcp", extra = ["observability"] },
     { name = "detect-secrets" },
     { name = "mypy" },
     { name = "psutil" },
@@ -184,7 +184,7 @@ provides-extras = ["observability"]
 [package.metadata.requires-dev]
 dev = [
     { name = "bandit", specifier = ">=1.8" },
-    { name = "burr-mcp", extras = ["observability"] },
+    { name = "burrmcp", extras = ["observability"] },
     { name = "detect-secrets", specifier = ">=1.5" },
     { name = "mypy", specifier = ">=1.10" },
     { name = "psutil", specifier = ">=5.9" },

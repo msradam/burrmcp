@@ -15,7 +15,7 @@ runtime against the real MCP client:
 * initial state defines keys no action ever reads (loose noise, not an
   error but worth surfacing)
 
-Importable as a library too: ``from burr_mcp.doctor import run_checks``
+Importable as a library too: ``from burrmcp.doctor import run_checks``
 returns a :class:`DoctorReport` you can fold into your own test suite.
 """
 
