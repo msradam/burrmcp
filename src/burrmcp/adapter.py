@@ -731,10 +731,9 @@ class ActionTimeoutError(Exception):
         super().__init__(f"action {action_name!r} exceeded the {timeout_seconds}s timeout")
 
 
-#: ContextVar set by ``_make_tool_handler`` / the step handler around
-#: each ``_step_application`` call. Reads inside an action's body see
-#: their session's entry, which is what ``spawn_subapp`` needs to
-#: record sub-run timelines back into the parent session.
+#: ContextVar set by the step handler around each ``_step_application``
+#: call. Reads inside an action body see their session's entry; used by
+#: ``spawn_subapp`` to record sub-run timelines on the parent session.
 _current_session_entry: contextvars.ContextVar[_SessionEntry | None] = contextvars.ContextVar(
     "_burrmcp_current_session", default=None
 )
@@ -775,35 +774,22 @@ async def spawn_subapp(
 ) -> dict[str, Any]:
     """Run a sub-Application inside an action and record its timeline.
 
-    Designed to be called from inside a Burr action body when the
-    parent Application wants to delegate a multi-step procedure to a
-    sub-graph (Circe's runbook pattern, for example). The sub-run's
-    per-step timeline is appended to the parent session's subruns
-    dict and surfaced via ``burr://subruns`` (list) and
-    ``burr://subruns/{subrun_id}`` (full record).
+    The sub-run is appended to the parent session's subruns dict and
+    surfaced via ``burr://subruns`` and ``burr://subruns/{subrun_id}``.
 
     Args:
-        sub_application: A built ``burr.core.Application`` to run.
-            The same instance can be re-spawned across actions; each
+        sub_application: Built ``burr.core.Application`` to run. Each
             call gets a fresh subrun_id.
-        label: Optional friendly name attached to the subrun record.
-            Helpful when one parent action spawns several sub-runs
-            and the client wants to tell them apart.
-        halt_after: Names of sub-application actions to halt after.
-            Forwards to ``app.arun(halt_after=...)``. Defaults to the
-            sub-graph's last action.
+        label: Friendly name attached to the subrun record.
+        halt_after: Forwarded to ``app.arun(halt_after=...)``. Defaults
+            to the sub-graph's last action.
         inputs: Forwarded to ``app.arun(inputs=...)``.
 
     Returns:
-        A dict with ``subrun_id`` (the id used in the resource URI),
-        ``final_state`` (public state of the sub-app at halt), and
-        ``label`` (echoed back).
+        ``{"subrun_id": str, "final_state": dict, "label": str | None}``.
 
-    When called outside an active session (i.e. not from inside an
-    action that ran via ``_step_application``), the sub-run still
-    executes but is not recorded anywhere visible to MCP clients;
-    a debug log line announces this and the function returns the
-    final state regardless.
+    Outside an active session the sub-run still executes but isn't
+    recorded; the function returns the final state regardless.
     """
     entry = _current_session_entry.get()
     sub_id = f"sub-{uuid.uuid4()}"
@@ -1199,10 +1185,9 @@ def _session_app_and_lock(
     session entry's own lock. Different sessions' steps run in
     parallel; calls within one session queue on its lock.
 
-    ``ctx`` may be None when invoked outside an MCP request (e.g. the
-    initial dynamic-mode visibility refresh). In that case ``entry`` is
-    None and the app/lock come from the server-wide defaults; the
-    refresh operates on the template's graph shape.
+    ``ctx`` may be None when invoked outside an MCP request; in that
+    case ``entry`` is None and the app/lock come from the server-wide
+    defaults.
     """
     if ctx is None:
         return shared_app, shared_lock, None
@@ -1405,14 +1390,10 @@ def mount(
             validators are supported. ToolSpec-declared validators
             from the importer also work; per-action attribute
             ``fn._burrmcp_validator`` is the hand-tagged escape hatch.
-        state_loader: Optional Burr ``BaseStateLoader`` (or compatible)
-            used by ``fork_from_past`` to load persisted state from a
-            non-``LocalTrackingClient`` backend (SQLite, S3, postgres,
-            etc.). Three-tier fallback when ``fork_from_past`` runs:
-            this explicit loader wins; else the current Application's
-            ``_tracker`` if it's a ``LocalTrackingClient``; else
-            refuse. ``None`` (the default) preserves the v1.8 behavior
-            of requiring a ``LocalTrackingClient``.
+        state_loader: Optional Burr ``BaseStateLoader`` (SQLite, S3,
+            Postgres, etc.) used by ``fork_from_past``. Resolution order:
+            this loader wins; else the current Application's
+            ``LocalTrackingClient``; else refuse.
     """
     shared_app, factory = _resolve(application)
     # Per-session store keyed by ctx.session_id; populated lazily on
@@ -1423,11 +1404,8 @@ def mount(
         ttl_seconds=session_ttl_seconds,
         max_sessions=max_sessions,
     )
-    # Lock used in shared-app mode (one Application, many sessions). In
-    # factory mode each session has its own lock on its session entry,
-    # so this one is only touched outside an MCP request (no concurrent
-    # use) and for tools-mode ``_run_action_bare`` paths against the
-    # template. Kept on the closure either way.
+    # Lock used in shared-app mode (one Application, many sessions).
+    # In factory mode each session uses its own ``entry.lock`` instead.
     shared_lock = asyncio.Lock()
 
     server_name = name or "burr-mcp"
