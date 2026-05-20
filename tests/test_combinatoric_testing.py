@@ -83,10 +83,13 @@ def test_sut_handles_single_element():
 def test_dag_runs_both_suts_and_folds_into_divergence():
     """Drive the DAG directly; structure of returned dict is the
     contract the FSM action depends on."""
-    import dag as dag_module
+    # Use the FSM's loader so the module is registered under its
+    # unique name in sys.modules, avoiding collisions with other
+    # demos that also ship a sibling `dag.py`.
+    from combinatoric_testing import _load_dag_module
     from hamilton import driver
 
-    dr = driver.Builder().with_modules(dag_module).build()
+    dr = driver.Builder().with_modules(_load_dag_module()).build()
     out = dr.execute(
         ["v1_result", "v2_result", "divergence"],
         inputs={"values_input": [1.0, 2.0, 3.0, 4.0, 5.0], "p_input": 80.0},

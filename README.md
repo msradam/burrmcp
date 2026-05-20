@@ -322,7 +322,8 @@ Python 3.11 through 3.13.
 
 | File | Pattern |
 |---|---|
-| `combinatoric_testing.py` | Hamilton DAG + Burr FSM + BurrMCP together for LLM-driven adaptive parameter search. Two percentile implementations as the SUT (differential testing); the caller LLM hunts the input space for divergence-maximizing combos, with every trial a tracked Burr session and every interesting combo reproducible via `fork_from_past`. |
+| `combinatoric_testing.py` | Hamilton DAG + Burr FSM + BurrMCP together for LLM-driven numeric parameter search. Two percentile implementations as the SUT (differential testing); the caller LLM hunts the input space for divergence-maximizing combos, with every trial a tracked Burr session and every interesting combo reproducible via `fork_from_past`. |
+| `combo_testing.py` | Same architectural pattern, categorical inputs. A checkout pricing engine with four categorical dimensions and three seeded 2-way interaction bugs; the caller LLM hunts failing combos, and finalize tallies failures per (dimension, value) so the structure of the bugs surfaces in the summary. The textbook pairwise / N-wise combinatorial-testing shape. |
 
 [Burr's own example library](https://github.com/apache/burr/tree/main/examples) has 30+ more Applications. Most mount via `burrmcp.mount(...)` unchanged; the compatibility matrix above is the source of truth on what's been exercised.
 
