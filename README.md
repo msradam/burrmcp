@@ -65,6 +65,7 @@ including parallelism, persistence, telemetry, and library coexistence:
 | FastMCP `ctx.sample` from inside an action body | Yes; `burrmcp.current_mcp_context()` returns the FastMCP `Context` so actions can delegate LLM work to the connected agent's model | `caller_sample` |
 | FastMCP `ctx.elicit` from inside an action body | Yes; action bodies can pop interactive user confirmation prompts mid-step for safety-rail gates | `elicit_confirm` |
 | Output schema on the `step` tool | Yes; clients see a typed response contract (discriminator `error` + per-shape fields) in the MCP tool listing | always-on |
+| FastMCP middleware (timing, structured logging, rate limiting, custom) | Yes; mounted server is a regular FastMCP server, so `server.add_middleware(...)` after `mount(...)` works | `with_middleware` |
 | `with_graph(Graph)` / `with_graphs(...)` (reusable graph fragments) | Yes; same `Graph` object embedded in multiple Applications | `subgraph_composition` |
 | Class-based `Action` subclasses (escape from `@action`) | Yes; one class, configured instances | `class_action` |
 | Hamilton driver inside an action body | Yes (no special integration) | `hamilton_features` |
