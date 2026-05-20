@@ -290,6 +290,8 @@ Python 3.11 through 3.13.
 | `ml_training.py` | Non-LLM iterative training (pure stdlib logistic regression). |
 | `streaming_narrate.py` | Streaming actions as MCP progress notifications. |
 | `skill_security_audit.py` | SKILL-to-FSM. Caller LLM is the brain, no server-side LLM. |
+| `differential_review.py` | Trail of Bits' differential-review SKILL as a 7-phase FSM. Pre-analysis -> triage -> code analysis -> test coverage -> blast radius -> (HIGH-risk only) deep context -> adversarial -> report. Risk-level gate enforced at the transition layer. |
+| `fp_check.py` | Trail of Bits' fp-check SKILL as an 8-phase FSM. Step 0 restate-claim is a hard precondition; six mandatory gate reviews (process, reachability, impact, PoC, math, environment) before TRUE / FALSE POSITIVE verdict. |
 
 **Shellout / deterministic tooling:**
 
