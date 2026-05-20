@@ -1,6 +1,6 @@
 """Tests for examples/differential_review.py.
 
-Mirrors test_skill_security_audit.py's shape (action-level unit tests
+Mirrors test_security_audit.py's shape (action-level unit tests
 + FSM walks via _force_step + MCP wire roundtrip). The load-bearing
 behaviours:
 

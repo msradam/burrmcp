@@ -127,7 +127,7 @@
         "examples"
       ]
     },
-    "skill-security-audit": {
+    "security-audit": {
       "type": "stdio",
       "command": "uv",
       "args": [
@@ -136,7 +136,7 @@
         "run",
         "burrmcp",
         "serve",
-        "skill_security_audit:build_application",
+        "security_audit:build_application",
         "--app-dir",
         "examples"
       ]
