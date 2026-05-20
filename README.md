@@ -57,6 +57,7 @@ including parallelism, persistence, telemetry, and library coexistence:
 | User-defined lifecycle hooks (`PreRunStepHook` / `PostRunStepHook` / etc.) | Yes; via `ApplicationBuilder.with_hooks(...)` | `pipeline_hooks` |
 | Async hooks + envelope hooks (`PreRunStepHookAsync`, `PostApplicationCreateHook`, `PreRunExecuteCallHookAsync`, etc.) | Yes; `await`ed around each action; envelope hooks wrap every execute boundary including MCP `step` | `async_hooks` |
 | `@streaming_action.pydantic` + streaming hooks (`PreStartStreamHook`, `PostStreamItemHook`, `PostEndStreamHook`) | Yes; chunks typed by `stream_type`, hooks fire when streaming actions are driven via MCP `step` (adapter uses `app.astream_result`) | `streaming_hooks` |
+| Span tracing hooks (`PreStartSpanHook`, `PostEndSpanHook`, `DoLogAttributeHook`) via the `__tracer` parameter | Yes; user-defined hook captures sub-span trees and attribute logs alongside `OpenTelemetryBridge` | `custom_telemetry`, `with_otel` |
 | `with_graph(Graph)` / `with_graphs(...)` (reusable graph fragments) | Yes; same `Graph` object embedded in multiple Applications | `subgraph_composition` |
 | Class-based `Action` subclasses (escape from `@action`) | Yes; one class, configured instances | `class_action` |
 | Hamilton driver inside an action body | Yes (no special integration) | `hamilton_features` |
