@@ -1765,7 +1765,7 @@ def mount(
 
         async def step(
             action: str,
-            inputs: dict[str, Any] | None = None,
+            inputs: dict[str, Any] | str | None = None,
             ctx: Context | None = None,
         ) -> dict[str, Any]:
             """Advance the FSM by one transition.
@@ -1778,8 +1778,21 @@ def mount(
                 inputs: Keyword inputs to the action. Each action
                     declares its own required + optional inputs;
                     consult ``burr://next`` and the action's docstring
-                    to see what's expected.
+                    to see what's expected. Object is the canonical
+                    form. A JSON-encoded string is also accepted (some
+                    clients serialize nested object arguments that way)
+                    and is parsed into an object before dispatch.
             """
+            # Coerce a JSON-string inputs into a dict so the body always
+            # sees the canonical shape. The schema advertises both forms
+            # so clients that validate against the schema don't reject
+            # the string-encoded path before sending the request.
+            if isinstance(inputs, str):
+                try:
+                    parsed = json.loads(inputs)
+                except (json.JSONDecodeError, ValueError):
+                    parsed = None
+                inputs = parsed if isinstance(parsed, dict) else None
             if action not in action_map:
                 _record_history(
                     store,
