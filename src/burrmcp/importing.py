@@ -1,6 +1,6 @@
 """Lift an existing FastMCP server into a Burr Application.
 
-The shape of ``burr-mcp`` so far has been one-way: write a Burr graph,
+The shape of ``burrmcp`` so far has been one-way: write a Burr graph,
 mount it as an MCP server. The other direction is the more common
 starting point: someone already has a FastMCP server with a flat list
 of tools, and they want to gain transition enforcement, audit history,
@@ -47,7 +47,7 @@ Typical pattern:
 What carries over from the original tools:
 
   • Parameter names, types, and defaults (preserved on the wrapped
-    function's signature so burr-mcp's later schema generation sees
+    function's signature so burrmcp's later schema generation sees
     the same inputs the user already wrote).
   • Docstrings (used as the action's description).
   • Async/sync nature (wrapper preserves it).
@@ -128,7 +128,7 @@ def _build_wrapper(
     provided.
 
     The wrapper's ``__signature__`` and ``__annotations__`` are set
-    explicitly because burr-mcp's later schema generation reintrospects
+    explicitly because burrmcp's later schema generation reintrospects
     them when mounting the resulting Application.
     """
     original_sig = inspect.signature(tool_fn)

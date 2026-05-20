@@ -74,7 +74,7 @@ def build_application():
 
     Transitions out of ``classify`` are gated by ``severity``. Burr
     evaluates the conditions against current state to pick the next
-    action; burr-mcp surfaces those same conditions to clients via
+    action; burrmcp surfaces those same conditions to clients via
     ``burr://next``.
     """
     return (

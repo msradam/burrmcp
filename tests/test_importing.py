@@ -278,7 +278,7 @@ async def test_signature_preserved_through_lift():
     actual parameter names + types from the original tool, not a
     flattened ``**kwargs``. STEP mode's step tool exposes a generic
     ``{action, inputs}`` shape on the MCP wire, but the Burr Action's
-    declared inputs are what burr-mcp uses to validate calls, so we
+    declared inputs are what burrmcp uses to validate calls, so we
     introspect those directly.
     """
     flat = FastMCP("sig-test")

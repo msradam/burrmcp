@@ -56,7 +56,7 @@ def test_root_help_lists_subcommands():
 
 
 def test_no_args_prints_help():
-    """`burr-mcp` with no args should show help (no_args_is_help=True)
+    """`burrmcp` with no args should show help (no_args_is_help=True)
     rather than dropping the user into an unhelpful error."""
     result = runner.invoke(app, [])
     # Typer convention: no-args + no_args_is_help -> exit 2 with help printed.

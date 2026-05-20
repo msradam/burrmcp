@@ -26,7 +26,7 @@ What the FSM gives the training:
   inspect state, and decide whether to resume or stop, all without
   killing the session. Maps cleanly to MCP elicitation when that
   becomes ubiquitous.
-* Non-LLM. Every other burr-mcp demo wraps an LLM workflow; this
+* Non-LLM. Every other burrmcp demo wraps an LLM workflow; this
   one shows the FSM gating pattern works just as well for
   classical iterative computations like training loops.
 

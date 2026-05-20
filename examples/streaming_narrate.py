@@ -1,7 +1,7 @@
 """Streaming Burr action surfaced as MCP progress notifications.
 
 Burr supports streaming actions via ``@streaming_action``: the
-function yields intermediate chunks plus a final state. burr-mcp
+function yields intermediate chunks plus a final state. burrmcp
 detects these and forwards each chunk to the client via
 ``ctx.report_progress``, the MCP-spec mechanism for partial results
 during a long-running tool call. The final state arrives as the
@@ -36,7 +36,7 @@ async def narrate(state: State, topic: str):
 
     Each ``yield (chunk, None)`` emits a partial update; the final
     ``yield (final_chunk, new_state)`` provides the resulting state.
-    Burr handles assembling the stream; burr-mcp forwards each
+    Burr handles assembling the stream; burrmcp forwards each
     intermediate chunk as a progress notification.
     """
     chunks = [

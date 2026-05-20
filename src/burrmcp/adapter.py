@@ -1363,7 +1363,7 @@ def mount(
             shape is read once at mount time, so factories should
             return Applications with the same graph each call.
         mode: ``ServingMode.STEP`` (the only supported value).
-        name: MCP server name; defaults to ``"burr-mcp"``.
+        name: MCP server name; defaults to ``"burrmcp"``.
         instructions: Server-level instructions surfaced via the MCP
             spec's server-info ``instructions`` field.
         session_ttl_seconds: Idle TTL for the per-session store. After
@@ -1408,7 +1408,7 @@ def mount(
     # In factory mode each session uses its own ``entry.lock`` instead.
     shared_lock = asyncio.Lock()
 
-    server_name = name or "burr-mcp"
+    server_name = name or "burrmcp"
     # Static graph summary, computed once. Sub-runs may have their own
     # graphs but this resource describes the top-level one.
     graph_summary = _compute_graph_summary(shared_app, server_name)
@@ -1575,7 +1575,7 @@ def mount(
         the wire payload bounded. For full traces, read the log file
         directly off disk at the path Burr's tracker writes to.
 
-        This is the cross-reference between burr-mcp's in-memory
+        This is the cross-reference between burrmcp's in-memory
         ``burr://history`` (one entry per attempted action, including
         refusals) and Burr's own structured trace format (one entry
         per state transition, full Burr replay shape).
@@ -2141,7 +2141,7 @@ def mount_multi(
             f"namespace names must match {_NAMESPACE_RE.pattern!r}; got invalid: {invalid}"
         )
 
-    parent_name = name or "burr-mcp-multi"
+    parent_name = name or "burrmcp-multi"
     parent_lines: list[str] = []
     if instructions:
         parent_lines.append(instructions)

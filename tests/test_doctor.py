@@ -1,4 +1,4 @@
-"""``burr-mcp doctor`` static validation.
+"""``burrmcp doctor`` static validation.
 
 Covers the library entrypoint :func:`burrmcp.doctor.run_checks`, the
 CLI subcommand, and the individual check functions for unreachable

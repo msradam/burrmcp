@@ -1,6 +1,6 @@
 """Static validation for Burr Applications before mounting them.
 
-``burr-mcp doctor module:attr`` runs a set of checks against an
+``burrmcp doctor module:attr`` runs a set of checks against an
 Application (or a factory returning one) and reports findings without
 ever calling ``astep``. Catches the classes of bug that only surface at
 runtime against the real MCP client:

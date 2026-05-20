@@ -1,4 +1,4 @@
-"""burr-mcp: mount Burr Applications as MCP servers.
+"""burrmcp: mount Burr Applications as MCP servers.
 
 Each Burr @action becomes an MCP tool. State lives on the server.
 Transitions can be enforced server-side.

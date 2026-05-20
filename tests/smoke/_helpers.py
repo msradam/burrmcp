@@ -16,7 +16,7 @@ from typing import Any
 
 import pytest
 
-MCP_CONFIG = Path("~/burr-mcp-demo/.mcp.json").expanduser()
+MCP_CONFIG = Path("~/burrmcp-demo/.mcp.json").expanduser()
 
 
 def check_environment_or_skip() -> None:
@@ -29,7 +29,7 @@ def check_environment_or_skip() -> None:
     if shutil.which("claude") is None or not MCP_CONFIG.exists():
         pytest.skip(
             "Smoke tests require the `claude` CLI on PATH plus "
-            "~/burr-mcp-demo/.mcp.json. Run `claude auth login` first.",
+            "~/burrmcp-demo/.mcp.json. Run `claude auth login` first.",
             allow_module_level=True,
         )
 

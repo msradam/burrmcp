@@ -447,7 +447,7 @@ async def test_run_scans_timeout_action_errors(monkeypatch, tmp_path):
     """Drive ``_run_subprocess`` straight into its TimeoutError branch so
     the wrapping ValueError surfaces as an action_error payload. We
     patch the helper itself rather than ``asyncio.wait_for`` so we
-    don't also intercept burr-mcp's own per-action timeout wrapper."""
+    don't also intercept burrmcp's own per-action timeout wrapper."""
     (tmp_path / "a.py").write_text("x = 1\n")
 
     class _HangingProc:
