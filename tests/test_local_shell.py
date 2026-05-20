@@ -1,246 +1,184 @@
-"""Local-shell FSM: a Claude-Code-style safety-rails demo.
+"""Tests for examples/local_shell.py (burr-shell).
 
-Tests cover the three FSM-enforced safety rules: read-before-edit
-(action-level refusal), test-before-commit (transition-level refusal),
-and request-before-confirm for deletion. Also covers the happy path
-and that editing invalidates the prior test result.
+Exercises real subprocess execution against a per-test sandbox. Each
+test gets an explicit ``sandbox`` path so we don't pollute /tmp with
+session-on-process-exit leakage.
 """
 
 from __future__ import annotations
 
 import json
+import shutil
 import sys
 from pathlib import Path
 
 import pytest
 from fastmcp import Client
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO_ROOT / "examples"))
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_REPO_ROOT / "examples"))
 
-from local_shell import build_server  # noqa: E402
-
-
-async def _start(client):
-    """Every session must start at the ``list_files`` entrypoint
-    before transitions out of it become reachable."""
-    await client.call_tool("step", {"action": "list_files", "inputs": {}})
+from local_shell import (  # noqa: E402
+    _DATA_DIR,
+    build_application,
+    build_server,
+)
 
 
-async def _step(client, action, **inputs):
-    return await client.call_tool("step", {"action": action, "inputs": inputs})
+@pytest.fixture
+def sandbox(tmp_path: Path) -> Path:
+    """A fresh sandbox seeded with the shipped sample data, per test."""
+    sb = tmp_path / "sandbox"
+    sb.mkdir()
+    for child in _DATA_DIR.iterdir():
+        if child.is_dir():
+            shutil.copytree(child, sb / child.name)
+        else:
+            shutil.copy2(child, sb / child.name)
+    return sb
 
 
-def _payload(result):
-    return json.loads(result.content[0].text)
-
-
-@pytest.mark.asyncio
-async def test_happy_path_read_edit_test_commit():
-    server = build_server()
-    async with Client(server) as client:
-        await _start(client)
-        await _step(client, "read_file", path="main.py")
-        await _step(client, "edit_file", path="main.py", new_content='print("goodbye")\n')
-        await _step(client, "run_tests", result="passed")
-        out = _payload(await _step(client, "commit", message="say goodbye"))
-        state = out["state"]
-        assert state["workspace"]["main.py"] == 'print("goodbye")\n'
-        assert state["pending_edits"] == {}
-        assert len(state["commits"]) == 1
-        assert state["commits"][0]["message"] == "say goodbye"
+async def _aforce_step(app, action_name: str, **inputs):
+    target = app.graph.get_action(action_name)
+    original = app.get_next_action
+    app.get_next_action = lambda: target
+    try:
+        await app.astep(inputs=inputs or None)
+    finally:
+        app.get_next_action = original
 
 
 @pytest.mark.asyncio
-async def test_edit_without_read_is_refused_with_action_error():
-    """The headline safety rule: cannot edit a file you haven't read."""
-    server = build_server()
-    async with Client(server) as client:
-        await _start(client)
-        out = _payload(await _step(client, "edit_file", path="main.py", new_content="x = 1\n"))
-        assert out["error"] == "action_error"
-        assert "must read" in out["error_message"]
-        assert "main.py" in out["error_message"]
+async def test_execute_lists_shipped_sandbox_contents(sandbox):
+    app = build_application(sandbox=sandbox)
+    await _aforce_step(app, "execute", command="ls -1")
+    entry = app.state["history"][-1]
+    assert entry["exit_code"] == 0
+    names = set(entry["stdout"].split())
+    assert {"data.csv", "config.yaml", "notes"}.issubset(names)
 
 
 @pytest.mark.asyncio
-async def test_reading_one_file_does_not_unlock_editing_another():
-    """The read-tracking is per-path, not a global 'has-read-something' flag."""
-    server = build_server()
-    async with Client(server) as client:
-        await _start(client)
-        await _step(client, "read_file", path="main.py")
-        out = _payload(await _step(client, "edit_file", path="utils.py", new_content="x = 1\n"))
-        assert out["error"] == "action_error"
-        assert "utils.py" in out["error_message"]
+async def test_execute_real_command_against_real_data(sandbox):
+    """wc -l on the shipped CSV returns the real line count."""
+    app = build_application(sandbox=sandbox)
+    await _aforce_step(app, "execute", command="wc -l data.csv")
+    entry = app.state["history"][-1]
+    assert entry["exit_code"] == 0
+    # The shipped data.csv is 8 lines (1 header + 7 events).
+    assert entry["stdout"].split()[0] == "8"
 
 
 @pytest.mark.asyncio
-async def test_commit_without_tests_is_refused_with_invalid_transition():
-    """Transition-level gate: pending edits + last_test_result==passed."""
-    server = build_server()
-    async with Client(server) as client:
-        await _start(client)
-        await _step(client, "read_file", path="main.py")
-        await _step(client, "edit_file", path="main.py", new_content="x = 1\n")
-        # No run_tests call. Commit must be refused.
-        out = _payload(await _step(client, "commit", message="wip"))
-        assert out["error"] == "invalid_transition"
-        assert "run_tests" in out["valid_next_actions"]
+async def test_write_then_read_round_trip(sandbox):
+    app = build_application(sandbox=sandbox)
+    await _aforce_step(app, "execute", command="echo 'hello world' > notes/today.md")
+    await _aforce_step(app, "execute", command="cat notes/today.md")
+    last = app.state["history"][-1]
+    assert last["stdout"].strip() == "hello world"
+    # And the file actually exists on the sandbox FS.
+    assert (sandbox / "notes" / "today.md").read_text().strip() == "hello world"
 
 
 @pytest.mark.asyncio
-async def test_failing_tests_blocks_commit():
-    server = build_server()
-    async with Client(server) as client:
-        await _start(client)
-        await _step(client, "read_file", path="main.py")
-        await _step(client, "edit_file", path="main.py", new_content="syntax error\n")
-        await _step(client, "run_tests", result="failed")
-        out = _payload(await _step(client, "commit", message="broken"))
-        assert out["error"] == "invalid_transition"
+async def test_shipped_data_is_unaffected_by_sandbox_writes(sandbox):
+    """Writing in the sandbox does NOT touch examples/data/local_shell/."""
+    app = build_application(sandbox=sandbox)
+    await _aforce_step(app, "execute", command="echo overwritten > config.yaml")
+    sandbox_text = (sandbox / "config.yaml").read_text()
+    shipped_text = (_DATA_DIR / "config.yaml").read_text()
+    assert sandbox_text.strip() == "overwritten"
+    assert "overwritten" not in shipped_text
+    assert "service: api-gateway" in shipped_text
 
 
 @pytest.mark.asyncio
-async def test_edit_after_tests_invalidates_prior_result():
-    """An edit_file call sets last_test_result=unknown so the agent
-    has to run tests *again* before committing."""
-    server = build_server()
-    async with Client(server) as client:
-        await _start(client)
-        await _step(client, "read_file", path="main.py")
-        await _step(client, "edit_file", path="main.py", new_content="a = 1\n")
-        await _step(client, "run_tests", result="passed")
-        # Second edit invalidates the prior pass.
-        await _step(client, "edit_file", path="main.py", new_content="a = 2\n")
-        out = _payload(await _step(client, "commit", message="second edit"))
-        assert out["error"] == "invalid_transition"
+async def test_absolute_path_is_refused(sandbox):
+    app = build_application(sandbox=sandbox)
+    with pytest.raises(ValueError, match="sandbox-escape pattern"):
+        await _aforce_step(app, "execute", command="cat /etc/passwd")
 
 
 @pytest.mark.asyncio
-async def test_confirm_delete_without_request_is_refused():
-    server = build_server()
-    async with Client(server) as client:
-        await _start(client)
-        out = _payload(await _step(client, "confirm_delete"))
-        assert out["error"] == "invalid_transition"
-        assert "confirm_delete" not in out["valid_next_actions"]
+async def test_parent_traversal_is_refused(sandbox):
+    app = build_application(sandbox=sandbox)
+    with pytest.raises(ValueError, match="sandbox-escape pattern"):
+        await _aforce_step(app, "execute", command="ls ../")
 
 
 @pytest.mark.asyncio
-async def test_two_step_delete_flow():
-    server = build_server()
-    async with Client(server) as client:
-        await _start(client)
-        await _step(client, "request_delete", path="README.md")
-        out = _payload(await _step(client, "confirm_delete"))
-        assert "README.md" not in out["state"]["workspace"]
-        assert out["state"]["pending_delete"] is None
+async def test_subshell_is_refused(sandbox):
+    app = build_application(sandbox=sandbox)
+    with pytest.raises(ValueError, match="sandbox-escape pattern"):
+        await _aforce_step(app, "execute", command="echo $(cat data.csv)")
 
 
 @pytest.mark.asyncio
-async def test_commit_clears_pending_and_resets_test_result():
-    server = build_server()
-    async with Client(server) as client:
-        await _start(client)
-        await _step(client, "read_file", path="utils.py")
-        await _step(client, "edit_file", path="utils.py", new_content="x = 99\n")
-        await _step(client, "run_tests", result="passed")
-        out = _payload(await _step(client, "commit", message="bump"))
-        assert out["state"]["pending_edits"] == {}
-        assert out["state"]["last_test_result"] == "unknown"
-        # Commit is no longer a valid next action with no fresh edits.
-        assert "commit" not in out["valid_next_actions"]
+async def test_pipe_to_shell_is_refused(sandbox):
+    app = build_application(sandbox=sandbox)
+    with pytest.raises(ValueError, match="sandbox-escape pattern"):
+        await _aforce_step(app, "execute", command="cat data.csv | sh")
 
 
 @pytest.mark.asyncio
-async def test_create_file_then_test_then_commit_adds_file_to_workspace():
-    """Happy path for creation: create -> run_tests -> commit lands
-    the new file in workspace."""
-    server = build_server()
-    async with Client(server) as client:
-        await _start(client)
-        await _step(client, "create_file", path="notes.md", content="# Notes\n\nhi\n")
-        await _step(client, "run_tests", result="passed")
-        out = _payload(await _step(client, "commit", message="add notes"))
-        assert out["state"]["workspace"]["notes.md"] == "# Notes\n\nhi\n"
-        assert out["state"]["pending_edits"] == {}
+async def test_empty_command_is_refused(sandbox):
+    app = build_application(sandbox=sandbox)
+    with pytest.raises(ValueError, match="command must not be empty"):
+        await _aforce_step(app, "execute", command="   ")
 
 
 @pytest.mark.asyncio
-async def test_create_file_refuses_to_overwrite_existing_workspace_file():
-    """The safety rule: create_file is for *new* files only. To modify
-    an existing file you go through read_file then edit_file."""
-    server = build_server()
-    async with Client(server) as client:
-        await _start(client)
-        out = _payload(await _step(client, "create_file", path="main.py", content="x = 1\n"))
-        assert out["error"] == "action_error"
-        assert "already exists" in out["error_message"]
-        assert "read_file then edit_file" in out["error_message"]
+async def test_command_timeout_recorded_in_history(sandbox):
+    app = build_application(sandbox=sandbox)
+    await _aforce_step(app, "execute", command="sleep 5", timeout_seconds=1)
+    entry = app.state["history"][-1]
+    assert entry.get("timed_out") is True
+    assert entry["exit_code"] is None
 
 
 @pytest.mark.asyncio
-async def test_create_file_refuses_to_overwrite_pending_create():
-    server = build_server()
-    async with Client(server) as client:
-        await _start(client)
-        await _step(client, "create_file", path="new.py", content="a\n")
-        out = _payload(await _step(client, "create_file", path="new.py", content="b\n"))
-        assert out["error"] == "action_error"
-        assert "already staged" in out["error_message"]
+async def test_failed_command_is_still_recorded(sandbox):
+    """Non-zero exit codes record fully; the FSM keeps going."""
+    app = build_application(sandbox=sandbox)
+    await _aforce_step(app, "execute", command="cat does-not-exist.txt")
+    entry = app.state["history"][-1]
+    assert entry["exit_code"] != 0
+    assert entry["stderr"]
 
 
 @pytest.mark.asyncio
-async def test_after_create_file_edit_file_works_on_same_path():
-    """A freshly created file is implicitly 'read' since the agent
-    just wrote it, so edit_file is allowed without a read_file
-    detour."""
-    server = build_server()
-    async with Client(server) as client:
-        await _start(client)
-        await _step(client, "create_file", path="new.py", content="a = 1\n")
-        out = _payload(await _step(client, "edit_file", path="new.py", new_content="a = 2\n"))
-        assert "error" not in out
-        assert out["state"]["pending_edits"]["new.py"] == "a = 2\n"
+async def test_done_summarises(sandbox):
+    app = build_application(sandbox=sandbox)
+    await _aforce_step(app, "execute", command="ls")
+    await _aforce_step(app, "execute", command="cat does-not-exist.txt")
+    await _aforce_step(app, "done")
+    summary = app.state["summary"]
+    assert summary["command_count"] == 2
+    assert summary["successful_count"] == 1
+    assert summary["failed_count"] == 1
 
 
 @pytest.mark.asyncio
-async def test_create_file_invalidates_prior_test_result():
+async def test_full_walk_through_mcp_step():
+    """End-to-end through MCP; server uses an auto-prepared sandbox."""
     server = build_server()
     async with Client(server) as client:
-        await _start(client)
-        await _step(client, "read_file", path="main.py")
-        await _step(client, "edit_file", path="main.py", new_content="x = 1\n")
-        await _step(client, "run_tests", result="passed")
-        # Now create a fresh file. Prior pass is no longer authoritative.
-        await _step(client, "create_file", path="extra.py", content="y = 2\n")
-        out = _payload(await _step(client, "commit", message="both"))
-        assert out["error"] == "invalid_transition"
+        r = await client.call_tool("step", {"action": "execute", "inputs": {"command": "ls -1"}})
+        out = json.loads(r.content[0].text)
+        assert out.get("error") is None, out
+        assert "data.csv" in out["state"]["history"][-1]["stdout"]
 
+        r = await client.call_tool(
+            "step",
+            {"action": "execute", "inputs": {"command": "cat /etc/passwd"}},
+        )
+        refusal = json.loads(r.content[0].text)
+        assert refusal["error"] == "action_error"
+        assert "sandbox-escape" in refusal["error_message"]
 
-@pytest.mark.asyncio
-async def test_create_file_with_empty_path_refused():
-    server = build_server()
-    async with Client(server) as client:
-        await _start(client)
-        out = _payload(await _step(client, "create_file", path="   ", content="x\n"))
-        assert out["error"] == "action_error"
-        assert "path must not be empty" in out["error_message"]
-
-
-@pytest.mark.asyncio
-async def test_burr_next_advertises_legal_actions_only():
-    """A fresh session has no pending edits and no pending delete, so
-    commit and confirm_delete should be absent from burr://next."""
-    server = build_server()
-    async with Client(server) as client:
-        await _start(client)
-        nxt = json.loads((await client.read_resource("burr://next"))[0].text)
-        assert "commit" not in nxt
-        assert "confirm_delete" not in nxt
-        # But the safe actions are there.
-        assert "read_file" in nxt
-        assert "list_files" in nxt
-        assert "run_tests" in nxt
-        assert "create_file" in nxt
+        r = await client.call_tool("step", {"action": "done", "inputs": {}})
+        done = json.loads(r.content[0].text)
+        # The refused call wasn't appended to state.history, so the
+        # summary only sees the successful ls.
+        assert done["state"]["summary"]["command_count"] == 1
+        assert done["valid_next_actions"] == []
