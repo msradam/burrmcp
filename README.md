@@ -45,7 +45,7 @@ including parallelism, persistence, telemetry, and library coexistence:
 | `Condition.expr` / `.when` / `.default` | Yes | `release_pipeline`, `chargen` |
 | `with_tracker(LocalTrackingClient)` | Yes; surfaced at `burr://trace` | every narrative demo |
 | `with_state_persister(BaseStatePersister)` | Yes | `sqlite_persister` |
-| `with_typed_state(Pydantic)` | Yes | `tests/test_typed_state.py` |
+| `with_typed_state(Pydantic)` | Yes; JSON schema exported via `burr://graph` `state_schema` | `typed_state_loan` |
 | `with_parallel_executor(...)` | Yes (default thread-pool); `RayExecutor` swap documented inline | `burr_map_parallel` |
 | `MapStates` / parallel sub-runs | Yes | `burr_map_parallel` |
 | Streaming actions | Yes; emitted as MCP progress notifications | `streaming_narrate` |
