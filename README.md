@@ -129,7 +129,8 @@ The library doesn't try to guess: declaring it explicitly is the only
 honest move because parameter names don't tell you which tools mutate
 shared state. What carries over from the original tools without any
 declaration: parameter names, types, defaults, docstrings, async/sync
-nature. See `examples/import_flat.py` for the full pattern.
+nature. ``tests/test_importing.py`` exercises every supported
+``ToolSpec`` knob end-to-end.
 
 `ToolSpec` also accepts `state_update` (an explicit callable taking
 the tool's result and returning state mutations, overrides
@@ -294,7 +295,6 @@ via the snippet in `examples/claude-code.example.json`.
 | `incident_response.py` | Showcase | Realistic ops workflow with all features (validators, sub-graphs, branching, conditional loop). The canonical Claude Code demo. |
 | `git_review.py` | CLI wrapping | An FSM whose actions wrap `git status` / `log` / `show` via subprocess. Demonstrates the "agent driving CLIs" pattern with FSM-enforced sequence. |
 | `adventure.py` | State-space traversal | Tiny text adventure where rooms are states and moves are gated transitions. Mirrors Burr's `llm-adventure-game`. Sharpest illustration of FSM-as-API. |
-| `import_flat.py` | Reverse direction | Lift an existing flat FastMCP server into a Burr graph via `burr_app_from_fastmcp(...)`. |
 | `http_serve.py` / `sse_serve.py` | Transports | Same coffee FSM served over Streamable HTTP / SSE. |
 
 For more FSM patterns to draw from, [Burr's example library](https://github.com/apache/burr/tree/main/examples)
@@ -918,7 +918,10 @@ Shipped in v0.5.0:
   everything else BurrMCP provides.
 - `ToolSpec` dataclass for the per-tool declarations:
   `reads`/`writes`/`merge_result`/`state_update`/`rename`.
-- `examples/import_flat.py` shows the full pattern end-to-end.
+- `tests/test_importing.py` covers the full importer surface end-to-end
+  (state-mutation declaration, conditional transitions, rename, the
+  rejection of duplicate-tool registration, signature preservation
+  across async/sync).
 
 Shipped in v0.4.0 (hardening for frontier-model deployments):
 
