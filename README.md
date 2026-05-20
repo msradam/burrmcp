@@ -308,6 +308,7 @@ Python 3.11 through 3.13.
 | `granite_oncall.py` | Granite via Ollama; retry-as-transitions for malformed output. |
 | `adaptive_crag.py` | Granite self-grading RAG; query-rewrite loop. Simplified CRAG ([Yan et al 2024](https://arxiv.org/abs/2401.15884)). |
 | `mellea_qiskit_migration.py` | Mellea's IVR loop wrapped as one Burr action. FSM owns workflow, Mellea owns the loop. |
+| `granite_guardian.py` | Granite Guardian classifies a proposed tool call as safe / unsafe; unsafe verdicts loop back so the agent can revise, with `max_attempts` enforced as a transition gate. Hermetic via the `_call_guardian` indirection. |
 
 **External-library coexistence and observability:**
 
