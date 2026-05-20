@@ -184,6 +184,34 @@ A client that calls `pay` before `take_order` gets:
 The list of valid actions is in the response, so a client that doesn't
 keep its own model of the graph can recover from one error.
 
+## Observability for free
+
+Add one line to the builder and every action gets structured JSONL plus a Burr UI replay:
+
+```python
+from burr.tracking.client import LocalTrackingClient
+
+app = (
+    ApplicationBuilder()
+    .with_actions(take_order=take_order, pay=pay, fulfill=fulfill)
+    .with_transitions(("take_order", "pay"), ("pay", "fulfill"))
+    .with_tracker(LocalTrackingClient(project="coffee-demo"))  # add this
+    .with_state(stage="new")
+    .with_entrypoint("take_order")
+    .build()
+)
+```
+
+What you get:
+
+- **JSONL trace on disk** at `~/.burr/coffee-demo/<app-id>/log.jsonl`. One entry per action: enter, exit, state diff, timing, errors. Tail it for a live feed.
+- **MCP resource** at `burr://trace` mirrors that file for the connecting agent. The agent can read its own audit trail without filesystem access.
+- **Tracker coordinates** at `burr://session` (project, app_id, app_dir, partition_key) so terminal tools like `burrmcp watch <project>` can find the right session.
+- **Burr UI replay**: `uvx --from "burr[start]" burr` opens a web UI that visualizes every state transition for any tracker project on disk.
+- **Per-session history** at `burr://history` (one entry per MCP step, including refusals). Complementary to `burr://trace`: history captures what the *agent* attempted; trace captures what *Burr* executed.
+
+For OpenTelemetry spans, install `burrmcp[observability]` and use Burr's `OpenTelemetryBridge` as a lifecycle adapter — `examples/with_otel.py` shows the wire-up. Custom span sinks (Datadog, Honeycomb, in-memory) work through Burr's `PreStartSpanHook` / `PostEndSpanHook` / `DoLogAttributeHook` — `examples/custom_telemetry.py` has the pattern.
+
 ## Resources
 
 Every mounted server registers eight MCP resources:
