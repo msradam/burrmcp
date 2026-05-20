@@ -70,6 +70,7 @@ dev = [
     "bandit>=1.8",
     "detect-secrets>=1.5",
     "sf-hamilton>=1.0,<2.0",
+    "claude-agent-sdk>=0.2.82",
 ]
 
 [tool.ruff]
@@ -86,3 +87,7 @@ quote-style = "double"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "strict"
+markers = [
+    "smoke: integration tests that drive a real Claude session via the Agent SDK against the demo bench (deselected by default; run with `pytest -m smoke`)",
+]
+addopts = "-m 'not smoke'"
