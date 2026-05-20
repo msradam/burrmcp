@@ -9,9 +9,9 @@ so a "go_north" call from the wrong room comes back as
 ``invalid_transition`` with the actually-legal moves listed in the
 response.
 
-This is the FSM-as-API pitch in its sharpest form: the agent
-navigates a state space the server fully describes. The full topology
-is one ``burr://graph`` read away; the agent doesn't have to guess.
+The agent navigates a state space the server fully describes. The
+full topology is one ``burr://graph`` read away; the agent doesn't
+have to guess.
 
 Map:
 
