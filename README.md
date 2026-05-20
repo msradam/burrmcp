@@ -295,7 +295,7 @@ Demos with missing runtime requirements refuse at action time with a clear error
 
 ## Examples
 
-`examples/` ships self-contained FSMs across these patterns. Each is runnable as `uv run python examples/<file>.py` and can be wired into Claude Code via `examples/claude-code.example.json`.
+`examples/` ships self-contained FSMs across these patterns. Each is runnable as `uv run python examples/<file>.py` and can be wired into a client via `examples/claude-code.example.json` (Claude Code), `examples/bob.example.json` (IBM Bob IDE / Shell), or `examples/mcphost.example.json`.
 
 **Pure FSM, no external deps:**
 
@@ -368,7 +368,11 @@ uv run python examples/http_serve.py            # binds 127.0.0.1:8765
 BURR_MCP_PORT=9000 uv run python examples/http_serve.py
 ```
 
-Wiring into Claude Code: copy `examples/claude-code.example.json` to `.mcp.json` in any project, edit the `args[1]` absolute path to match your checkout, then run `claude` and `/mcp` to confirm. `examples/mcphost.example.json` is the mcphost-flavored equivalent.
+Wiring into a client:
+
+- **Claude Code**: copy `examples/claude-code.example.json` to `.mcp.json` in any project, edit the `args[1]` absolute path to your checkout, then `claude` and `/mcp` to confirm.
+- **IBM Bob** (IDE or Shell): copy `examples/bob.example.json` to `.bob/mcp.json` in any project (or `~/.bob/mcp_settings.json` for global), edit the same path. The `alwaysAllow` entries pre-approve the four burrmcp meta tools so Bob doesn't prompt on every step.
+- **mcphost**: copy `examples/mcphost.example.json`.
 
 A typical session against `incident_response`:
 

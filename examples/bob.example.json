@@ -1,0 +1,159 @@
+{
+  "_comment": "Several burrmcp example servers wired up for IBM Bob (IDE + Shell share this schema). Copy to .bob/mcp.json in your project root, or to ~/.bob/mcp_settings.json for global. Replace /ABSOLUTE/PATH/TO/burrmcp with your checkout. The alwaysAllow lists pre-approve burrmcp's four meta tools so Bob doesn't prompt for permission on every FSM step. See https://bob.ibm.com/docs/ide/configuration/mcp/mcp-in-bob and https://bob.ibm.com/docs/shell/configuration/mcp/mcp-bobshell.",
+  "mcpServers": {
+    "coffee": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/ABSOLUTE/PATH/TO/burrmcp",
+        "run",
+        "burrmcp",
+        "serve",
+        "coffee_order:build_application",
+        "--app-dir",
+        "examples"
+      ],
+      "alwaysAllow": ["step", "reset_session", "fork_at", "fork_from_past"]
+    },
+    "adventure": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/ABSOLUTE/PATH/TO/burrmcp",
+        "run",
+        "burrmcp",
+        "serve",
+        "adventure:build_application",
+        "--app-dir",
+        "examples"
+      ],
+      "alwaysAllow": ["step", "reset_session", "fork_at", "fork_from_past"]
+    },
+    "chargen": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/ABSOLUTE/PATH/TO/burrmcp",
+        "run",
+        "burrmcp",
+        "serve",
+        "chargen:build_application",
+        "--app-dir",
+        "examples"
+      ],
+      "alwaysAllow": ["step", "reset_session", "fork_at", "fork_from_past"]
+    },
+    "burr-shell": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/ABSOLUTE/PATH/TO/burrmcp",
+        "run",
+        "burrmcp",
+        "serve",
+        "local_shell:build_application",
+        "--app-dir",
+        "examples"
+      ],
+      "alwaysAllow": ["step", "reset_session", "fork_at", "fork_from_past"]
+    },
+    "granite-oncall": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/ABSOLUTE/PATH/TO/burrmcp",
+        "run",
+        "burrmcp",
+        "serve",
+        "granite_oncall:build_application",
+        "--app-dir",
+        "examples"
+      ],
+      "alwaysAllow": ["step", "reset_session", "fork_at", "fork_from_past"]
+    },
+    "burr-unix-health": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/ABSOLUTE/PATH/TO/burrmcp",
+        "run",
+        "burrmcp",
+        "serve",
+        "unix_health:build_application",
+        "--app-dir",
+        "examples"
+      ],
+      "alwaysAllow": ["step", "reset_session", "fork_at", "fork_from_past"]
+    },
+    "codebase-security": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/ABSOLUTE/PATH/TO/burrmcp",
+        "run",
+        "burrmcp",
+        "serve",
+        "codebase_security:build_application",
+        "--app-dir",
+        "examples"
+      ],
+      "alwaysAllow": ["step", "reset_session", "fork_at", "fork_from_past"]
+    },
+    "adaptive-crag": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/ABSOLUTE/PATH/TO/burrmcp",
+        "run",
+        "burrmcp",
+        "serve",
+        "adaptive_crag:build_application",
+        "--app-dir",
+        "examples"
+      ],
+      "alwaysAllow": ["step", "reset_session", "fork_at", "fork_from_past"]
+    },
+    "security-audit": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/ABSOLUTE/PATH/TO/burrmcp",
+        "run",
+        "burrmcp",
+        "serve",
+        "security_audit:build_application",
+        "--app-dir",
+        "examples"
+      ],
+      "alwaysAllow": ["step", "reset_session", "fork_at", "fork_from_past"]
+    },
+    "mellea-qiskit-migration": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/ABSOLUTE/PATH/TO/burrmcp",
+        "run",
+        "burrmcp",
+        "serve",
+        "mellea_qiskit_migration:build_application",
+        "--app-dir",
+        "examples"
+      ],
+      "alwaysAllow": ["step", "reset_session", "fork_at", "fork_from_past"]
+    },
+    "incident-response": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/ABSOLUTE/PATH/TO/burrmcp",
+        "run",
+        "burrmcp",
+        "serve",
+        "incident_response:build_application",
+        "--app-dir",
+        "examples"
+      ],
+      "alwaysAllow": ["step", "reset_session", "fork_at", "fork_from_past"]
+    }
+  }
+}
