@@ -21,7 +21,7 @@ from burrmcp import ServingMode, mount
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT / "examples"))
 
-from class_action import (  # noqa: E402
+from class_action import (
     _DEEP_RULES,
     _SHALLOW_RULES,
     QualityCheckAction,

@@ -35,7 +35,7 @@ import pytest
 
 pytestmark = pytest.mark.smoke
 
-from ._helpers import (  # noqa: E402
+from ._helpers import (
     actions_called,
     calls_to,
     calls_with_action,

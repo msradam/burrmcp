@@ -20,7 +20,7 @@ from fastmcp import Client
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "examples"))
 
-from hamilton_features import (  # noqa: E402
+from hamilton_features import (
     _HAMILTON_FINAL_VARS,
     _decision_for,
     _load_features_module,

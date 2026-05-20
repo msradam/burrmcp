@@ -160,7 +160,7 @@ def _validate_show_commit(state: dict, inputs: dict) -> None:
             "sha not in the most recent commits listing; pick from there",
             details={"requested": sha, "listed_shas": listed_shas},
         )
-    return None
+    return
 
 
 def build_application():

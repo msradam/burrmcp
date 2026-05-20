@@ -328,8 +328,7 @@ def format_report(report: DoctorReport, verbose: bool = False) -> str:
             CheckStatus.INFO,
         )
         if show_details and c.details:
-            for d in c.details:
-                lines.append(f"       {d}")
+            lines.extend(f"       {d}" for d in c.details)
 
     parts: list[str] = []
     if report.passed:

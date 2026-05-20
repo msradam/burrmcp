@@ -19,7 +19,7 @@ from fastmcp import Client
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "examples"))
 
-from security_audit import build_server  # noqa: E402
+from security_audit import build_server
 
 
 async def _step(client, action, **inputs):

@@ -21,8 +21,8 @@ from fastmcp import Client
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "examples"))
 
-import granite_oncall  # noqa: E402
-from granite_oncall import _find_runbook, build_server  # noqa: E402
+import granite_oncall
+from granite_oncall import _find_runbook, build_server
 
 
 def _patch_granite(monkeypatch, *responses: str):

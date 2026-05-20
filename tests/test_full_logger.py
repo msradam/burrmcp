@@ -10,12 +10,10 @@ from pathlib import Path
 import pytest
 from fastmcp import Client
 
-from burrmcp import ServingMode, mount  # noqa: F401
-
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT / "examples"))
 
-from full_logger import build_application, build_server  # noqa: E402
+from full_logger import build_application, build_server
 
 
 async def _aforce_step(app, action_name: str):

@@ -21,8 +21,8 @@ from fastmcp import Client
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "examples"))
 
-import unix_health  # noqa: E402
-from unix_health import (  # noqa: E402
+import unix_health
+from unix_health import (
     _max_severity,
     _parse_df_all,
     _parse_df_root,

@@ -15,12 +15,10 @@ from pathlib import Path
 import pytest
 from fastmcp import Client
 
-from burrmcp import ServingMode, mount  # noqa: F401
-
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT / "examples"))
 
-from partition_key_tenants import build_application, build_server  # noqa: E402
+from partition_key_tenants import build_application, build_server
 
 
 def _force_step(app, action_name: str, **inputs):

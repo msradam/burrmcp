@@ -17,7 +17,7 @@ from fastmcp import Client
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "examples"))
 
-from triage import build_application, build_server  # noqa: E402
+from triage import build_application, build_server
 
 
 def test_next_actions_after_classify_urgent_lists_only_escalate():

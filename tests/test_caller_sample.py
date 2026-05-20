@@ -18,7 +18,7 @@ from fastmcp import Client
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT / "examples"))
 
-from caller_sample import build_server  # noqa: E402
+from caller_sample import build_server
 
 
 def _make_handler(responses: list[str]):

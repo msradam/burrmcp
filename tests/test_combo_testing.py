@@ -25,8 +25,8 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT / "examples"))
 sys.path.insert(0, str(_REPO_ROOT / "examples" / "data" / "combo_testing"))
 
-from checkout import process_order, reference_process_order  # noqa: E402
-from combo_testing import (  # noqa: E402
+from checkout import process_order, reference_process_order
+from combo_testing import (
     build_application,
     build_server,
     finalize,

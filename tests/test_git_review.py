@@ -17,7 +17,7 @@ from fastmcp import Client
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "examples"))
 
-from git_review import build_server  # noqa: E402
+from git_review import build_server
 
 
 @pytest.mark.asyncio

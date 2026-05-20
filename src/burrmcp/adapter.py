@@ -72,7 +72,7 @@ _DEFAULT_SESSION_TTL_SECONDS = 3600  # 1 hour idle
 _DEFAULT_MAX_SESSIONS = 100
 
 
-class ServingMode(str, Enum):  # noqa: UP042  # leaving as (str, Enum) for stable wire serialization across Python versions
+class ServingMode(str, Enum):  # noqa: UP042  # (str, Enum) for stable wire serialization
     STEP = "step"
     # ``TOOLS`` (one MCP tool per @action, no enforcement) and ``DYNAMIC``
     # (per-session ``tools/list_changed`` visibility) were carved out into
@@ -658,15 +658,14 @@ def _action_signature_params(action: Action) -> list[inspect.Parameter]:
                 return p.annotation
         return str
 
-    params: list[inspect.Parameter] = []
-    for name in required:
-        params.append(
-            inspect.Parameter(
-                name,
-                inspect.Parameter.KEYWORD_ONLY,
-                annotation=_annotation_for(name),
-            )
+    params: list[inspect.Parameter] = [
+        inspect.Parameter(
+            name,
+            inspect.Parameter.KEYWORD_ONLY,
+            annotation=_annotation_for(name),
         )
+        for name in required
+    ]
     for name in optional:
         default: Any = None
         if sig and name in sig.parameters:
@@ -2172,8 +2171,7 @@ def mount_multi(
         "Multi-Application server. The following Burr Applications are "
         "mounted side by side, namespaced by app name:"
     )
-    for app_name in sorted(applications):
-        parent_lines.append(f"  - {app_name}")
+    parent_lines.extend(f"  - {app_name}" for app_name in sorted(applications))
     parent_lines.append(
         "Tools are renamed <app>_<tool>; resources are accessible as "
         "burr://<app>/<path>. Read `burr://apps` for the live list."

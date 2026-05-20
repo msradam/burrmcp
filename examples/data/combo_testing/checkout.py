@@ -100,7 +100,7 @@ def process_order(
     # Bug 2: APAC + seasonal skips FX conversion.
     # if/else kept verbose (vs a ternary) so the bug shape is visible
     # at a glance; the SIM108 lint suggestion would obscure it.
-    if region == "APAC" and coupon == "seasonal":  # noqa: SIM108
+    if region == "APAC" and coupon == "seasonal":
         fx_rate = 1.0
     else:
         fx_rate = _FX_RATE[region]

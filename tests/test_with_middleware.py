@@ -12,7 +12,7 @@ from fastmcp import Client
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT / "examples"))
 
-from with_middleware import build_server  # noqa: E402
+from with_middleware import build_server
 
 
 @pytest.mark.asyncio
@@ -39,7 +39,7 @@ async def test_rate_limit_refuses_after_burst():
             try:
                 r = await client.call_tool("step", {"action": "tick", "inputs": {}})
                 outcomes.append(("ok", json.loads(r.content[0].text)))
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 outcomes.append(("error", str(exc)))
         errored = [o for o in outcomes if o[0] == "error"]
         assert errored, f"Expected at least one rate-limited call; got all ok: {outcomes}"
