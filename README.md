@@ -52,6 +52,7 @@ including parallelism, persistence, telemetry, and library coexistence:
 | Async actions (`async def @action`) | Yes | `parallel_research`, `mellea_qiskit_migration` |
 | Sub-Application composition | Yes; `burr://subruns` indexes `spawn_subapp` calls | `incident_response`, `subgraphs` |
 | OpenTelemetry (`OpenTelemetryBridge`) | Yes | `with_otel` |
+| User-defined lifecycle hooks (`PreRunStepHook` / `PostRunStepHook` / etc.) | Yes; via `ApplicationBuilder.with_hooks(...)` | `pipeline_hooks` |
 | Hamilton driver inside an action body | Yes (no special integration) | `hamilton_features` |
 | `app.run(halt_after=...)` auto-routing | Burr-level only | MCP path always uses agent-chosen actions via `step` |
 
