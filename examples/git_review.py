@@ -220,7 +220,7 @@ def build_server():
     return mount(
         build_application,
         mode=ServingMode.STEP,
-        name="git-review",
+        name="burr-git-review",
         instructions=(
             f"Git review FSM operating on {REPO_DIR}. Walk the legal "
             "sequence: status -> recent_commits -> show_commit (one "
