@@ -20,7 +20,6 @@ from burrmcp import ServingMode, mount  # noqa: F401
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT / "examples"))
 
-import partition_key_tenants  # noqa: E402
 from partition_key_tenants import build_application, build_server  # noqa: E402
 
 
