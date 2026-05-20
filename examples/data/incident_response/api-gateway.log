@@ -1,0 +1,60 @@
+2026-05-20T14:10:02Z INFO  api.handler request_id=a1 path=/cart method=GET status=200 latency_ms=14
+2026-05-20T14:10:18Z INFO  api.handler request_id=a2 path=/checkout method=POST status=200 latency_ms=88
+2026-05-20T14:11:33Z INFO  api.handler request_id=a3 path=/cart method=GET status=200 latency_ms=11
+2026-05-20T14:12:07Z INFO  api.handler request_id=a4 path=/checkout method=POST status=200 latency_ms=92
+2026-05-20T14:12:49Z INFO  api.handler request_id=a5 path=/products method=GET status=200 latency_ms=22
+2026-05-20T14:13:41Z INFO  api.handler request_id=a6 path=/cart method=GET status=200 latency_ms=15
+2026-05-20T14:14:55Z INFO  api.handler request_id=a7 path=/checkout method=POST status=200 latency_ms=84
+2026-05-20T14:15:30Z INFO  api.handler request_id=a8 path=/products method=GET status=200 latency_ms=18
+2026-05-20T14:16:02Z WARN  api.deploy starting rollout deploy_id=v2.14.3 strategy=rolling replicas=3
+2026-05-20T14:16:42Z INFO  api.deploy deploy_id=v2.14.3 phase=replica_ready replica=1 of 3
+2026-05-20T14:17:48Z INFO  api.handler request_id=a9 path=/cart method=GET status=200 latency_ms=12
+2026-05-20T14:18:12Z INFO  api.deploy deploy_id=v2.14.3 phase=replica_ready replica=2 of 3
+2026-05-20T14:18:55Z INFO  api.handler request_id=a10 path=/checkout method=POST status=200 latency_ms=109
+2026-05-20T14:19:30Z INFO  api.handler request_id=a11 path=/products method=GET status=200 latency_ms=20
+2026-05-20T14:20:28Z INFO  api.deploy deploy_id=v2.14.3 phase=replica_ready replica=3 of 3
+2026-05-20T14:20:30Z INFO  api.deploy deploy_id=v2.14.3 phase=complete replicas_ready=3 total_seconds=270
+2026-05-20T14:20:55Z INFO  api.handler request_id=a12 path=/cart method=GET status=200 latency_ms=15
+2026-05-20T14:21:20Z INFO  api.handler request_id=a13 path=/checkout method=POST status=200 latency_ms=98
+2026-05-20T14:21:48Z WARN  api.pool deploy_id=v2.14.3 connection_pool_saturation=0.84 size=20
+2026-05-20T14:22:01Z ERROR api.handler request_id=b1 path=/checkout method=POST status=502 upstream=payment-svc upstream_timeout_ms=5000
+2026-05-20T14:22:08Z ERROR api.handler request_id=b2 path=/checkout method=POST status=502 upstream=payment-svc upstream_timeout_ms=5000
+2026-05-20T14:22:15Z WARN  api.pool deploy_id=v2.14.3 connection_pool_saturation=0.97 size=20
+2026-05-20T14:22:34Z ERROR api.handler request_id=b3 path=/checkout method=POST status=502 upstream=payment-svc upstream_timeout_ms=5000
+2026-05-20T14:22:50Z ERROR api.handler request_id=b4 path=/checkout method=POST status=502 upstream=payment-svc upstream_timeout_ms=5000
+2026-05-20T14:23:02Z INFO  api.handler request_id=b5 path=/cart method=GET status=200 latency_ms=18
+2026-05-20T14:23:18Z ERROR api.handler request_id=b6 path=/checkout method=POST status=502 upstream=payment-svc upstream_timeout_ms=5000
+2026-05-20T14:23:31Z ERROR api.handler request_id=b7 path=/checkout method=POST status=502 upstream=payment-svc upstream_timeout_ms=5000
+2026-05-20T14:23:52Z ERROR api.handler request_id=b8 path=/checkout method=POST status=502 upstream=payment-svc upstream_timeout_ms=5000
+2026-05-20T14:24:09Z ERROR api.handler request_id=b9 path=/checkout method=POST status=502 upstream=payment-svc upstream_timeout_ms=5000
+2026-05-20T14:24:22Z WARN  api.pool deploy_id=v2.14.3 connection_pool_saturation=1.00 size=20
+2026-05-20T14:24:37Z ERROR api.handler request_id=b10 path=/checkout method=POST status=502 upstream=payment-svc upstream_timeout_ms=5000
+2026-05-20T14:25:01Z ERROR api.handler request_id=b11 path=/checkout method=POST status=502 upstream=payment-svc upstream_timeout_ms=5000
+2026-05-20T14:25:18Z ERROR api.handler request_id=b12 path=/checkout method=POST status=502 upstream=payment-svc upstream_timeout_ms=5000
+2026-05-20T14:25:42Z ERROR api.handler request_id=b13 path=/checkout method=POST status=502 upstream=payment-svc upstream_timeout_ms=5000
+2026-05-20T14:26:05Z ERROR api.handler request_id=b14 path=/checkout method=POST status=502 upstream=payment-svc upstream_timeout_ms=5000
+2026-05-20T14:26:33Z ERROR api.handler request_id=b15 path=/checkout method=POST status=502 upstream=payment-svc upstream_timeout_ms=5000
+2026-05-20T14:27:11Z ERROR api.handler request_id=b16 path=/checkout method=POST status=502 upstream=payment-svc upstream_timeout_ms=5000
+2026-05-20T14:27:40Z ERROR api.handler request_id=b17 path=/checkout method=POST status=502 upstream=payment-svc upstream_timeout_ms=5000
+2026-05-20T14:28:06Z ERROR api.handler request_id=b18 path=/checkout method=POST status=502 upstream=payment-svc upstream_timeout_ms=5000
+2026-05-20T14:28:39Z WARN  api.deploy rollback_initiated from=v2.14.3 to=v2.14.2 reason=manual
+2026-05-20T14:28:55Z INFO  api.deploy rollback phase=replica_replace replica=1 of 3
+2026-05-20T14:29:30Z INFO  api.deploy rollback phase=replica_replace replica=2 of 3
+2026-05-20T14:29:48Z ERROR api.handler request_id=b19 path=/checkout method=POST status=502 upstream=payment-svc upstream_timeout_ms=5000
+2026-05-20T14:30:12Z INFO  api.deploy rollback phase=replica_replace replica=3 of 3
+2026-05-20T14:30:20Z INFO  api.deploy rollback phase=complete active_version=v2.14.2
+2026-05-20T14:30:32Z INFO  api.handler request_id=c1 path=/checkout method=POST status=200 latency_ms=91
+2026-05-20T14:30:48Z INFO  api.handler request_id=c2 path=/cart method=GET status=200 latency_ms=13
+2026-05-20T14:31:05Z INFO  api.handler request_id=c3 path=/checkout method=POST status=200 latency_ms=87
+2026-05-20T14:31:22Z INFO  api.handler request_id=c4 path=/checkout method=POST status=200 latency_ms=94
+2026-05-20T14:31:48Z INFO  api.handler request_id=c5 path=/products method=GET status=200 latency_ms=24
+2026-05-20T14:32:01Z INFO  api.handler request_id=c6 path=/checkout method=POST status=200 latency_ms=85
+2026-05-20T14:32:30Z INFO  api.handler request_id=c7 path=/cart method=GET status=200 latency_ms=14
+2026-05-20T14:33:09Z INFO  api.handler request_id=c8 path=/checkout method=POST status=200 latency_ms=90
+2026-05-20T14:33:42Z INFO  api.handler request_id=c9 path=/products method=GET status=200 latency_ms=19
+2026-05-20T14:34:15Z INFO  api.handler request_id=c10 path=/checkout method=POST status=200 latency_ms=88
+2026-05-20T14:34:48Z INFO  api.handler request_id=c11 path=/cart method=GET status=200 latency_ms=12
+2026-05-20T14:35:30Z INFO  api.handler request_id=c12 path=/checkout method=POST status=200 latency_ms=93
+2026-05-20T14:36:10Z INFO  api.handler request_id=c13 path=/products method=GET status=200 latency_ms=21
+2026-05-20T14:36:55Z INFO  api.handler request_id=c14 path=/checkout method=POST status=200 latency_ms=89
+2026-05-20T14:37:33Z INFO  api.handler request_id=c15 path=/cart method=GET status=200 latency_ms=11
