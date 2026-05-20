@@ -261,7 +261,7 @@ async def _run_subprocess(cmd: list[str]) -> tuple[int, str, str]:
 async def _run_bandit(target: Path) -> dict[str, Any]:
     """Run bandit and return parsed JSON. Bandit exits 1 with findings."""
     rc, stdout, stderr = await _run_subprocess(
-        ["uv", "run", "bandit", "-r", str(target), "-f", "json"]
+        ["uv", "run", "bandit", "-r", str(target), "-f", "json", "--quiet"]
     )
     if rc >= 2:
         raise ValueError(f"bandit exited with code {rc}: {stderr[:300]}")

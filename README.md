@@ -1,17 +1,19 @@
 # BurrMCP
 
-**An adapter that turns a [Burr](https://burr.dagworks.io/) state
-machine into an [MCP](https://modelcontextprotocol.io/) server.** Each
-`@action` becomes a tool, state lives on the server, and an agent
-connecting over MCP can only call actions reachable from the current
-state. Calls to unreachable actions come back as structured errors
-that list the actions that *are* reachable.
+**FSM-as-API, not tools-as-API.**
 
-Or, in the other direction: take an existing flat FastMCP server,
-declare which tools mutate which state keys and which transitions
-are valid, and `burr_app_from_fastmcp(...)` lifts it into a Burr
-Application that mounts the same way, gaining transition enforcement,
-audit history, and per-session isolation.
+Mount a [Burr](https://burr.dagworks.io/) state machine as an [MCP](https://modelcontextprotocol.io/) server. The agent gets four tools (`step`, `reset_session`, `fork_at`, `fork_from_past`) regardless of how complex the FSM is. State lives on the server, transitions are enforced, and refusals carry the actions that *are* reachable so the agent can self-correct from a single error.
+
+```python
+from burrmcp import mount
+
+server = mount(application)
+server.run()
+```
+
+The action namespace lives in the `step` tool's argument schema, discoverable via the `burr://graph` resource. Out-of-order calls come back as structured `invalid_transition` errors listing valid next actions. See [Coffee in 30 lines](#coffee-in-30-lines) for a runnable example.
+
+You can also go the other direction: lift an existing flat FastMCP server into a Burr Application with `burr_app_from_fastmcp(...)`, gaining transition enforcement and per-session isolation without rewriting your tools. See [Lifting an existing FastMCP server](#lifting-an-existing-fastmcp-server).
 
 Status: v1.12.0.
 
@@ -60,6 +62,32 @@ exposes each node of the graph as its own tool, and lets the server
 decide which calls are valid given the current state. That difference
 matters when the client is an LLM picking from a tool menu: the menu
 is the graph, not a single black-box call.
+
+## What works through `mount()`
+
+The integration boundary is Burr's `Application`. Anything supported by
+`ApplicationBuilder` passes through `mount()` without adapter changes,
+including parallelism, persistence, telemetry, and library coexistence:
+
+| Burr surface | Through `mount()` | Demo / evidence |
+|---|---|---|
+| `@action`, `with_transitions`, `with_state`, `with_entrypoint` | Yes (core path) | every demo |
+| `Condition.expr` / `.when` / `.default` | Yes | `release_pipeline`, `chargen` |
+| `with_tracker(LocalTrackingClient)` | Yes; surfaced at `burr://trace` | every narrative demo |
+| `with_state_persister(BaseStatePersister)` | Yes | `sqlite_persister` |
+| `with_typed_state(Pydantic)` | Yes | `tests/test_typed_state.py` |
+| `with_parallel_executor(...)` | Yes (default thread-pool); `RayExecutor` swap documented inline | `burr_map_parallel` |
+| `MapStates` / parallel sub-runs | Yes | `burr_map_parallel` |
+| Streaming actions | Yes; emitted as MCP progress notifications | `streaming_narrate` |
+| Async actions (`async def @action`) | Yes | `parallel_research`, `mellea_qiskit_migration` |
+| Sub-Application composition | Yes; `burr://subruns` indexes `spawn_subapp` calls | `incident_response`, `subgraphs` |
+| OpenTelemetry (`OpenTelemetryBridge`) | Yes | `with_otel` |
+| Hamilton driver inside an action body | Yes (no special integration) | `hamilton_features` |
+| `app.run(halt_after=...)` auto-routing | Burr-level only | MCP path always uses agent-chosen actions via `step` |
+
+Anything missing from this table either hasn't been exercised yet or
+genuinely needs adapter work; both cases are tracked in the
+project-internal feature roadmap.
 
 ## Three serving modes
 
