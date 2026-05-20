@@ -69,6 +69,7 @@ dev = [
     "psutil>=5.9",
     "bandit>=1.8",
     "detect-secrets>=1.5",
+    "sf-hamilton>=1.0,<2.0",
 ]
 
 [tool.ruff]
