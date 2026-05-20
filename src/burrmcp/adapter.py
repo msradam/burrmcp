@@ -217,6 +217,42 @@ def _read_trace(path: Path, *, tail: int = _TRACE_MAX_ENTRIES) -> list[dict]:
     return entries
 
 
+def _render_action_surface(app: Application) -> str:
+    """Render a compact text summary of the FSM's action + transition surface.
+
+    Appended to the server's `instructions` so an MCP client sees the
+    action namespace at connect time, before reading any resources. The
+    first line of each action's docstring (if any) becomes its summary;
+    transitions show source and target, plus a `(when: expr)` clause for
+    conditional edges. Inputs are deliberately omitted; they live on the
+    `step` tool's argument schema (or `burr://graph` for full detail).
+    """
+    lines: list[str] = []
+    entry = getattr(app, "entrypoint", None)
+    if entry:
+        lines.append(f"Actions (entry: {entry}):")
+    else:
+        lines.append("Actions:")
+    for a in app.graph.actions:
+        fn = getattr(a, "fn", None)
+        doc = (fn.__doc__ or "").strip() if fn is not None and fn.__doc__ else ""
+        first = doc.splitlines()[0] if doc else ""
+        if first:
+            lines.append(f"  - {a.name}: {first}")
+        else:
+            lines.append(f"  - {a.name}")
+
+    lines.append("")
+    lines.append("Transitions:")
+    for t in app.graph.transitions:
+        cond = getattr(t.condition, "_name", None) or getattr(t.condition, "name", None)
+        if cond and cond != "default":
+            lines.append(f"  - {t.from_.name} -> {t.to.name}  (when: {cond})")
+        else:
+            lines.append(f"  - {t.from_.name} -> {t.to.name}")
+    return "\n".join(lines)
+
+
 def _compute_graph_summary(app: Application, server_name: str) -> dict[str, Any]:
     """Build a static description of an Application's graph.
 
@@ -1209,6 +1245,95 @@ def _make_tool_handler(
     return handler
 
 
+class _DynamicRefusalMiddleware:
+    """Convert FastMCP's 'tool not enabled' error into a structured refusal.
+
+    In ``ServingMode.DYNAMIC``, per-session visibility filtering hides
+    tools that are not in the current valid-next set, and FastMCP raises
+    ``NotFoundError`` when a stale client (or one without proper
+    ``tools/list_changed`` support) calls one anyway. STEP mode returns
+    the rich ``invalid_transition`` shape; this middleware brings DYNAMIC
+    to parity so the agent can recover from one error rather than
+    seeing an opaque ``Unknown tool`` message.
+
+    Only Burr action names get intercepted; truly unknown tools fall
+    through to FastMCP's original error.
+    """
+
+    def __init__(
+        self,
+        *,
+        shared_app: Application,
+        shared_lock: asyncio.Lock,
+        factory: ApplicationFactory | None,
+        store: _SessionStore,
+        action_names: set[str],
+    ) -> None:
+        from fastmcp.server.middleware import Middleware as _Mw
+
+        self._base_cls = _Mw  # for isinstance checks in tests if needed
+        self._shared_app = shared_app
+        self._shared_lock = shared_lock
+        self._factory = factory
+        self._store = store
+        self._action_names = action_names
+
+    async def on_call_tool(self, context, call_next):
+        from fastmcp.exceptions import NotFoundError
+        from fastmcp.tools.base import ToolResult
+
+        try:
+            return await call_next(context)
+        except NotFoundError:
+            tool_name = getattr(context.message, "name", None)
+            if tool_name not in self._action_names:
+                raise
+            ctx = context.fastmcp_context
+            app, _, _ = _session_app_and_lock(
+                ctx, self._shared_app, self._shared_lock, self._factory, self._store
+            )
+            valid = valid_next_action_names(app)
+            payload = {
+                "error": "invalid_transition",
+                "requested": tool_name,
+                "valid_next_actions": valid,
+                "message": (
+                    f"action {tool_name!r} is not reachable from current state. "
+                    f"Valid actions now: {valid}."
+                ),
+            }
+            return ToolResult(structured_content=payload)
+
+
+def _make_dynamic_refusal_middleware(
+    shared_app: Application,
+    shared_lock: asyncio.Lock,
+    factory: ApplicationFactory | None,
+    store: _SessionStore,
+) -> Any:
+    """Build the DYNAMIC-mode refusal middleware as a FastMCP Middleware subclass.
+
+    Built lazily so importing burrmcp doesn't force a FastMCP import path
+    that isn't needed for STEP / TOOLS modes.
+    """
+    from fastmcp.server.middleware import Middleware
+
+    action_names = {a.name for a in shared_app.graph.actions}
+    inner = _DynamicRefusalMiddleware(
+        shared_app=shared_app,
+        shared_lock=shared_lock,
+        factory=factory,
+        store=store,
+        action_names=action_names,
+    )
+
+    class _Mw(Middleware):
+        async def on_call_tool(self, context, call_next):
+            return await inner.on_call_tool(context, call_next)
+
+    return _Mw()
+
+
 def _refresh_global_dynamic_visibility(mcp: FastMCP, app: Application) -> None:
     """Set the server-wide baseline visibility for DYNAMIC mode.
 
@@ -1326,20 +1451,20 @@ def mount(
     # Augment user-supplied instructions with a one-line hint pointing
     # at burr://graph. Cold-start discoverability without forcing users
     # to write the hint themselves.
+    action_surface = _render_action_surface(shared_app)
     discovery_hint = (
-        "Read burr://graph once at start for the full action list and "
-        "transitions; you don't need to keep polling burr://next or "
-        "burr://state, each step response already includes the new "
+        "Read burr://graph once at start for full per-action metadata "
+        "(reads, writes, required/optional inputs); the listing above is "
+        "the minimum surface. You don't need to keep polling burr://next "
+        "or burr://state, each step response already includes the new "
         "state and valid_next_actions inline. To restart the FSM after "
         "reaching a terminal node or a dead-end branch, call the "
         "reset_session tool. To rewind to a specific earlier point and "
         "explore an alternate path from there, call fork_at(sequence_id) "
         "with a seq from burr://history. Both are always available."
     )
-    if instructions:
-        effective_instructions = f"{instructions}\n\n{discovery_hint}"
-    else:
-        effective_instructions = discovery_hint
+    parts = [p for p in (instructions, action_surface, discovery_hint) if p]
+    effective_instructions = "\n\n".join(parts)
     mcp = FastMCP(server_name, instructions=effective_instructions)
 
     # ── resources ────────────────────────────────────────────────────
@@ -1742,6 +1867,12 @@ def mount(
         # session before its first call. Per-session refreshes after
         # each call override this baseline for that session only.
         _refresh_global_dynamic_visibility(mcp, shared_app)
+        # Stale clients calling a disabled tool get FastMCP's generic
+        # NotFoundError by default; this middleware translates that to
+        # the structured invalid_transition payload STEP mode returns.
+        mcp.add_middleware(
+            _make_dynamic_refusal_middleware(shared_app, shared_lock, factory, store)
+        )
     else:
         raise ValueError(f"unknown serving mode: {mode!r}")
 
