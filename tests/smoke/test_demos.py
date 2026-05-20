@@ -66,11 +66,11 @@ async def test_coffee_refuses_pay_before_order():
 
 
 @pytest.mark.asyncio
-async def test_skill_security_audit_refuses_outside_without_authorization():
+async def test_security_audit_refuses_outside_without_authorization():
     """OUTSIDE/BOTH modes require authorization_source; refusal must be
     structured with the SKILL's wording."""
     trace = await drive(
-        "Use the skill-security-audit burr app to audit https://example.com "
+        "Use the security-audit burr app to audit https://example.com "
         "in OUTSIDE mode, with NO authorization_source set (we want to see "
         "the SKILL's authorization gate fire). Try the start_audit call once; "
         "don't retry or work around it.",
@@ -78,10 +78,10 @@ async def test_skill_security_audit_refuses_outside_without_authorization():
         max_turns=15,
     )
     start_calls = calls_with_action(
-        trace["tool_calls"], "mcp__skill-security-audit__step", "start_audit"
+        trace["tool_calls"], "mcp__security-audit__step", "start_audit"
     )
     assert start_calls, (
-        f"Claude never called start_audit on skill-security-audit. "
+        f"Claude never called start_audit on security-audit. "
         f"Tools: {[c['name'] for c in trace['tool_calls']]}"
     )
     first = result_for(trace["tool_results"], start_calls[0]["id"])

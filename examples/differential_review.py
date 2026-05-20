@@ -36,7 +36,7 @@ Why this is a clean FSM:
 
 Pure FSM. No server-side LLM calls, no shellouts. Complementary to
 ``codebase_security.py`` (real bandit + detect-secrets) and to
-``skill_security_audit.py`` (audit a single target). Where those
+``security_audit.py`` (audit a single target). Where those
 two find new findings, this one reviews changes for security
 regressions.
 

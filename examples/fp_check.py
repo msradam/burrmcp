@@ -22,7 +22,7 @@ FALSE POSITIVE if any failed. The SKILL says to keep going through
 all phases even after a failure so the verdict carries the specific
 gate that rejected it.
 
-Complementary to ``skill_security_audit.py`` (finds bugs) and
+Complementary to ``security_audit.py`` (finds bugs) and
 ``differential_review.py`` (reviews changes). Where those find
 findings, this verifies whether a specific finding is real.
 
@@ -572,7 +572,7 @@ def build_server():
             "mechanically computed: TRUE POSITIVE iff every gate "
             "passed, FALSE POSITIVE otherwise. Read state.current_prompt "
             "for the next phase's evidence checklist. Complementary "
-            "to skill_security_audit (finds bugs) and "
+            "to security_audit (finds bugs) and "
             "differential_review (reviews changes): audit finds, this "
             "verifies. Source SKILL at examples/skills/fp-check/."
         ),

@@ -47,11 +47,11 @@ from ._helpers import (  # noqa: E402
 check_environment_or_skip()
 
 
-# == skill-security-audit ========================================
+# == security-audit ========================================
 
 
 @pytest.mark.asyncio
-async def test_skill_security_audit_walks_inside_audit_on_flask(flask_repo: Path):
+async def test_security_audit_walks_inside_audit_on_flask(flask_repo: Path):
     """INSIDE-mode audit walks every phase and lands a non-trivial advisory.
 
     Validates the SKILL's structural promise: context → source review
@@ -60,7 +60,7 @@ async def test_skill_security_audit_walks_inside_audit_on_flask(flask_repo: Path
     feed one through here.
     """
     trace = await drive(
-        f"Use the skill-security-audit burr app to audit the Flask codebase "
+        f"Use the security-audit burr app to audit the Flask codebase "
         f"at {flask_repo} in INSIDE mode. Walk every phase of the SKILL: "
         f"start_audit, record_context, source_review, infra_sweep, "
         f"rate_limit_deep_dive, write_advisory. Use your Read / Grep / Bash "
@@ -70,10 +70,10 @@ async def test_skill_security_audit_walks_inside_audit_on_flask(flask_repo: Path
         max_budget_usd=15.0,
         max_turns=60,
     )
-    tool_name = "mcp__skill-security-audit__step"
+    tool_name = "mcp__security-audit__step"
     step_calls = calls_to(trace["tool_calls"], tool_name)
     assert step_calls, (
-        f"Claude never called the skill-security-audit step tool. Tools "
+        f"Claude never called the security-audit step tool. Tools "
         f"called: {sorted({c['name'] for c in trace['tool_calls']})}"
     )
 
