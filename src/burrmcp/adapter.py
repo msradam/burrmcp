@@ -162,6 +162,54 @@ def _tracker_project(app: Application) -> str | None:
     return tracker.project_id
 
 
+def _restore_snapshot(
+    *,
+    entry: Any,
+    factory: ApplicationFactory,
+    state_dict: dict[str, Any],
+    last_action: str | None,
+    sequence_id_override: int | None = None,
+    kept_subruns: dict[str, Any] | None = None,
+) -> tuple[Application, dict[str, Any], list[str]]:
+    """Shared body for ``fork_at`` and ``fork_from_past``.
+
+    Rebuilds the session's Application via the factory, overwrites its
+    state with ``state_dict`` plus ``__PRIOR_STEP`` (and optionally
+    ``__SEQUENCE_ID`` for in-session forks where the tracker count must
+    stay monotonic), and applies the caller's sub-runs policy. Returns
+    ``(new_app, serialized_state, valid_next_actions)`` for the caller
+    to build its response payload around.
+
+    ``kept_subruns`` semantics:
+      * ``None`` (default): clear all (``fork_from_past`` behavior).
+      * dict: replace the session's subruns with this filtered subset
+        (``fork_at`` keeps sub-runs spawned before the fork point).
+    """
+    from burr.core.state import State as _BurrState
+
+    entry.application = factory()
+    new_app = entry.application
+    assert new_app is not None
+
+    forked_state_dict: dict[str, Any] = {
+        **state_dict,
+        "__PRIOR_STEP": last_action,
+    }
+    if sequence_id_override is not None:
+        forked_state_dict["__SEQUENCE_ID"] = sequence_id_override
+    new_app.update_state(_BurrState(forked_state_dict))
+
+    entry.subruns = kept_subruns if kept_subruns is not None else {}
+
+    new_state, coerced = _serializable_state(_public_state(new_app.state.get_all()))
+    if coerced:
+        new_state["_burrmcp"] = {"coerced_keys": coerced}
+    valid_next = valid_next_action_names(new_app)
+    entry.last_access = time.monotonic()
+
+    return new_app, new_state, valid_next
+
+
 def _tracker_log_path(app: Application) -> Path | None:
     """Locate the on-disk log file for this Application's Burr tracker.
 
@@ -2016,40 +2064,26 @@ def mount(
                 }
             target_action = target.get("action")
 
-            # Rebuild via factory to get a fresh internal Application.
-            entry.application = factory()
-            new_app = entry.application
-            assert new_app is not None
-            # Overwrite state with the saved snapshot, including the
-            # __PRIOR_STEP so Burr's get_next_action picks up the right
-            # outgoing edges, and a SEQUENCE_ID that matches the fork
-            # point so the tracker's count stays monotonic.
-            from burr.core.state import State as _BurrState
-
-            forked_state_dict = {
-                **saved_state,
-                "__PRIOR_STEP": target_action,
-                "__SEQUENCE_ID": sequence_id,
-            }
-            new_app.update_state(_BurrState(forked_state_dict))
-
-            # Clear any sub-runs that happened after this point. We
-            # keep sub-runs spawned before the fork point because the
+            # Keep sub-runs spawned at or before the fork point; the
             # parent history entries that reference them are still
-            # visible.
-            kept_subrun_ids: set[str] = set()
-            for h in entry.history[: sequence_id + 1]:
-                for sid in h.get("subruns", []) or []:
-                    kept_subrun_ids.add(sid)
-            entry.subruns = {
+            # visible, so dropping them would leave dangling links.
+            kept_subrun_ids: set[str] = {
+                sid
+                for h in entry.history[: sequence_id + 1]
+                for sid in (h.get("subruns") or [])
+            }
+            kept_subruns = {
                 sid: rec for sid, rec in entry.subruns.items() if sid in kept_subrun_ids
             }
 
-            new_state, coerced = _serializable_state(_public_state(new_app.state.get_all()))
-            if coerced:
-                new_state["_burrmcp"] = {"coerced_keys": coerced}
-            valid_next = valid_next_action_names(new_app)
-            entry.last_access = time.monotonic()
+            new_app, new_state, valid_next = _restore_snapshot(
+                entry=entry,
+                factory=factory,
+                state_dict=saved_state,
+                last_action=target_action,
+                sequence_id_override=sequence_id,
+                kept_subruns=kept_subruns,
+            )
 
         _record_history(
             store,
@@ -2203,26 +2237,14 @@ def mount(
                         "sequence_id": sequence_id,
                     }
 
-            # Rebuild and overwrite state.
-            from burr.core.state import State as _BurrState
-
-            entry.application = factory()
-            new_app = entry.application
-            assert new_app is not None
-            forked_state_dict = {
-                **loaded_state_dict,
-                "__PRIOR_STEP": last_action,
-            }
-            new_app.update_state(_BurrState(forked_state_dict))
-            # Clear in-memory subruns; they belonged to the previous
-            # session state, which has been replaced.
-            entry.subruns.clear()
-
-            new_state, coerced = _serializable_state(_public_state(new_app.state.get_all()))
-            if coerced:
-                new_state["_burrmcp"] = {"coerced_keys": coerced}
-            valid_next = valid_next_action_names(new_app)
-            entry.last_access = time.monotonic()
+            # In-memory subruns belonged to the previous session state,
+            # which has been replaced; clear all of them.
+            new_app, new_state, valid_next = _restore_snapshot(
+                entry=entry,
+                factory=factory,
+                state_dict=loaded_state_dict,
+                last_action=last_action,
+            )
 
         _record_history(
             store,
