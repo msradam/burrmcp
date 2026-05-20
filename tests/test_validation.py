@@ -163,7 +163,7 @@ async def test_async_validators_supported():
     async def async_validator(state_dict, inputs):
         if inputs["qty"] > 100:
             raise ValidationFailed("qty too large")
-        return None
+        return
 
     server = mount(
         _order_app,
@@ -195,7 +195,7 @@ async def test_tool_spec_validator_wires_through_importer():
     def positive_amount(state, inputs):
         if inputs["amount"] <= 0:
             raise ValidationFailed("amount must be > 0")
-        return None
+        return
 
     app = await burr_app_from_fastmcp(
         flat,
@@ -227,7 +227,7 @@ async def test_hand_tagged_validator_via_function_attribute():
     def positive_qty(state, inputs):
         if inputs["qty"] < 1:
             raise ValidationFailed("qty must be >= 1")
-        return None
+        return
 
     @action(reads=[], writes=["qty"])
     async def tagged(state: State, qty: int) -> State:

@@ -27,7 +27,7 @@ from fastmcp import Client
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "examples"))
 
-from burr_map_parallel import (  # noqa: E402
+from burr_map_parallel import (
     _DEFAULT_TEMPERATURES,
     MapAndReduceWithStatus,
     _score_candidate,

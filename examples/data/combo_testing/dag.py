@@ -17,7 +17,7 @@ _HERE = Path(__file__).resolve().parent
 if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 
-from checkout import process_order, reference_process_order  # noqa: E402
+from checkout import process_order, reference_process_order
 
 
 def tier(tier_input: str) -> str:

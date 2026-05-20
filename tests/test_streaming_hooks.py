@@ -15,12 +15,10 @@ from pathlib import Path
 import pytest
 from fastmcp import Client
 
-from burrmcp import ServingMode, mount  # noqa: F401
-
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT / "examples"))
 
-from streaming_hooks import (  # noqa: E402
+from streaming_hooks import (
     Chunk,
     StreamStatsHook,
     TranscribeState,
@@ -36,9 +34,7 @@ async def test_streaming_hooks_fire_via_astream_result():
     state = app.state.update(prompt="hello there friend")
     app._state = state  # type: ignore[attr-defined]
     _, container = await app.astream_result(halt_after=["transcribe"])
-    chunks = []
-    async for chunk in container:
-        chunks.append(chunk)
+    chunks = [chunk async for chunk in container]
     await container.get()
     assert stats.starts["transcribe"] == 1
     assert stats.items["transcribe"] == len(chunks)

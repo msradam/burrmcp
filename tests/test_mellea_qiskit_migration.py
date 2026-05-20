@@ -19,8 +19,8 @@ from fastmcp import Client
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "examples"))
 
-import mellea_qiskit_migration  # noqa: E402
-from mellea_qiskit_migration import (  # noqa: E402
+import mellea_qiskit_migration
+from mellea_qiskit_migration import (
     build_server,
     check_qiskit_migration,
 )

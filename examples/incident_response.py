@@ -226,7 +226,9 @@ async def report_findings(state: State) -> State:
     )
 
 
-def _build_investigation_subgraph(*, service: str | None = None, alert_starts_at: str | None = None):
+def _build_investigation_subgraph(
+    *, service: str | None = None, alert_starts_at: str | None = None
+):
     return (
         ApplicationBuilder()
         .with_actions(
@@ -266,7 +268,7 @@ def _alert_payload_validator(state: dict, inputs: dict) -> None:
             f"alert_path {path!r} does not exist",
             details={"received": path},
         )
-    return None
+    return
 
 
 # ── main FSM actions ────────────────────────────────────────────────

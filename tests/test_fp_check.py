@@ -20,12 +20,10 @@ from pathlib import Path
 import pytest
 from fastmcp import Client
 
-from burrmcp import ServingMode, mount  # noqa: F401
-
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT / "examples"))
 
-from fp_check import (  # noqa: E402
+from fp_check import (
     build_application,
     build_server,
     final_verdict,

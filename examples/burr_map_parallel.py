@@ -155,15 +155,14 @@ class MapAndReduce(MapStates):
             yield state.update(temperature=temperature)
 
     def reduce(self, state: State, states) -> State:
-        samples: list[dict[str, Any]] = []
-        for sub_state in states:
-            samples.append(
-                {
-                    "temperature": sub_state["temperature"],
-                    "candidate": sub_state["candidate"],
-                    "score": sub_state["score"],
-                }
-            )
+        samples: list[dict[str, Any]] = [
+            {
+                "temperature": sub_state["temperature"],
+                "candidate": sub_state["candidate"],
+                "score": sub_state["score"],
+            }
+            for sub_state in states
+        ]
         if not samples:
             return state.update(
                 samples=[],

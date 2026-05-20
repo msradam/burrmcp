@@ -20,9 +20,9 @@ from fastmcp import Client
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "examples"))
 
-import adaptive_crag  # noqa: E402
-import parallel_research  # noqa: E402
-from adaptive_crag import (  # noqa: E402
+import adaptive_crag
+import parallel_research
+from adaptive_crag import (
     _format_snippets,
     _parse_grade,
     _retrieve_top,

@@ -20,7 +20,7 @@ from burrmcp import ServingMode, mount
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT / "examples"))
 
-from subgraph_composition import (  # noqa: E402
+from subgraph_composition import (
     build_approval_subgraph,
     build_deployment_application,
     build_loan_application,

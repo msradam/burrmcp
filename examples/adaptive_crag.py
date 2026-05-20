@@ -53,9 +53,9 @@ from burr.core import ApplicationBuilder, State, action
 from burr.core.action import Condition
 from burr.tracking.client import LocalTrackingClient
 
-# Reuse the granite call + error type from the oncall demo so tests can
-# monkey-patch one symbol and both examples stay aligned on env vars.
-from granite_oncall import GraniteUnavailable, _call_granite  # noqa: F401  (re-exported for tests)
+# Reuse the granite call from the oncall demo so tests can monkey-patch
+# one symbol and both examples stay aligned on env vars.
+from granite_oncall import _call_granite
 
 # Reuse the retrieval primitives from the parallel-research demo.
 from parallel_research import (

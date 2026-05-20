@@ -21,12 +21,10 @@ from pathlib import Path
 import pytest
 from fastmcp import Client
 
-from burrmcp import ServingMode, mount  # noqa: F401
-
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT / "examples"))
 
-from differential_review import (  # noqa: E402
+from differential_review import (
     blast_radius,
     build_application,
     build_server,
@@ -35,7 +33,6 @@ from differential_review import (  # noqa: E402
     triage,
     write_report,
 )
-from differential_review import test_coverage as _test_coverage_action  # noqa: E402,F401
 
 # == action unit tests ============================================
 

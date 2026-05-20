@@ -18,7 +18,7 @@ from fastmcp import Client
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT / "examples"))
 
-from local_shell import (  # noqa: E402
+from local_shell import (
     _DATA_DIR,
     build_application,
     build_server,

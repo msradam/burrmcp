@@ -19,7 +19,7 @@ from burrmcp import ServingMode, mount
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "examples"))
 
-from adventure import build_application as adventure_factory  # noqa: E402
+from adventure import build_application as adventure_factory
 
 
 @pytest.mark.asyncio

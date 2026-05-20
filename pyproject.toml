@@ -89,9 +89,19 @@ dev = [
 target-version = "py311"
 line-length = 100
 src = ["src"]
+extend-exclude = [
+    # Shipped sample data: Hamilton DAGs and SUT modules used as
+    # fixtures by the testing demos. They use sys.path tricks to be
+    # importable from the demo and aren't part of the codebase proper.
+    "examples/data",
+]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "B", "C4", "UP", "SIM", "RUF"]
+select = ["E", "F", "W", "I", "B", "C4", "UP", "SIM", "RUF", "PERF", "PIE", "RET"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests insert examples/ into sys.path before importing the demo modules.
+"tests/**/*.py" = ["E402"]
 
 [tool.ruff.format]
 quote-style = "double"

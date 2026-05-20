@@ -18,7 +18,7 @@ from fastmcp import Client
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "examples"))
 
-from chargen import build_server  # noqa: E402
+from chargen import build_server
 
 
 @pytest.mark.asyncio

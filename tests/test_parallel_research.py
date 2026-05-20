@@ -27,7 +27,7 @@ from fastmcp import Client
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "examples"))
 
-from parallel_research import (  # noqa: E402
+from parallel_research import (
     _available_sources,
     _extract_snippets,
     _score_documents,

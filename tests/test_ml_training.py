@@ -18,7 +18,7 @@ from fastmcp import Client
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "examples"))
 
-from ml_training import (  # noqa: E402
+from ml_training import (
     _accuracy,
     _make_dataset,
     _one_epoch_sgd,

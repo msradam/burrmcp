@@ -15,12 +15,12 @@ from pathlib import Path
 import pytest
 from fastmcp import Client
 
-from burrmcp import ServingMode, mount  # noqa: F401
+from burrmcp import ServingMode
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT / "examples"))
 
-from coffee_order import build_application, build_server  # noqa: E402
+from coffee_order import build_application, build_server
 
 
 @pytest.mark.asyncio

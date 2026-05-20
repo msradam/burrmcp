@@ -28,14 +28,14 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT / "examples"))
 sys.path.insert(0, str(_REPO_ROOT / "examples" / "data" / "combinatoric_testing"))
 
-from combinatoric_testing import (  # noqa: E402
+from combinatoric_testing import (
     build_application,
     build_server,
     finalize,
     initialize,
     propose_and_run,
 )
-from sut import percentile_linear, percentile_nearest  # noqa: E402
+from sut import percentile_linear, percentile_nearest
 
 # == SUT unit tests ================================================
 

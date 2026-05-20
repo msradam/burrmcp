@@ -18,7 +18,7 @@ from fastmcp import Client
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT / "examples"))
 
-from incident_response import (  # noqa: E402
+from incident_response import (
     _build_investigation_subgraph,
     build_application,
     build_server,

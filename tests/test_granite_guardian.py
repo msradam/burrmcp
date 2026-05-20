@@ -22,13 +22,11 @@ from pathlib import Path
 import pytest
 from fastmcp import Client
 
-from burrmcp import ServingMode, mount  # noqa: F401
-
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT / "examples"))
 
-import granite_guardian as guardian_module  # noqa: E402
-from granite_guardian import build_server, start  # noqa: E402
+import granite_guardian as guardian_module
+from granite_guardian import build_server, start
 
 
 def _initial_state(**overrides):

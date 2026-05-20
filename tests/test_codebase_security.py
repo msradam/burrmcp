@@ -25,8 +25,8 @@ from fastmcp import Client
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "examples"))
 
-import codebase_security  # noqa: E402
-from codebase_security import (  # noqa: E402
+import codebase_security
+from codebase_security import (
     _BANDIT_CWE_MAP,
     _bandit_cwe,
     _inventory,

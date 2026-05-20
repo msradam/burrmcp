@@ -53,7 +53,7 @@ def check_environment_or_skip() -> None:
         )
 
     try:
-        import claude_agent_sdk  # noqa: F401
+        import claude_agent_sdk  # noqa: F401  # availability check only
     except ImportError:
         pytest.skip("claude-agent-sdk not installed", allow_module_level=True)
 
@@ -110,16 +110,16 @@ async def drive(
         elif isinstance(msg, UserMessage):
             content = msg.content
             if isinstance(content, list):
-                for block in content:
-                    if isinstance(block, ToolResultBlock):
-                        tool_results.append(
-                            {
-                                "tool_use_id": block.tool_use_id,
-                                "content": block.content,
-                                "is_error": block.is_error,
-                                "parsed": parse_tool_result(block.content),
-                            }
-                        )
+                tool_results.extend(
+                    {
+                        "tool_use_id": block.tool_use_id,
+                        "content": block.content,
+                        "is_error": block.is_error,
+                        "parsed": parse_tool_result(block.content),
+                    }
+                    for block in content
+                    if isinstance(block, ToolResultBlock)
+                )
         elif isinstance(msg, ResultMessage):
             result_message = msg
 
