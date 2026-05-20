@@ -41,8 +41,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
 
 from burr.core import ApplicationBuilder, State, action
 from burr.core.action import Condition
@@ -70,14 +69,14 @@ def update_note(state: State, note: str) -> State:
     """Append a note to the customer record."""
     if state["stage"] != "open":
         raise ValueError(f"cannot update notes in stage {state['stage']!r}")
-    stamped = f"[{datetime.now(timezone.utc).isoformat()}] {note}"
+    stamped = f"[{datetime.now(UTC).isoformat()}] {note}"
     return state.update(notes=[*state["notes"], stamped])
 
 
 @action(reads=["stage"], writes=["stage", "closed_at"])
 def close_record(state: State) -> State:
     """Close the record. Terminal."""
-    return state.update(stage="closed", closed_at=datetime.now(timezone.utc).isoformat())
+    return state.update(stage="closed", closed_at=datetime.now(UTC).isoformat())
 
 
 # == graph ===========================================================
