@@ -124,13 +124,13 @@ def test_triage_aggregates_overall_risk_correctly(labels, expected):
 def test_blast_radius_emits_deep_context_prompt_when_high():
     s = _initial_state(overall_risk="HIGH", target="PR-1", codebase_size="SMALL", log=["..."])
     out = blast_radius(s, blast={"per_file_callers": {}})
-    assert "PHASE 4 of 6: DEEP CONTEXT" in out["current_prompt"]
+    assert "PHASE 4: DEEP CONTEXT" in out["current_prompt"]
 
 
 def test_blast_radius_emits_report_prompt_when_not_high():
     s = _initial_state(overall_risk="MEDIUM", target="PR-1", codebase_size="SMALL", log=["..."])
     out = blast_radius(s, blast={"per_file_callers": {}})
-    assert "PHASE 6 of 6: WRITE THE REPORT" in out["current_prompt"]
+    assert "PHASE 6: REPORT GENERATION" in out["current_prompt"]
     assert "skipped" in out["current_prompt"]
 
 

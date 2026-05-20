@@ -1,17 +1,26 @@
 """Skill-to-FSM: webapp testing methodology as caller-LLM prompts.
 
 Decomposes Anthropic's webapp-testing SKILL into a Burr FSM. The
-SKILL teaches a reconnaissance-then-action pattern with one
-load-bearing rule: do not inspect the DOM until ``networkidle`` has
+SKILL teaches a Reconnaissance-Then-Action pattern with one
+load-bearing rule: do not inspect the DOM before ``networkidle`` has
 fired. The FSM enforces that rule at the protocol layer by gating
 ``reconnaissance`` behind ``wait_for_load``.
 
 Source SKILL: ``examples/skills/webapp-testing/SKILL.md``. The
-canonical flow (dynamic webapp path) is:
+SKILL's core pattern (verbatim from the "Reconnaissance-Then-Action
+Pattern" section) is three steps:
 
-    start_test -> navigate -> wait_for_load -> reconnaissance
-        -> identify_selectors -> execute_actions -> verify
-        -> finalize_test
+    1. Inspect rendered DOM (screenshot + page.content + locators)
+    2. Identify selectors from inspection results
+    3. Execute actions using discovered selectors
+
+The FSM wraps that with ``navigate`` + ``wait_for_load`` upstream and
+``verify`` + ``finalize_test`` downstream so the test outcome lands in
+the audit trail. ``navigate`` / ``wait_for_load`` come from the
+SKILL's Decision Tree ("Navigate and wait for networkidle") and the
+Common Pitfall ("Don't inspect the DOM before waiting for
+networkidle"); ``verify`` and ``finalize_test`` are FSM conventions
+added on top of the SKILL so the verdict is captured.
 
 The FSM does not call Playwright. The caller LLM drives Playwright
 (via its own MCP-attached browser or a Playwright runtime), reports

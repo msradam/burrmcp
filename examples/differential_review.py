@@ -65,210 +65,230 @@ _VALID_CODEBASE_SIZES = {"SMALL", "MEDIUM", "LARGE"}
 
 
 _PROMPT_PRE_ANALYSIS = """\
-You are running Trail of Bits' differential-review SKILL on `{target}`.
-Codebase size strategy: `{codebase_size}` (SMALL=DEEP, MEDIUM=FOCUSED,
-LARGE=SURGICAL). Scope: `{scope}`.
+Trail of Bits differential-review SKILL on `{target}`. Codebase size:
+`{codebase_size}` (SMALL=DEEP, MEDIUM=FOCUSED, LARGE=SURGICAL).
+Scope: `{scope}`.
 
-PRE-ANALYSIS: build baseline context before triage.
+PRE-ANALYSIS: Baseline Context Building.
 
-Capture:
-- changed_files: list of files touched by this change (paths only)
-- removed_security_code: any code removed from "security", "CVE", or
-  "fix"-tagged commits. For each: {{file, lines, commit, what}}. This
-  is the highest-leverage signal in the SKILL; do not skip even on a
-  small PR.
-- entrypoints_touched: public APIs / handlers / CLI commands whose
-  surface is altered by this change
-- dependencies_touched: package/version changes, especially security-
-  sensitive packages (crypto, auth, parsing, networking)
-- removed_validation_or_access_control: anything in the "Red Flags"
-  list from the SKILL (onlyOwner removed, internal -> external,
-  validation removed without replacement, external calls added without
-  checks)
+Per `methodology.md#pre-analysis-baseline-context-building`, build
+baseline context before walking the phases. The SKILL invokes the
+`audit-context-building` sub-skill against the baseline commit; if
+that sub-skill isn't available, document the same surface from
+`git log` / file listing.
 
-Call `pre_analysis(baseline={{...}})` with a dict of these fields.
+Also capture the SKILL's `Red Flags (Stop and Investigate)`:
+- Removed code from "security", "CVE", or "fix" commits
+- Access control modifiers removed (onlyOwner, internal -> external)
+- Validation removed without replacement
+- External calls added without checks
+- High blast radius (50+ callers) + HIGH risk change
+
+Call `pre_analysis(baseline={{...}})` with:
+- changed_files: list of files touched by this change
+- removed_security_code: [{{file, lines, commit, what}}, ...] for any
+  code removed from "security" / "CVE" / "fix" commits
+- entrypoints_touched: public APIs / handlers / CLI commands altered
+- dependencies_touched: security-sensitive package / version changes
+- red_flags_hit: which Red Flags from the SKILL list this PR triggers
 """
 
 
 _PROMPT_TRIAGE = """\
-PHASE 0 of 6: TRIAGE.
+PHASE 0: INTAKE & TRIAGE.
 
-Classify each changed file by risk per the SKILL's risk-level table:
+From `methodology.md#phase-0-intake--triage`, risk-score each file:
 
-  HIGH:   auth, crypto, external calls, value transfer, validation
-          removal
-  MEDIUM: business logic, state changes, new public APIs
-  LOW:    comments, tests, UI-only, logging
+  HIGH:   Auth, crypto, external calls, value transfer, validation removal
+  MEDIUM: Business logic, state changes, new public APIs
+  LOW:    Comments, tests, UI, logging
 
-Per the SKILL: "Heartbleed was 2 lines" -- classify by risk, not size.
-A 2-line change in auth or crypto code is HIGH.
+Per the SKILL's `Rationalizations (Do Not Skip)` table: "Heartbleed
+was 2 lines" -- classify by RISK, not size.
 
-Call `triage(per_file_risk={{path: "HIGH"|"MEDIUM"|"LOW", ...}})`
-with one entry per changed_files path you recorded in pre_analysis.
-The FSM aggregates these into an overall_risk = max(per_file_risk).
-If any file is HIGH, the review will pass through Phase 4 (Deep
-Context) and Phase 5 (Adversarial); otherwise it skips straight to
-Phase 6 after Phase 3.
+Call `triage(per_file_risk={{path: "HIGH"|"MEDIUM"|"LOW", ...}})` with
+one entry per file in pre_analysis.changed_files. The FSM aggregates
+to overall_risk = max(per_file_risk). HIGH triggers Phases 4 (Deep
+Context) and 5 (Adversarial); otherwise the workflow goes straight
+from Phase 3 to Phase 6.
 """
 
 
 _PROMPT_CODE_ANALYSIS = """\
-PHASE 1 of 6: CODE ANALYSIS.
+PHASE 1: CHANGED CODE ANALYSIS.
 
-For each HIGH or MEDIUM risk file:
+From `methodology.md#phase-1-changed-code-analysis`, for each changed
+file:
 
-1. Run `git blame` on every removed line in security-sensitive code.
-   The original commit is the evidence trail; cite its sha in findings.
-2. Read the file alongside its 1-hop neighbours (callers, callees, and
-   any module that imports from it).
-3. Look for the SKILL's pattern catalog: regressions, access control,
-   missing validation, injection, crypto misuse, overflow, reentrancy.
+1. Read both versions (baseline and changed).
+2. Analyze each diff region with BEFORE / AFTER / CHANGE / SECURITY.
+3. Git blame removed code: `git log -S "removed_code" --all --oneline`.
+   Red flags: removed from "fix"/"security"/"CVE" commits = CRITICAL;
+   recently added (<1 month) then removed = HIGH.
+4. Check for regressions (re-added code): `git log -S "added_code"
+   --all -p`. Pattern: code added -> removed for security -> re-added
+   now = REGRESSION.
+5. Micro-adversarial analysis for each change: what attack did removed
+   code prevent? what new surface does new code expose? can modified
+   logic be bypassed? are checks weaker?
+6. For each change with concern, generate a concrete attack scenario
+   with SCENARIO / PRECONDITIONS / STEPS / WHY IT WORKS / IMPACT.
 
-For each finding: {{file, line, severity (critical|high|medium|low),
-cwe (id), evidence_commit (sha), description, suggested_fix}}.
+Apply pattern catalogue from `patterns.md` (regressions, reentrancy,
+access control, overflow, etc.).
 
-Call `code_analysis(findings=[{{...}}, ...])`. If a HIGH-risk file
-yields no findings, return an entry with severity="info" noting the
-file was reviewed clean, so the audit trail records the coverage.
+Call `code_analysis(findings=[{{file, line, severity, cwe,
+evidence_commit, description, suggested_fix}}, ...])`. An HIGH-risk
+file reviewed clean should still get one entry with severity="info"
+so coverage is recorded.
 """
 
 
 _PROMPT_TEST_COVERAGE = """\
-PHASE 2 of 6: TEST COVERAGE.
+PHASE 2: TEST COVERAGE ANALYSIS.
 
-For each changed file, check whether tests cover the changed lines.
-Per the SKILL: "Missing tests = elevated risk rating, flag in report".
+From `methodology.md#phase-2-test-coverage-analysis`, apply the
+SKILL's Risk Elevation Rules:
 
-Capture:
-- per_file_coverage: {{path: {{has_tests: bool, covers_changes: bool,
-  test_files: [...]}}}}.
-- elevations: list of files whose risk should be elevated one tier
-  because tests are missing or do not cover the changed lines.
+- NEW function + NO tests -> elevate risk MEDIUM -> HIGH
+- MODIFIED validation + UNCHANGED tests -> HIGH RISK
+- Complex logic (>20 lines) + NO tests -> HIGH RISK
 
-Call `test_coverage(coverage={{...}})` with these fields.
+Call `test_coverage(coverage={{per_file_coverage, elevations}})`
+where:
+- per_file_coverage: {{path: {{has_tests, covers_changes, test_files}}}}
+- elevations: paths whose risk should be elevated per the rules above
 """
 
 
 _PROMPT_BLAST_RADIUS = """\
-PHASE 3 of 6: BLAST RADIUS.
+PHASE 3: BLAST RADIUS ANALYSIS.
 
-For every HIGH-risk file, count direct callers / consumers. The SKILL
-considers "50+ callers + HIGH risk change" a red flag for immediate
-escalation.
+From `methodology.md#phase-3-blast-radius-analysis`, count callers
+per modified function:
 
-Capture:
-- per_file_callers: {{path: {{direct_callers: int, transitive_callers:
-  int, sample_callers: [3-5 paths]}}}}.
-- high_blast_radius_changes: list of {{file, callers, why_concerning}}
-  for any HIGH file with notable reach.
+  1-5 calls   = LOW
+  6-20        = MEDIUM
+  21-50       = HIGH
+  50+         = CRITICAL
 
-Call `blast_radius(blast={{...}})`.
+The SKILL's Priority Matrix combines blast radius with change risk:
+HIGH change + CRITICAL blast = P0 (deep + all deps); HIGH change +
+HIGH/MEDIUM blast = P1 (deep); HIGH + LOW = P2 (standard); MEDIUM +
+CRITICAL/HIGH = P1 (standard + callers).
+
+Call `blast_radius(blast={{per_file_callers, high_blast_radius_changes,
+priority_matrix}})`.
 """
 
 
 _PROMPT_DEEP_CONTEXT = """\
-PHASE 4 of 6: DEEP CONTEXT.
+PHASE 4: DEEP CONTEXT ANALYSIS.
 
-(Only reached because triage classified at least one file HIGH.)
+(Reachable only when triage classified at least one file HIGH.)
 
-For each HIGH-risk file, document baseline assumptions and invariants
-that this change touches:
+From `methodology.md#phase-4-deep-context-analysis`, for each
+HIGH-risk file invoke (or simulate) the `audit-context-building`
+sub-skill on the changed function and its dependencies. Document:
 
-- What invariants did the surrounding code rely on before this change?
-- Are those invariants still valid after the change?
-- Are there assumptions about caller identity, ordering, or
-  preconditions that the diff invalidates?
+- prior invariants the surrounding code relied on
+- whether those invariants survive the change ("preserved" / "broken"
+  / "unclear")
+- repeated validation patterns and whether any are removed by this
+  diff
 
-Capture:
-- per_file_context: {{path: {{prior_invariants: [...], after_change:
-  "preserved|broken|unclear", notes: "..."}}}}.
-
-Call `deep_context(context={{...}})`.
+Call `deep_context(context={{per_file_context}})`.
 """
 
 
 _PROMPT_ADVERSARIAL = """\
-PHASE 5 of 6: ADVERSARIAL MODELING.
+PHASE 5: ADVERSARIAL VULNERABILITY ANALYSIS.
 
-(Only reached because triage classified at least one file HIGH.)
+(Reachable only on HIGH-risk reviews.)
 
-For each HIGH-risk file with a non-trivial finding from Phase 1, build
-a concrete attacker scenario per the SKILL's adversarial methodology:
+From `adversarial.md`, follow the five-step adversarial methodology:
 
-1. Attacker model: who is the threat (external unauth, authed user,
-   insider, supply chain)?
-2. Attack vector: what surface does the change expose?
-3. Exploitability rating: critical / high / medium / low.
-4. Exploit scenario: concrete sequence of steps a real attacker would
-   take. Not "could lead to RCE in theory"; concrete.
-5. Baseline cross-reference: does the prior code (before this change)
-   prevent this scenario? If yes, this change is a regression.
+1. Define Specific Attacker Model: WHO is the attacker? WHAT
+   access/privileges? WHERE do they interact with the system?
+2. Identify Concrete Attack Vectors: ENTRY POINT, ATTACK SEQUENCE,
+   PROOF OF ACCESSIBILITY.
+3. Rate Realistic Exploitability: EASY (public APIs, no privileges)
+   / MEDIUM (specific conditions or elevated privileges) / HARD
+   (privileged access or rare conditions).
+4. Build Complete Exploit Scenario: ATTACKER STARTING POSITION ->
+   STEP-BY-STEP EXPLOITATION -> CONCRETE IMPACT (exact amount of
+   funds drained / specific privileges escalated / particular data
+   exposed -- not "could cause issues").
+5. Cross-Reference with Baseline Context: does this violate a
+   system-wide invariant? break a trust boundary? bypass a validation
+   pattern? is it a regression of a previous fix?
 
-Capture:
-- scenarios: list of {{file, attacker_model, attack_vector,
-  exploitability, steps, regression (bool), pre_change_blocked (bool)}}.
+Use the Vulnerability Report Template from `adversarial.md` for each
+scenario.
 
-Call `adversarial(scenarios=[{{...}}, ...])`. Be honest if a HIGH file
-does not yield a concrete scenario; the SKILL says generic findings
-without evidence are not acceptable.
+Call `adversarial(scenarios=[{{file, attacker_model, attack_vector,
+exploitability, steps, regression, pre_change_blocked}}, ...])`. The
+SKILL forbids generic findings without evidence; be honest when a
+HIGH file does not yield a concrete scenario.
 """
 
 
 _PROMPT_REPORT = """\
-PHASE 6 of 6: WRITE THE REPORT.
+PHASE 6: REPORT GENERATION.
 
-Per the SKILL: "Output report only to chat (file required)". Write a
-comprehensive markdown report combining every prior phase's findings.
+From `reporting.md#report-structure`, write a comprehensive markdown
+report. Per the SKILL: "Output report only to chat (file required)".
 
-Structure:
+Required sections (per `reporting.md`):
 
 # Differential review: {target}
 
-## Summary
+## Executive Summary
 - Overall risk: {overall_risk}
 - Total findings: <N> (critical: <c>, high: <h>, medium: <m>, low: <l>)
 - Codebase size strategy: {codebase_size}
-- Files reviewed: <N>
 
-## Pre-analysis baseline
-(removed_security_code highlights, entrypoints touched, dependencies)
+## What Changed
+(pre-analysis baseline + diff summary)
 
-## Triage
-(per-file risk table)
+## Findings
+(one section per finding from Phase 1: severity, CWE, file:line,
+evidence commit, description, suggested fix)
 
-## Code analysis findings
-(one section per finding: severity, cwe, file:line, evidence commit,
-description, suggested fix)
+## Test Coverage Analysis
+(elevations + uncovered changed lines from Phase 2)
 
-## Test coverage gaps
-(elevations + uncovered changed lines)
+## Blast Radius Analysis
+(Phase 3 priority matrix; high-blast-radius HIGH changes)
 
-## Blast radius
-(any high-blast-radius HIGH changes)
+## Historical Context
+(removed-then-re-added patterns; CVE-tagged removals)
 
 {adversarial_section}
 
-## Coverage limitations
-(be honest: which files were not deeply analysed; what was skipped due
-to strategy = {codebase_size})
+## Recommendations
+(action items per finding)
 
-Call `write_report(report="...")` with the full markdown text. The
-review terminates here.
+## Analysis Methodology
+(which phases ran; what `{codebase_size}` strategy meant for coverage)
+
+Call `write_report(report="...")` with the full markdown text. Review
+terminates here.
 """
 
 
 _ADVERSARIAL_SECTION_HIGH = """\
-## Deep context (HIGH-risk files)
-(per-file invariants and whether they survive the change)
+## Deep Context (HIGH-risk files)
+(per-file invariants and whether they survive the change, from Phase 4)
 
-## Adversarial modeling
+## Adversarial Analysis
 (one section per scenario, with attacker model, exploit steps,
-regression status)\
+regression status, from Phase 5 / `adversarial.md`)\
 """
 
 
 _ADVERSARIAL_SECTION_NONE = """\
-## Deep context + adversarial modeling
+## Deep Context + Adversarial Analysis
 (skipped: overall risk is {overall_risk}, not HIGH; the SKILL
 requires these phases only when at least one file is HIGH risk)\
 """
