@@ -48,13 +48,3 @@ def fresh_app():
 @pytest.fixture
 def server_step():
     return build_server(ServingMode.STEP)
-
-
-@pytest.fixture
-def server_tools():
-    return build_server(ServingMode.TOOLS)
-
-
-@pytest.fixture
-def server_dynamic():
-    return build_server(ServingMode.DYNAMIC)

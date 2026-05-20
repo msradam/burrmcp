@@ -1,23 +1,18 @@
 """Mount a Burr Application as a FastMCP server.
 
-Three serving modes:
+One serving mode:
 
-  • ``ServingMode.TOOLS``:   Each ``@action`` exposed as its own MCP
-                             tool. No transition enforcement; state
-                             mutated freely. Closest analogue to a flat
-                             MCP server today.
   • ``ServingMode.STEP``:    One ``step(action_name, **inputs)``
                              meta-tool. Server enforces valid
-                             transitions. Works on every MCP client,
-                             including clients that ignore
-                             ``notifications/tools/list_changed``.
-                             Default.
-  • ``ServingMode.DYNAMIC``: Per-action tools whose visibility tracks
-                             current state via tags. Sends
-                             ``tools/list_changed`` after each step.
-                             Best when the client honors it.
+                             transitions. The four-tool surface
+                             (step + reset_session + fork_at +
+                             fork_from_past) is constant across every
+                             FSM, regardless of action count, so the
+                             tool listing stays compact while the
+                             action namespace lives in step's argument
+                             schema and ``burr://graph``.
 
-All modes register eight resources:
+The mount registers eight resources:
 
   • ``burr://graph``:           static description of the FSM topology
                                 (actions, reads/writes/inputs, edges
@@ -77,9 +72,12 @@ _DEFAULT_MAX_SESSIONS = 100
 
 
 class ServingMode(str, Enum):  # noqa: UP042  # leaving as (str, Enum) for stable wire serialization across Python versions
-    TOOLS = "tools"
     STEP = "step"
-    DYNAMIC = "dynamic"
+    # ``TOOLS`` (one MCP tool per @action, no enforcement) and ``DYNAMIC``
+    # (per-session ``tools/list_changed`` visibility) were carved out into
+    # ``burrmcp._experimental.modes`` after STEP became the sole product.
+    # The enum is preserved (single-member) so callers that pass
+    # ``mode=ServingMode.STEP`` keep working.
 
 
 # State keys Burr writes itself. Hide them from the public state view so
@@ -887,6 +885,91 @@ def _record_history(
     entry.last_access = time.monotonic()
 
 
+def _refusal_payload(
+    *,
+    exc: Exception,
+    action_name: str,
+    app: Application,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Convert a step-side exception into an MCP refusal payload + history kwargs.
+
+    Single source of truth for the four-way error-to-refusal translation.
+    Returns ``(response_dict, history_kwargs)``: the caller hands the
+    first back to the MCP client and splats the second into
+    ``_record_history(... state_after=None, **history_kwargs)``.
+
+    ``valid_next_action_names(app)`` is computed once and shared between
+    the response and the history entry.
+    """
+    if isinstance(exc, InvalidTransitionError):
+        return (
+            {
+                "error": "invalid_transition",
+                "requested": exc.requested,
+                "valid_next_actions": exc.valid,
+                "message": str(exc),
+            },
+            {
+                "refused": True,
+                "refusal_reason": "invalid_transition",
+                "valid_next_actions": exc.valid,
+            },
+        )
+    valid = valid_next_action_names(app)
+    if isinstance(exc, ValidationFailed):
+        return (
+            {
+                "error": "validation_failed",
+                "requested": action_name,
+                "reason": exc.reason,
+                "details": exc.details,
+                "valid_next_actions": valid,
+            },
+            {
+                "refused": True,
+                "refusal_reason": "validation_failed",
+                "valid_next_actions": valid,
+                "error_message": exc.reason,
+                "error_type": "ValidationFailed",
+            },
+        )
+    if isinstance(exc, ActionTimeoutError):
+        return (
+            {
+                "error": "action_timeout",
+                "requested": action_name,
+                "timeout_seconds": exc.timeout_seconds,
+                "message": str(exc),
+                "valid_next_actions": valid,
+            },
+            {
+                "refused": True,
+                "refusal_reason": "action_timeout",
+                "valid_next_actions": valid,
+                "error_message": str(exc),
+                "error_type": "TimeoutError",
+            },
+        )
+    if isinstance(exc, ActionExecutionError):
+        return (
+            {
+                "error": "action_error",
+                "requested": action_name,
+                "error_type": type(exc.original).__name__,
+                "error_message": str(exc.original),
+                "valid_next_actions": valid,
+            },
+            {
+                "refused": True,
+                "refusal_reason": "action_error",
+                "valid_next_actions": valid,
+                "error_message": str(exc.original),
+                "error_type": type(exc.original).__name__,
+            },
+        )
+    raise exc  # not one of ours; let it propagate
+
+
 def _session_app_and_lock(
     ctx: Context | None,
     shared_app: Application,
@@ -924,41 +1007,23 @@ async def _step_application(
     app: Application,
     action_name: str,
     inputs: dict[str, Any],
-    enforce_transitions: bool,
     timeout_seconds: float | None = None,
     validator: Callable | None = None,
     ctx: Context | None = None,
 ) -> dict[str, Any]:
     """Run one step of the Application.
 
-    When ``enforce_transitions`` is True, refuses to step unless
-    ``action_name`` is in the current valid-next set. When False
-    (``ServingMode.TOOLS``), runs the action directly against current
-    state, bypassing Burr's transition machinery.
-
-    When ``timeout_seconds`` is set, the call is wrapped in
-    ``asyncio.wait_for``; on expiry the action's coroutine is cancelled
-    and ``ActionTimeoutError`` is raised. None means no timeout.
-
-    When ``validator`` is set, it runs after the transition check and
-    before action dispatch. It receives (public_state, inputs) and may
-    raise ``ValidationFailed``, return None to accept the originals, or
-    return a dict to substitute normalised inputs.
-
-    Exceptions raised by the action's wrapped function are caught and
-    re-raised as ``ActionExecutionError`` so callers can record them
-    structurally in the session's history.
+    Refuses to step unless ``action_name`` is in the current valid-next
+    set; otherwise raises ``InvalidTransitionError``. ``timeout_seconds``
+    wraps the call in ``asyncio.wait_for``. ``validator`` runs after the
+    transition check and may raise ``ValidationFailed``, return None to
+    accept the originals, or return a dict to substitute normalised
+    inputs. Action-body exceptions are wrapped as ``ActionExecutionError``
+    so callers can record them structurally.
     """
     valid = valid_next_action_names(app)
-    if enforce_transitions:
-        if action_name not in valid:
-            raise InvalidTransitionError(action_name, valid)
-    else:
-        if action_name not in valid:
-            action_obj = app.graph.get_action(action_name)
-            if action_obj is None:
-                raise InvalidTransitionError(action_name, valid)
-            return await _run_action_bare(app, action_obj, inputs, timeout_seconds, validator)
+    if action_name not in valid:
+        raise InvalidTransitionError(action_name, valid)
 
     if validator is not None:
         inputs = await _run_validator(validator, _public_state(app.state.get_all()), inputs)
@@ -1082,342 +1147,6 @@ async def _step_streaming_action(
     }
 
 
-async def _run_action_bare(
-    app: Application,
-    action_obj: Action,
-    inputs: dict[str, Any],
-    timeout_seconds: float | None = None,
-    validator: Callable | None = None,
-) -> dict[str, Any]:
-    """Run an action against current state without graph enforcement.
-
-    Used by ``ServingMode.TOOLS`` when the requested action is not in
-    the standard valid-next set. Bypasses Burr's transition machinery
-    while still updating ``app.state``. Burr's tracker is not invoked
-    on this path; tools mode opts into that trade-off.
-
-    Exceptions raised by the wrapped function are caught and re-raised
-    as ``ActionExecutionError`` (same shape as ``_step_application``).
-    Honours ``timeout_seconds`` and ``validator`` the same way.
-    """
-    if validator is not None:
-        inputs = await _run_validator(validator, _public_state(app.state.get_all()), inputs)
-    state = app.state
-    try:
-        raw = action_obj.fn(state, **inputs)
-        if asyncio.iscoroutine(raw):
-            if timeout_seconds is not None:
-                new_state = await asyncio.wait_for(raw, timeout=timeout_seconds)
-            else:
-                new_state = await raw
-        else:
-            new_state = raw
-    except TimeoutError as exc:
-        raise ActionTimeoutError(action_obj.name, timeout_seconds or 0.0) from exc
-    except Exception as exc:
-        raise ActionExecutionError(action_obj.name, exc) from exc
-    app.update_state(new_state)
-    out_state, coerced = _serializable_state(_public_state(app.state.get_all()))
-    if coerced:
-        out_state["_burrmcp"] = {"coerced_keys": coerced}
-    return {
-        "action": action_obj.name,
-        "result": {},
-        "state": out_state,
-        "valid_next_actions": valid_next_action_names(app),
-        "app_id": app.uid,
-        "tracker_project": _tracker_project(app),
-        "note": "ran without transition enforcement (tools mode)",
-    }
-
-
-def _make_tool_handler(
-    shared_app: Application,
-    shared_lock: asyncio.Lock,
-    factory: ApplicationFactory | None,
-    store: _SessionStore,
-    action: Action,
-    enforce_transitions: bool,
-    refresh_session_visibility: bool = False,
-    timeout_seconds: float | None = None,
-    validator: Callable | None = None,
-) -> Callable:
-    """Build an async MCP tool handler for one Burr action.
-
-    The handler's signature is dynamically constructed to match the
-    action's declared inputs so FastMCP introspects the correct
-    JSON Schema. Body resolves the session-scoped Application,
-    delegates to ``_step_application``, and records the attempt in
-    the session's history.
-    """
-    params = _action_signature_params(action)
-    # FastMCP injects a Context when the handler signature includes one.
-    ctx_param = inspect.Parameter(
-        "ctx",
-        inspect.Parameter.KEYWORD_ONLY,
-        annotation=Context,
-        default=None,
-    )
-    action_name = action.name
-
-    async def handler(**kwargs: Any) -> dict[str, Any]:
-        ctx = kwargs.pop("ctx", None)
-        app, lock, entry = _session_app_and_lock(ctx, shared_app, shared_lock, factory, store)
-        token = _current_session_entry.set(entry)
-        subruns_before = set(entry.subruns) if entry is not None else set()
-        try:
-            async with lock:
-                out = await _step_application(
-                    app,
-                    action_name=action_name,
-                    inputs=kwargs,
-                    enforce_transitions=enforce_transitions,
-                    timeout_seconds=timeout_seconds,
-                    validator=validator,
-                    ctx=ctx,
-                )
-        except ValidationFailed as e:
-            _record_history(
-                store,
-                ctx,
-                factory,
-                action=action_name,
-                inputs=kwargs,
-                state_after=None,
-                valid_next_actions=valid_next_action_names(app),
-                refused=True,
-                refusal_reason="validation_failed",
-                error_message=e.reason,
-                error_type="ValidationFailed",
-            )
-            return {
-                "error": "validation_failed",
-                "requested": action_name,
-                "reason": e.reason,
-                "details": e.details,
-                "valid_next_actions": valid_next_action_names(app),
-            }
-        except InvalidTransitionError as e:
-            _record_history(
-                store,
-                ctx,
-                factory,
-                action=action_name,
-                inputs=kwargs,
-                state_after=None,
-                valid_next_actions=e.valid,
-                refused=True,
-                refusal_reason="invalid_transition",
-            )
-            return {
-                "error": "invalid_transition",
-                "requested": e.requested,
-                "valid_next_actions": e.valid,
-                "message": str(e),
-            }
-        except ActionTimeoutError as e:
-            _record_history(
-                store,
-                ctx,
-                factory,
-                action=action_name,
-                inputs=kwargs,
-                state_after=None,
-                valid_next_actions=valid_next_action_names(app),
-                refused=True,
-                refusal_reason="action_timeout",
-                error_message=str(e),
-                error_type="TimeoutError",
-            )
-            return {
-                "error": "action_timeout",
-                "requested": action_name,
-                "timeout_seconds": e.timeout_seconds,
-                "message": str(e),
-                "valid_next_actions": valid_next_action_names(app),
-            }
-        except ActionExecutionError as e:
-            _record_history(
-                store,
-                ctx,
-                factory,
-                action=action_name,
-                inputs=kwargs,
-                state_after=None,
-                valid_next_actions=valid_next_action_names(app),
-                refused=True,
-                refusal_reason="action_error",
-                error_message=str(e.original),
-                error_type=type(e.original).__name__,
-            )
-            return {
-                "error": "action_error",
-                "requested": action_name,
-                "error_type": type(e.original).__name__,
-                "error_message": str(e.original),
-                "valid_next_actions": valid_next_action_names(app),
-            }
-        finally:
-            _current_session_entry.reset(token)
-        # Success path: surface any sub-runs the action spawned so the
-        # parent timeline carries pointers to the nested ones.
-        new_subruns: list[str] = []
-        if entry is not None:
-            new_subruns = [s for s in entry.subruns if s not in subruns_before]
-        _record_history(
-            store,
-            ctx,
-            factory,
-            action=action_name,
-            inputs=kwargs,
-            state_after=out["state"],
-            valid_next_actions=out["valid_next_actions"],
-            subruns=new_subruns or None,
-        )
-        if refresh_session_visibility and ctx is not None:
-            await _refresh_session_dynamic_visibility(ctx, app)
-        return out
-
-    handler.__name__ = f"action_{action_name}"
-    handler.__doc__ = (
-        action.fn.__doc__
-        if getattr(action, "fn", None) and action.fn.__doc__
-        else f"Run the {action_name!r} action."
-    )
-    handler.__signature__ = inspect.Signature(  # type: ignore[attr-defined]
-        parameters=[*params, ctx_param],
-        return_annotation=dict,
-    )
-    handler.__annotations__ = {p.name: p.annotation for p in params}
-    handler.__annotations__["ctx"] = Context
-    handler.__annotations__["return"] = dict
-    return handler
-
-
-class _DynamicRefusalMiddleware:
-    """Convert FastMCP's 'tool not enabled' error into a structured refusal.
-
-    In ``ServingMode.DYNAMIC``, per-session visibility filtering hides
-    tools that are not in the current valid-next set, and FastMCP raises
-    ``NotFoundError`` when a stale client (or one without proper
-    ``tools/list_changed`` support) calls one anyway. STEP mode returns
-    the rich ``invalid_transition`` shape; this middleware brings DYNAMIC
-    to parity so the agent can recover from one error rather than
-    seeing an opaque ``Unknown tool`` message.
-
-    Only Burr action names get intercepted; truly unknown tools fall
-    through to FastMCP's original error.
-    """
-
-    def __init__(
-        self,
-        *,
-        shared_app: Application,
-        shared_lock: asyncio.Lock,
-        factory: ApplicationFactory | None,
-        store: _SessionStore,
-        action_names: set[str],
-    ) -> None:
-        from fastmcp.server.middleware import Middleware as _Mw
-
-        self._base_cls = _Mw  # for isinstance checks in tests if needed
-        self._shared_app = shared_app
-        self._shared_lock = shared_lock
-        self._factory = factory
-        self._store = store
-        self._action_names = action_names
-
-    async def on_call_tool(self, context, call_next):
-        from fastmcp.exceptions import NotFoundError
-        from fastmcp.tools.base import ToolResult
-
-        try:
-            return await call_next(context)
-        except NotFoundError:
-            tool_name = getattr(context.message, "name", None)
-            if tool_name not in self._action_names:
-                raise
-            ctx = context.fastmcp_context
-            app, _, _ = _session_app_and_lock(
-                ctx, self._shared_app, self._shared_lock, self._factory, self._store
-            )
-            valid = valid_next_action_names(app)
-            payload = {
-                "error": "invalid_transition",
-                "requested": tool_name,
-                "valid_next_actions": valid,
-                "message": (
-                    f"action {tool_name!r} is not reachable from current state. "
-                    f"Valid actions now: {valid}."
-                ),
-            }
-            return ToolResult(structured_content=payload)
-
-
-def _make_dynamic_refusal_middleware(
-    shared_app: Application,
-    shared_lock: asyncio.Lock,
-    factory: ApplicationFactory | None,
-    store: _SessionStore,
-) -> Any:
-    """Build the DYNAMIC-mode refusal middleware as a FastMCP Middleware subclass.
-
-    Built lazily so importing burrmcp doesn't force a FastMCP import path
-    that isn't needed for STEP / TOOLS modes.
-    """
-    from fastmcp.server.middleware import Middleware
-
-    action_names = {a.name for a in shared_app.graph.actions}
-    inner = _DynamicRefusalMiddleware(
-        shared_app=shared_app,
-        shared_lock=shared_lock,
-        factory=factory,
-        store=store,
-        action_names=action_names,
-    )
-
-    class _Mw(Middleware):
-        async def on_call_tool(self, context, call_next):
-            return await inner.on_call_tool(context, call_next)
-
-    return _Mw()
-
-
-def _refresh_global_dynamic_visibility(mcp: FastMCP, app: Application) -> None:
-    """Set the server-wide baseline visibility for DYNAMIC mode.
-
-    Used once at mount time so that fresh sessions see only the
-    entrypoint actions before they've made any calls. Subsequent
-    refreshes happen per-session via ``_refresh_session_dynamic_visibility``,
-    and FastMCP's per-session rules override the global baseline.
-    """
-    valid = set(valid_next_action_names(app))
-    all_action_names = {a.name for a in app.graph.actions}
-    enable_tags = {f"action:{n}" for n in valid}
-    disable_tags = {f"action:{n}" for n in all_action_names - valid}
-    if disable_tags:
-        mcp.disable(tags=disable_tags)
-    if enable_tags:
-        mcp.enable(tags=enable_tags)
-
-
-async def _refresh_session_dynamic_visibility(ctx: Context, app: Application) -> None:
-    """For ``ServingMode.DYNAMIC``: per-session visibility refresh.
-
-    Uses ``ctx.enable_components`` / ``ctx.disable_components``, which
-    apply only to the current MCP session and override the server-wide
-    baseline. Sends a ``tools/list_changed`` notification to this
-    session only. Concurrent sessions see independent visibility.
-    """
-    valid = set(valid_next_action_names(app))
-    all_action_names = {a.name for a in app.graph.actions}
-    enable_tags = {f"action:{n}" for n in valid}
-    disable_tags = {f"action:{n}" for n in all_action_names - valid}
-    if disable_tags:
-        await ctx.disable_components(tags=disable_tags)
-    if enable_tags:
-        await ctx.enable_components(tags=enable_tags)
-
 
 def mount(
     application: ApplicationOrFactory,
@@ -1439,7 +1168,7 @@ def mount(
             (called once per session for state isolation). The graph
             shape is read once at mount time, so factories should
             return Applications with the same graph each call.
-        mode: One of ``ServingMode.TOOLS``, ``STEP``, or ``DYNAMIC``.
+        mode: ``ServingMode.STEP`` (the only supported value).
         name: MCP server name; defaults to ``"burr-mcp"``.
         instructions: Server-level instructions surfaced via the MCP
             spec's server-info ``instructions`` field.
@@ -1775,12 +1504,19 @@ def mount(
                         app,
                         action_name=action,
                         inputs=inputs or {},
-                        enforce_transitions=True,
                         timeout_seconds=effective_timeout,
                         validator=effective_validator,
                         ctx=ctx,
                     )
-            except ValidationFailed as e:
+            except (
+                ValidationFailed,
+                InvalidTransitionError,
+                ActionTimeoutError,
+                ActionExecutionError,
+            ) as exc:
+                response, hist_kwargs = _refusal_payload(
+                    exc=exc, action_name=action, app=app
+                )
                 _record_history(
                     store,
                     ctx,
@@ -1788,79 +1524,9 @@ def mount(
                     action=action,
                     inputs=inputs or {},
                     state_after=None,
-                    valid_next_actions=valid_next_action_names(app),
-                    refused=True,
-                    refusal_reason="validation_failed",
-                    error_message=e.reason,
-                    error_type="ValidationFailed",
+                    **hist_kwargs,
                 )
-                return {
-                    "error": "validation_failed",
-                    "requested": action,
-                    "reason": e.reason,
-                    "details": e.details,
-                    "valid_next_actions": valid_next_action_names(app),
-                }
-            except InvalidTransitionError as e:
-                _record_history(
-                    store,
-                    ctx,
-                    factory,
-                    action=action,
-                    inputs=inputs or {},
-                    state_after=None,
-                    valid_next_actions=e.valid,
-                    refused=True,
-                    refusal_reason="invalid_transition",
-                )
-                return {
-                    "error": "invalid_transition",
-                    "requested": e.requested,
-                    "valid_next_actions": e.valid,
-                    "message": str(e),
-                }
-            except ActionTimeoutError as e:
-                _record_history(
-                    store,
-                    ctx,
-                    factory,
-                    action=action,
-                    inputs=inputs or {},
-                    state_after=None,
-                    valid_next_actions=valid_next_action_names(app),
-                    refused=True,
-                    refusal_reason="action_timeout",
-                    error_message=str(e),
-                    error_type="TimeoutError",
-                )
-                return {
-                    "error": "action_timeout",
-                    "requested": action,
-                    "timeout_seconds": e.timeout_seconds,
-                    "message": str(e),
-                    "valid_next_actions": valid_next_action_names(app),
-                }
-            except ActionExecutionError as e:
-                _record_history(
-                    store,
-                    ctx,
-                    factory,
-                    action=action,
-                    inputs=inputs or {},
-                    state_after=None,
-                    valid_next_actions=valid_next_action_names(app),
-                    refused=True,
-                    refusal_reason="action_error",
-                    error_message=str(e.original),
-                    error_type=type(e.original).__name__,
-                )
-                return {
-                    "error": "action_error",
-                    "requested": action,
-                    "error_type": type(e.original).__name__,
-                    "error_message": str(e.original),
-                    "valid_next_actions": valid_next_action_names(app),
-                }
+                return response
             finally:
                 _current_session_entry.reset(token)
             new_subruns: list[str] = []
@@ -1878,50 +1544,9 @@ def mount(
             )
             return out
 
-        mcp.tool(name="step", description=step.__doc__)(step)
+        step_description = f"{step.__doc__}\n\n{action_surface}"
+        mcp.tool(name="step", description=step_description)(step)
 
-    elif mode is ServingMode.TOOLS:
-        for action in shared_app.graph.actions:
-            handler = _make_tool_handler(
-                shared_app=shared_app,
-                shared_lock=shared_lock,
-                factory=factory,
-                store=store,
-                action=action,
-                enforce_transitions=False,
-                timeout_seconds=_action_timeout(action, action_timeout_seconds),
-                validator=_action_validator(action, input_validators),
-            )
-            mcp.tool(name=action.name, description=handler.__doc__)(handler)
-
-    elif mode is ServingMode.DYNAMIC:
-        for action in shared_app.graph.actions:
-            handler = _make_tool_handler(
-                shared_app=shared_app,
-                shared_lock=shared_lock,
-                factory=factory,
-                store=store,
-                action=action,
-                enforce_transitions=True,
-                refresh_session_visibility=True,
-                timeout_seconds=_action_timeout(action, action_timeout_seconds),
-                validator=_action_validator(action, input_validators),
-            )
-            mcp.tool(
-                name=action.name,
-                description=handler.__doc__,
-                tags={f"action:{action.name}"},
-            )(handler)
-        # Server-wide baseline: only entrypoint visible to a fresh
-        # session before its first call. Per-session refreshes after
-        # each call override this baseline for that session only.
-        _refresh_global_dynamic_visibility(mcp, shared_app)
-        # Stale clients calling a disabled tool get FastMCP's generic
-        # NotFoundError by default; this middleware translates that to
-        # the structured invalid_transition payload STEP mode returns.
-        mcp.add_middleware(
-            _make_dynamic_refusal_middleware(shared_app, shared_lock, factory, store)
-        )
     else:
         raise ValueError(f"unknown serving mode: {mode!r}")
 

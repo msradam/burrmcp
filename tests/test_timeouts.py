@@ -153,17 +153,3 @@ async def test_no_timeout_means_no_wait_for():
         assert out["state"]["done"] is True
 
 
-@pytest.mark.asyncio
-async def test_timeout_applies_in_tools_mode():
-    """Per-action tools in TOOLS mode also honor the server-wide timeout."""
-    server = mount(
-        _slow_app,
-        mode=ServingMode.TOOLS,
-        name="slow-tools",
-        action_timeout_seconds=0.2,
-    )
-    async with Client(server) as client:
-        r = await client.call_tool("slow_step", {})
-        out = json.loads(r.content[0].text)
-        assert out["error"] == "action_timeout"
-        assert out["timeout_seconds"] == 0.2
