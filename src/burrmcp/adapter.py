@@ -53,6 +53,7 @@ import contextlib
 import contextvars
 import inspect
 import json
+import re
 import time
 import typing
 import uuid
@@ -2068,9 +2069,7 @@ def mount(
             # parent history entries that reference them are still
             # visible, so dropping them would leave dangling links.
             kept_subrun_ids: set[str] = {
-                sid
-                for h in entry.history[: sequence_id + 1]
-                for sid in (h.get("subruns") or [])
+                sid for h in entry.history[: sequence_id + 1] for sid in (h.get("subruns") or [])
             }
             kept_subruns = {
                 sid: rec for sid, rec in entry.subruns.items() if sid in kept_subrun_ids
@@ -2272,3 +2271,94 @@ def mount(
     mcp.tool(name="fork_from_past", description=fork_from_past.__doc__)(fork_from_past)
 
     return mcp
+
+
+_NAMESPACE_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
+
+
+def mount_multi(
+    applications: dict[str, ApplicationOrFactory],
+    *,
+    mode: ServingMode = ServingMode.STEP,
+    name: str | None = None,
+    instructions: str | None = None,
+    session_ttl_seconds: int | None = _DEFAULT_SESSION_TTL_SECONDS,
+    max_sessions: int | None = _DEFAULT_MAX_SESSIONS,
+    action_timeout_seconds: float | None = None,
+) -> FastMCP:
+    """Mount multiple Burr Applications as one MCP server.
+
+    Each application is wrapped by ``mount()`` independently, then
+    composed into a parent FastMCP via FastMCP's native server-
+    composition (``parent.mount(sub, namespace=...)``). Namespacing
+    rules follow FastMCP:
+
+    * Tools are renamed ``<app>_<tool>``. In STEP mode this means each
+      app exposes ``<app>_step``, ``<app>_reset_session``,
+      ``<app>_fork_at``, ``<app>_fork_from_past``.
+    * Resources keep their scheme but get the namespace inserted:
+      ``burr://graph`` from app ``order`` becomes ``burr://order/graph``.
+
+    Args:
+        applications: Mapping of namespace name to Application or
+            factory. Names must be valid Python identifiers
+            (alphanumeric + underscore, starting with a letter) so the
+            FastMCP namespacing rule produces clean tool / resource
+            names.
+        mode: Serving mode applied to every sub-application.
+        name: Parent server name surfaced to MCP clients.
+        instructions: Server-level instructions for the parent. The
+            per-app instructions (with the auto-described action
+            surface) remain on each sub-server.
+        session_ttl_seconds, max_sessions, action_timeout_seconds:
+            Forwarded to each sub-application's ``mount()`` call.
+
+    A ``burr://apps`` resource on the parent lists the mounted app
+    names so a connecting agent can discover the namespace surface in
+    one read.
+    """
+    if not applications:
+        raise ValueError("mount_multi requires at least one application")
+    invalid = [n for n in applications if not _NAMESPACE_RE.match(n)]
+    if invalid:
+        raise ValueError(
+            f"namespace names must match {_NAMESPACE_RE.pattern!r}; got invalid: {invalid}"
+        )
+
+    parent_name = name or "burr-mcp-multi"
+    parent_lines: list[str] = []
+    if instructions:
+        parent_lines.append(instructions)
+    parent_lines.append(
+        "Multi-Application server. The following Burr Applications are "
+        "mounted side by side, namespaced by app name:"
+    )
+    for app_name in sorted(applications):
+        parent_lines.append(f"  - {app_name}")
+    parent_lines.append(
+        "Tools are renamed <app>_<tool>; resources are accessible as "
+        "burr://<app>/<path>. Read `burr://apps` for the live list."
+    )
+    parent_instructions = "\n\n".join(parent_lines)
+
+    parent = FastMCP(parent_name, instructions=parent_instructions)
+
+    for app_name, app_or_factory in applications.items():
+        sub = mount(
+            app_or_factory,
+            mode=mode,
+            name=app_name,
+            session_ttl_seconds=session_ttl_seconds,
+            max_sessions=max_sessions,
+            action_timeout_seconds=action_timeout_seconds,
+        )
+        parent.mount(sub, namespace=app_name)
+
+    namespace_list = sorted(applications)
+
+    @parent.resource("burr://apps")
+    async def _apps_resource() -> str:
+        """List the apps mounted on this multi-Application server."""
+        return json.dumps({"apps": namespace_list}, indent=2)
+
+    return parent
