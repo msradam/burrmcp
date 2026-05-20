@@ -12,3 +12,6 @@ dist/
 htmlcov/
 .burr/
 ~/.burr/
+
+# Local notes; intentionally not tracked.
+CLAUDE.md
