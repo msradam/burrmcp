@@ -288,6 +288,26 @@ uv sync
 
 Python 3.11 through 3.13.
 
+### Optional extras
+
+```bash
+pip install 'burrmcp[observability]'   # OpenTelemetry: examples/with_otel.py
+pip install 'burrmcp[mellea]'          # Mellea: examples/mellea_qiskit_migration.py
+pip install 'burrmcp[all]'             # everything above
+```
+
+Some demos also need a runtime (not a Python package):
+
+| Demo | Runtime |
+|---|---|
+| `granite_oncall`, `adaptive_crag`, `granite_guardian` | Ollama with a Granite model pulled (`ollama pull granite4:micro`). |
+| `mellea_qiskit_migration` | Same Ollama + Granite, plus `burrmcp[mellea]`. |
+| `codebase_security` | `bandit` and `detect-secrets` on PATH (dev install includes both). |
+| `unix_health` | macOS or Linux shell (`df`, `ps`, `vm_stat`/`free`, `uptime`). |
+| `git_review` | A git repo (the demo defaults to its own checkout). |
+
+Demos with missing runtime requirements refuse at action time with a clear error pointing at what to install.
+
 
 ## Examples
 
