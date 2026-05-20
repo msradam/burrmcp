@@ -17,7 +17,7 @@ Three serving modes:
                              ``tools/list_changed`` after each step.
                              Best when the client honors it.
 
-All modes register seven resources:
+All modes register eight resources:
 
   • ``burr://graph``:           static description of the FSM topology
                                 (actions, reads/writes/inputs, edges
@@ -27,6 +27,9 @@ All modes register seven resources:
   • ``burr://history``:         per-session timeline of every action
                                 attempt (successes + refusals).
   • ``burr://trace``:           Burr's on-disk LocalTrackingClient log.
+  • ``burr://session``:         tracker coordinates (project, app_id,
+                                app_dir, partition_key) for locating
+                                this session's data on disk.
   • ``burr://subruns``:         index of sub-Application runs spawned
                                 in this session via ``spawn_subapp``.
   • ``burr://subruns/{id}``:    full record for one sub-run.
@@ -140,6 +143,23 @@ def _action_timeout(action: Action, server_default: float | None) -> float | Non
     if per_action is not None:
         return float(per_action)
     return server_default
+
+
+def _tracker_project(app: Application) -> str | None:
+    """Return the LocalTrackingClient project name, or None.
+
+    Surfaced on every step/fork meta-tool response so even collapsed
+    tool-result views in MCP clients carry enough to locate the
+    session's data on disk (``~/.burr/<project>/<app_id>/``).
+    """
+    try:
+        from burr.tracking.client import LocalTrackingClient
+    except ImportError:
+        return None
+    tracker = getattr(app, "_tracker", None)
+    if not isinstance(tracker, LocalTrackingClient):
+        return None
+    return tracker.project_id
 
 
 def _tracker_log_path(app: Application) -> Path | None:
@@ -905,6 +925,7 @@ async def _step_application(
         "state": state,
         "valid_next_actions": valid_next_action_names(app),
         "app_id": app.uid,
+        "tracker_project": _tracker_project(app),
     }
 
 
@@ -970,6 +991,7 @@ async def _step_streaming_action(
         "state": state,
         "valid_next_actions": valid_next_action_names(app),
         "app_id": app.uid,
+        "tracker_project": _tracker_project(app),
         "streamed": True,
         "chunks": chunk_count,
     }
@@ -1019,6 +1041,7 @@ async def _run_action_bare(
         "state": out_state,
         "valid_next_actions": valid_next_action_names(app),
         "app_id": app.uid,
+        "tracker_project": _tracker_project(app),
         "note": "ran without transition enforcement (tools mode)",
     }
 
@@ -1486,6 +1509,47 @@ def mount(
             return json.dumps([])
         return json.dumps(_read_trace(path), default=str, indent=2)
 
+    @mcp.resource("burr://session")
+    async def _session_resource(ctx: Context) -> str:
+        """Tracker coordinates for the current MCP session's Application.
+
+        Returns ``{project, app_id, app_dir, partition_key}`` so a client
+        (or the agent itself) can locate this session's tracker data on
+        disk without guessing. Useful for terminal tooling like
+        ``burrmcp watch <project>`` that tails the LocalTrackingClient
+        JSONL, and for any out-of-band inspection of
+        ``~/.burr/<project>/<app-id>/log.jsonl``.
+
+        ``project`` and ``app_dir`` are null when no
+        ``LocalTrackingClient`` is attached; ``app_id`` and
+        ``partition_key`` are always populated because they live on the
+        Application directly.
+        """
+        app, _, _ = _session_app_and_lock(ctx, shared_app, shared_lock, factory, store)
+        project: str | None = None
+        app_dir: str | None = None
+        try:
+            from burr.tracking.client import LocalTrackingClient
+        except ImportError:
+            LocalTrackingClient = None  # type: ignore[assignment]
+        tracker = getattr(app, "_tracker", None)
+        if LocalTrackingClient is not None and isinstance(tracker, LocalTrackingClient):
+            project = tracker.project_id
+            try:
+                storage_dir = Path(tracker.storage_dir).expanduser().resolve()
+                app_dir = str((storage_dir / app.uid).resolve())
+            except (OSError, AttributeError):
+                app_dir = None
+        return json.dumps(
+            {
+                "project": project,
+                "app_id": app.uid,
+                "app_dir": app_dir,
+                "partition_key": getattr(app, "_partition_key", None),
+            },
+            indent=2,
+        )
+
     # ── tools, per mode ──────────────────────────────────────────────
 
     if mode is ServingMode.STEP:
@@ -1749,6 +1813,7 @@ def mount(
             "state": new_state,
             "valid_next_actions": valid_next,
             "app_id": new_app.uid,
+            "tracker_project": _tracker_project(new_app),
         }
 
     mcp.tool(name="reset_session", description=reset_session.__doc__)(reset_session)
@@ -1874,6 +1939,7 @@ def mount(
             "state": new_state,
             "valid_next_actions": valid_next,
             "app_id": new_app.uid,
+            "tracker_project": _tracker_project(new_app),
         }
 
     mcp.tool(name="fork_at", description=fork_at.__doc__)(fork_at)
@@ -2047,6 +2113,7 @@ def mount(
             "state": new_state,
             "valid_next_actions": valid_next,
             "app_id": new_app.uid,
+            "tracker_project": _tracker_project(new_app),
         }
 
     mcp.tool(name="fork_from_past", description=fork_from_past.__doc__)(fork_from_past)
