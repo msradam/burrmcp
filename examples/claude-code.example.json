@@ -141,6 +141,20 @@
         "examples"
       ]
     },
+    "mellea-qiskit-migration": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/ABSOLUTE/PATH/TO/burrmcp",
+        "run",
+        "burrmcp",
+        "serve",
+        "mellea_qiskit_migration:build_application",
+        "--app-dir",
+        "examples"
+      ]
+    },
     "incident-response": {
       "type": "stdio",
       "command": "uv",
