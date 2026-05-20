@@ -28,7 +28,9 @@ async def test_step_happy_path_three_actions():
         assert out1["action"] == "take_order"
         assert out1["state"]["stage"] == "ordered"
         assert out1["state"]["item"] == "latte"
-        assert out1["valid_next_actions"] == ["pay"]
+        # Post-take_order the FSM exposes pay (linear path), add_modifier
+        # (loop), and cancel (escape) as the legal next moves.
+        assert set(out1["valid_next_actions"]) == {"pay", "add_modifier", "cancel"}
 
         # pay
         r2 = await client.call_tool("step", {"action": "pay", "inputs": {"amount": 9.0}})
@@ -89,4 +91,4 @@ async def test_next_resource_lists_valid_actions():
         assert json.loads(result[0].text) == ["take_order"]
         await client.call_tool("step", {"action": "take_order", "inputs": {"item": "latte"}})
         result = await client.read_resource("burr://next")
-        assert json.loads(result[0].text) == ["pay"]
+        assert set(json.loads(result[0].text)) == {"pay", "add_modifier", "cancel"}
