@@ -1,0 +1,10 @@
+service: api-gateway
+version: v2.14.2
+replicas: 3
+ports:
+  - 8080
+  - 9090
+features:
+  graphql: false
+  rate_limiting: true
+  retry_policy: exponential

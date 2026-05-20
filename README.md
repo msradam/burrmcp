@@ -301,7 +301,7 @@ Python 3.11 through 3.13.
 | `triage.py` | Branching FSM with conditional transitions. |
 | `adventure.py` | State-space traversal. Rooms are states, moves are gated transitions. |
 | `chargen.py` | Sequential narrowing wizard with strict ordering. |
-| `local_shell.py` | Read-before-edit safety rails; patch-overlay via state. |
+| `local_shell.py` | `burr-shell` server: natural-language shell against a per-session temp sandbox (`examples/data/local_shell/`). Auditable command history; absolute paths, parent traversal, and sub-shells refused. |
 | `incident_response.py` | Realistic ops workflow with all features. Canonical Claude Code demo. |
 | `subgraphs.py` | Sub-Application composition via `spawn_subapp`. |
 | `ml_training.py` | Non-LLM iterative training (pure stdlib logistic regression). |
