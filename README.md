@@ -4,6 +4,8 @@
 
 Mount a [Burr](https://burr.dagworks.io/) state machine as an [MCP](https://modelcontextprotocol.io/) server. The agent gets four tools (`step`, `reset_session`, `fork_at`, `fork_from_past`) regardless of how complex the FSM is. State lives on the server, transitions are enforced, and refusals carry the actions that *are* reachable so the agent can self-correct from a single error.
 
+![demo](demo.gif)
+
 ```python
 from burrmcp import mount
 
