@@ -7,7 +7,7 @@ coffee-order FSM.
 
 from __future__ import annotations
 
-from burr_mcp.adapter import (
+from burrmcp.adapter import (
     _action_inputs,
     _action_signature_params,
     _public_state,

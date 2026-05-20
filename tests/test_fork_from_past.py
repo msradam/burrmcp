@@ -14,7 +14,7 @@ from burr.core import ApplicationBuilder, State, action
 from burr.tracking.client import LocalTrackingClient
 from fastmcp import Client
 
-from burr_mcp import ServingMode, mount
+from burrmcp import ServingMode, mount
 
 
 @action(reads=[], writes=["counter"])

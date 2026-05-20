@@ -17,7 +17,7 @@ from burr.integrations.pydantic import PydanticTypingSystem
 from fastmcp import Client
 from pydantic import BaseModel
 
-from burr_mcp import ServingMode, mount
+from burrmcp import ServingMode, mount
 
 
 class OrderState(BaseModel):
@@ -88,7 +88,7 @@ async def test_untyped_state_schema_is_null():
 
 @pytest.mark.asyncio
 async def test_typed_application_runs_normally():
-    """A typed Application served via burr_mcp.mount works the same
+    """A typed Application served via burrmcp.mount works the same
     as an untyped one. State stays Pydantic-validated internally;
     the wire-level shape is the same JSON dict."""
     server = mount(typed_factory, mode=ServingMode.STEP, name="typed-run")

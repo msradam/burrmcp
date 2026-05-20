@@ -1,6 +1,6 @@
 """``burr-mcp doctor`` static validation.
 
-Covers the library entrypoint :func:`burr_mcp.doctor.run_checks`, the
+Covers the library entrypoint :func:`burrmcp.doctor.run_checks`, the
 CLI subcommand, and the individual check functions for unreachable
 actions, dead-end terminals, undefined state reads, and unused initial
 state seeds.
@@ -13,8 +13,8 @@ from contextlib import redirect_stdout
 
 from burr.core import ApplicationBuilder, State, action
 
-from burr_mcp import cli
-from burr_mcp.doctor import (
+from burrmcp import cli
+from burrmcp.doctor import (
     CheckStatus,
     DoctorReport,
     format_report,
@@ -331,7 +331,7 @@ def test_cli_doctor_verbose_flag_surfaces_in_help():
     """The Typer command surface advertises --verbose."""
     from typer.testing import CliRunner
 
-    from burr_mcp.cli import app
+    from burrmcp.cli import app
 
     runner = CliRunner()
     result = runner.invoke(app, ["doctor", "--help"])
@@ -343,7 +343,7 @@ def test_cli_doctor_app_dir_surfaces_in_help():
     """The Typer command surface advertises --app-dir."""
     from typer.testing import CliRunner
 
-    from burr_mcp.cli import app
+    from burrmcp.cli import app
 
     runner = CliRunner()
     result = runner.invoke(app, ["doctor", "--help"])

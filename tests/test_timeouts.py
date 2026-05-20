@@ -15,7 +15,7 @@ import pytest
 from burr.core import ApplicationBuilder, State, action
 from fastmcp import Client
 
-from burr_mcp import ServingMode, mount
+from burrmcp import ServingMode, mount
 
 
 @action(reads=[], writes=["done"])

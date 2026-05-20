@@ -27,7 +27,7 @@ def test_next_actions_after_classify_urgent_lists_only_escalate():
     asyncio.run(app.astep(inputs={"subject": "down", "body": "site is 500"}))
     asyncio.run(app.astep(inputs={"severity": "urgent"}))
 
-    from burr_mcp.adapter import valid_next_action_names
+    from burrmcp.adapter import valid_next_action_names
 
     assert valid_next_action_names(app) == ["escalate"]
 
@@ -39,7 +39,7 @@ def test_next_actions_after_classify_routine_lists_only_queue():
     asyncio.run(app.astep(inputs={"subject": "ask", "body": "how do I X"}))
     asyncio.run(app.astep(inputs={"severity": "routine"}))
 
-    from burr_mcp.adapter import valid_next_action_names
+    from burrmcp.adapter import valid_next_action_names
 
     assert valid_next_action_names(app) == ["queue"]
 
@@ -51,7 +51,7 @@ def test_next_actions_after_classify_spam_lists_only_drop():
     asyncio.run(app.astep(inputs={"subject": "buy now", "body": "click here"}))
     asyncio.run(app.astep(inputs={"severity": "spam"}))
 
-    from burr_mcp.adapter import valid_next_action_names
+    from burrmcp.adapter import valid_next_action_names
 
     assert valid_next_action_names(app) == ["drop"]
 

@@ -36,7 +36,7 @@ from burr.core import ApplicationBuilder, State, action
 from burr.core.action import Condition
 from burr.tracking.client import LocalTrackingClient
 
-from burr_mcp import ServingMode, mount
+from burrmcp import ServingMode, mount
 
 _MIN_OBSERVATIONS_BEFORE_PROMOTE = 2
 _TRACKER_PROJECT = "release-pipeline-demo"

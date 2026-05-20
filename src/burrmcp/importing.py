@@ -8,7 +8,7 @@ and per-session isolation without rewriting everything.
 
 This module takes that flat server plus a declaration of the implicit
 state machine and produces a ``burr.core.Application`` ready to pass
-back to ``burr_mcp.mount``. The implicit state machine isn't inferred,
+back to ``burrmcp.mount``. The implicit state machine isn't inferred,
 it's declared, because guessing reads/writes from parameter names is
 lossy and silently wrong. The user names which tools mutate which
 state keys and which transitions are valid. The library handles the
@@ -96,7 +96,7 @@ class ToolSpec:
 
     ``validator`` declares an input validator that runs before the
     tool fires. It receives ``(state_dict, inputs)`` and may raise
-    ``burr_mcp.ValidationFailed`` to refuse, return a dict to
+    ``burrmcp.ValidationFailed`` to refuse, return a dict to
     substitute normalised inputs, or return None to accept the
     originals unchanged. Same shape as the ``input_validators={}``
     mapping on ``mount``; per-tool here takes precedence over the
@@ -174,9 +174,9 @@ def _build_wrapper(
     # attributes. ``mount`` reads them off each action's ``fn`` to
     # pick up these per-action settings.
     if spec.timeout_seconds is not None:
-        wrapper._burr_mcp_timeout_seconds = spec.timeout_seconds  # type: ignore[attr-defined]
+        wrapper._burrmcp_timeout_seconds = spec.timeout_seconds  # type: ignore[attr-defined]
     if spec.validator is not None:
-        wrapper._burr_mcp_validator = spec.validator  # type: ignore[attr-defined]
+        wrapper._burrmcp_validator = spec.validator  # type: ignore[attr-defined]
     return wrapper
 
 
@@ -238,7 +238,7 @@ async def burr_app_from_fastmcp(
 
     Returns:
         A built ``burr.core.Application`` ready to pass to
-        ``burr_mcp.mount``.
+        ``burrmcp.mount``.
     """
     tool_specs = tool_specs or {}
     initial_state = initial_state or {}

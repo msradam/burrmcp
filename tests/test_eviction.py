@@ -12,7 +12,7 @@ import time
 import pytest
 from coffee_order import build_application
 
-from burr_mcp.adapter import _SessionStore
+from burrmcp.adapter import _SessionStore
 
 
 def test_ttl_eviction_drops_stale_entries():
@@ -85,7 +85,7 @@ async def test_history_after_eviction_starts_fresh():
 
     from fastmcp import Client
 
-    from burr_mcp import ServingMode, mount
+    from burrmcp import ServingMode, mount
 
     server = mount(
         build_application,

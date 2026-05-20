@@ -18,7 +18,7 @@ from burr.core.persistence import BaseStateLoader
 from burr.core.state import State as BurrState
 from fastmcp import Client
 
-from burr_mcp import ServingMode, mount
+from burrmcp import ServingMode, mount
 
 
 @action(reads=[], writes=["counter"])

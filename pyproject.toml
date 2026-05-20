@@ -1,6 +1,6 @@
 [project]
-name = "burr-mcp"
-version = "1.11.0"
+name = "burrmcp"
+version = "1.12.0"
 description = "Mount Burr Applications as MCP servers. FSM-as-API, not tools-as-API."
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
@@ -44,14 +44,14 @@ observability = [
 ]
 
 [project.scripts]
-burr-mcp = "burr_mcp.cli:main"
+burrmcp = "burrmcp.cli:main"
 
 [build-system]
 requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/burr_mcp"]
+packages = ["src/burrmcp"]
 
 [dependency-groups]
 dev = [
@@ -61,7 +61,7 @@ dev = [
     "mypy>=1.10",
     # OTel testing uses the in-memory exporter; the [observability]
     # extra carries the rest.
-    "burr-mcp[observability]",
+    "burrmcp[observability]",
     # Example-demo deps: psutil for unix_health, bandit + detect-secrets
     # for codebase_security. Dev-only because the examples are not
     # part of the published wheel; end users running those demos

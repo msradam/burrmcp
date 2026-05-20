@@ -13,7 +13,7 @@ Usage:
 The ``module:attr`` syntax matches uvicorn / gunicorn conventions. The
 referenced attribute is either a built ``burr.core.Application``
 (shared across sessions) or a callable factory returning one (one
-build per session for state isolation). See ``burr_mcp.mount`` for
+build per session for state isolation). See ``burrmcp.mount`` for
 the distinction. The ``doctor`` subcommand runs static validation
 against the resolved Application before you mount it.
 """
@@ -27,7 +27,7 @@ from typing import Annotated, Any
 
 import typer
 
-from burr_mcp.adapter import ServingMode, mount
+from burrmcp.adapter import ServingMode, mount
 
 app = typer.Typer(
     name="burr-mcp",
@@ -141,7 +141,7 @@ def doctor(
     ] = False,
 ) -> None:
     """Statically validate a Burr Application or factory before mounting."""
-    from burr_mcp.doctor import format_report, run_checks
+    from burrmcp.doctor import format_report, run_checks
 
     application_or_factory = _import_target(target, app_dir or [])
     report = run_checks(application_or_factory)

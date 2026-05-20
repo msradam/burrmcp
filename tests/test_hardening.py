@@ -21,7 +21,7 @@ import pytest
 from burr.core import ApplicationBuilder, State, action
 from fastmcp import Client
 
-from burr_mcp import ServingMode, mount
+from burrmcp import ServingMode, mount
 
 # ── action errors ────────────────────────────────────────────────────
 
@@ -149,16 +149,16 @@ async def test_non_json_state_is_coerced_and_keys_surfaced():
         # Non-JSON value was stringified.
         assert state["pipe"] == "<NotJsonable id=42>"
         # And the client was told.
-        assert state["_burr_mcp"]["coerced_keys"] == ["pipe"]
+        assert state["_burrmcp"]["coerced_keys"] == ["pipe"]
 
 
 @pytest.mark.asyncio
 async def test_clean_state_has_no_coercion_marker():
-    """Without coercion, no _burr_mcp marker shows up."""
+    """Without coercion, no _burrmcp marker shows up."""
     from coffee_order import build_application
 
     server = mount(build_application, mode=ServingMode.STEP, name="clean")
     async with Client(server) as client:
         await client.call_tool("step", {"action": "take_order", "inputs": {"item": "latte"}})
         state = json.loads((await client.read_resource("burr://state"))[0].text)
-        assert "_burr_mcp" not in state
+        assert "_burrmcp" not in state

@@ -18,7 +18,7 @@ import pytest
 from burr.core import ApplicationBuilder, State, action
 from fastmcp import Client, FastMCP
 
-from burr_mcp import (
+from burrmcp import (
     ServingMode,
     ToolSpec,
     ValidationFailed,
@@ -221,7 +221,7 @@ async def test_tool_spec_validator_wires_through_importer():
 
 @pytest.mark.asyncio
 async def test_hand_tagged_validator_via_function_attribute():
-    """Setting _burr_mcp_validator on a decorated function works the
+    """Setting _burrmcp_validator on a decorated function works the
     same as ToolSpec.validator or input_validators={}."""
 
     def positive_qty(state, inputs):
@@ -233,7 +233,7 @@ async def test_hand_tagged_validator_via_function_attribute():
     async def tagged(state: State, qty: int) -> State:
         return state.update(qty=qty)
 
-    tagged._burr_mcp_validator = positive_qty  # type: ignore[attr-defined]
+    tagged._burrmcp_validator = positive_qty  # type: ignore[attr-defined]
 
     def factory():
         return (

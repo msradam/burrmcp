@@ -26,7 +26,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
     InMemorySpanExporter,
 )
 
-from burr_mcp import ServingMode, mount
+from burrmcp import ServingMode, mount
 
 _MODULE_EXPORTER = InMemorySpanExporter()
 

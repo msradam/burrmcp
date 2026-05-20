@@ -1,4 +1,4 @@
-# burr-mcp
+# BurrMCP
 
 **An adapter that turns a [Burr](https://burr.dagworks.io/) state
 machine into an [MCP](https://modelcontextprotocol.io/) server.** Each
@@ -13,7 +13,7 @@ are valid, and `burr_app_from_fastmcp(...)` lifts it into a Burr
 Application that mounts the same way, gaining transition enforcement,
 audit history, and per-session isolation.
 
-Status: v1.9.0.
+Status: v1.12.0.
 
 ## What this is
 
@@ -55,7 +55,7 @@ applied to the MCP wire format.
 
 Other "FSM as MCP server" projects exist (LangGraph's MCP endpoint,
 Step Functions Tool MCP Server, the Temporal MCP servers). They all
-expose the whole machine as one opaque tool with arguments. `burr-mcp`
+expose the whole machine as one opaque tool with arguments. BurrMCP
 exposes each node of the graph as its own tool, and lets the server
 decide which calls are valid given the current state. That difference
 matters when the client is an LLM picking from a tool menu: the menu
@@ -64,7 +64,7 @@ is the graph, not a single black-box call.
 ## Three serving modes
 
 ```python
-from burr_mcp import mount, ServingMode
+from burrmcp import mount, ServingMode
 
 server = mount(application, mode=ServingMode.STEP)  # default
 ```
@@ -91,7 +91,7 @@ the importer:
 
 ```python
 from fastmcp import FastMCP
-from burr_mcp import ServingMode, ToolSpec, burr_app_from_fastmcp, mount
+from burrmcp import ServingMode, ToolSpec, burr_app_from_fastmcp, mount
 
 flat = FastMCP("legacy")
 
@@ -140,7 +140,7 @@ graph, useful when merging multiple flat servers).
 
 ```python
 from burr.core import action, ApplicationBuilder, State
-from burr_mcp import mount, ServingMode
+from burrmcp import mount, ServingMode
 
 @action(reads=[], writes=["stage", "item", "qty"])
 def take_order(state: State, item: str, qty: int = 1) -> State:
@@ -298,7 +298,7 @@ via the snippet in `examples/claude-code.example.json`.
 For more FSM patterns to draw from, [Burr's example library](https://github.com/apache/burr/tree/main/examples)
 has 30+ Applications covering chatbots, RAG pipelines, ML training
 orchestration, recursive agents, and parallelism. Most of them can be
-mounted via `burr_mcp.mount(...)` without modification, and the
+mounted via `burrmcp.mount(...)` without modification, and the
 audit/transition/validator surface comes along for free.
 
 ## Try it with Claude Code
@@ -388,30 +388,30 @@ call. Try `pay` before `take_order` and the server returns
 
 ## CLI
 
-`pip install burr-mcp` (or `uv sync`) registers a `burr-mcp` console
+`pip install burrmcp` (or `uv sync`) registers a `burrmcp` console
 script. Launch any importable Application or factory:
 
 ```bash
-burr-mcp serve coffee_order:build_application --mode step
-burr-mcp serve triage:build_application --mode dynamic --name triage
+burrmcp serve coffee_order:build_application --mode step
+burrmcp serve triage:build_application --mode dynamic --name triage
 ```
 
 The first argument is a `module:attr` target, the same shape uvicorn
 and gunicorn use. The attr may be a built `Application` or a callable
 returning one.
 
-`burr-mcp doctor` runs static validation against the same target
+`burrmcp doctor` runs static validation against the same target
 before you mount it. Catches the failure modes that only surface at
 runtime: unreachable actions, factory exceptions, dead-end terminals,
 state keys read before anything writes them, orphan initial state.
 
 ```bash
-burr-mcp doctor coffee_order:build_application --app-dir examples
+burrmcp doctor coffee_order:build_application --app-dir examples
 ```
 
 Exit code is `0` when there are no failures (warnings and info notes
-don't block) and `1` otherwise, so a `burr-mcp doctor` invocation
-slots into CI. Importable from Python too: `from burr_mcp.doctor
+don't block) and `1` otherwise, so a `burrmcp doctor` invocation
+slots into CI. Importable from Python too: `from burrmcp.doctor
 import run_checks`.
 
 ## Branching example
@@ -423,7 +423,7 @@ current state; calling the wrong branch is refused with the right one
 listed in the response.
 
 ```bash
-burr-mcp serve triage:build_application
+burrmcp serve triage:build_application
 ```
 
 ## More self-contained demos
@@ -555,7 +555,7 @@ hand-tagged escape hatch for non-importer Burr actions.
 ### Why three modes
 
 MCP clients handle mid-conversation tool list changes differently.
-Rather than pick one shape and live with the trade-off, `burr-mcp`
+Rather than pick one shape and live with the trade-off, BurrMCP
 exposes three:
 
 - `TOOLS`: closest in shape to existing MCP servers. The graph is
@@ -616,7 +616,7 @@ on next call" behavior.
 - Not a Burr replacement. Burr handles state, graphs, and tracking;
   this just bridges to MCP.
 - Not opinionated about model loops. The agent decides what to call;
-  `burr-mcp` decides whether the call is allowed.
+  `burrmcp` decides whether the call is allowed.
 - Not a workflow engine. No retries, no durability, no scheduling.
   Use Temporal if you need those.
 
@@ -626,7 +626,7 @@ Shipped in v0.1.0:
 
 - Per-session isolation via factory mode.
 - Branching example (conditional transitions).
-- `burr-mcp serve module:attr` CLI.
+- `burrmcp serve module:attr` CLI.
 - CI on 3.11/3.12/3.13.
 
 Shipped in v0.2.0:
@@ -687,7 +687,7 @@ Shipped in v1.7.0:
   spans from `step`, `spawn_subapp`, streaming actions, `fork_at`,
   all flow through the same bridge.
 - New `[observability]` install extra: `pip install
-  'burr-mcp[observability]'` pulls Burr's opentelemetry extra plus
+  'burrmcp[observability]'` pulls Burr's opentelemetry extra plus
   the core OTel API/SDK.
 - `examples/with_otel.py` demonstrates the full wire-up with a
   console span exporter. Swap the exporter for OTLP/Jaeger/Honeycomb
@@ -805,7 +805,7 @@ Shipped in v1.0.1:
 Shipped in v1.0.0:
 
 - Subgraph mounting. A Burr action body can call
-  `await burr_mcp.spawn_subapp(sub_app, label=...)` to delegate a
+  `await burrmcp.spawn_subapp(sub_app, label=...)` to delegate a
   multi-step procedure to a sub-Application. The sub-run's timeline
   is recorded under the parent session and addressable via two new
   MCP resources: `burr://subruns` (index) and
@@ -827,7 +827,7 @@ Shipped in v0.9.0:
   declare:
   - `mount(input_validators={"action_name": fn, ...})` server-wide.
   - `ToolSpec(validator=fn)` per-tool via the importer.
-  - `fn._burr_mcp_validator = callable` on a hand-written Burr action.
+  - `fn._burrmcp_validator = callable` on a hand-written Burr action.
   Refusals show up as `error: "validation_failed"` on the wire and
   `refusal_reason: "validation_failed"` in history, with the validator's
   reason and details preserved.
@@ -839,14 +839,14 @@ Shipped in v0.8.0:
 - Per-action timeout overrides. `ToolSpec(timeout_seconds=N)` in the
   importer applies a timeout to that action only, regardless of the
   server-wide `action_timeout_seconds`. Hand-written Burr actions can
-  opt in by setting `fn._burr_mcp_timeout_seconds = N` on the
+  opt in by setting `fn._burrmcp_timeout_seconds = N` on the
   decorated function.
 
 Shipped in v0.7.0:
 
 - `burr://trace` resource: read-through of Burr's on-disk
   `LocalTrackingClient` log for the current session's Application.
-  Closes the cross-reference gap between burr-mcp's in-memory
+  Closes the cross-reference gap between BurrMCP's in-memory
   `burr://history` and Burr's own structured trace format. Capped at
   1000 most-recent records to keep the wire payload bounded. Path
   resolution is safe against `app.uid` containing traversal sequences.
@@ -871,7 +871,7 @@ Shipped in v0.5.0:
   reads/writes plus the legal transitions. The result re-mounts via
   `mount()` like any other Burr Application, gaining transition
   enforcement, audit history, per-session isolation, eviction, and
-  everything else burr-mcp provides.
+  everything else BurrMCP provides.
 - `ToolSpec` dataclass for the per-tool declarations:
   `reads`/`writes`/`merge_result`/`state_update`/`rename`.
 - `examples/import_flat.py` shows the full pattern end-to-end.
@@ -890,19 +890,19 @@ Shipped in v0.4.0 (hardening for frontier-model deployments):
   sessions still proceed in parallel.
 - Non-JSON-serialisable state values are coerced to strings rather
   than silently breaking the resource. The state response surfaces
-  affected keys under `_burr_mcp.coerced_keys` so the client knows
+  affected keys under `_burrmcp.coerced_keys` so the client knows
   the round-trip is lossy.
 - Burr pinned to `>=0.40.2,<0.41` since we rely on internal API
   surface (`Action.fn`, `Action.inputs` tuple shape, `__PRIOR_STEP`).
 
 Shipped in v1.10.0:
 
-- `burr-mcp doctor module:attr` CLI subcommand for static validation
+- `burrmcp doctor module:attr` CLI subcommand for static validation
   before mounting. Checks: target resolves, factory builds, every
   action is reachable from the entrypoint, terminal nodes are
   surfaced, every state-key read has a writer or initial seed, orphan
   initial keys are flagged. Importable as
-  `from burr_mcp.doctor import run_checks` for use in tests too.
+  `from burrmcp.doctor import run_checks` for use in tests too.
 
 Next (v1.x):
 

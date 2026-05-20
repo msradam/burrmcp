@@ -46,7 +46,7 @@ from pathlib import Path
 from burr.core import ApplicationBuilder, State, action
 from burr.tracking.client import LocalTrackingClient
 
-from burr_mcp import ServingMode, mount, spawn_subapp
+from burrmcp import ServingMode, mount, spawn_subapp
 
 _TRACKER_PROJECT = "parallel-research-demo"
 _DATA_DIR = Path(__file__).parent / "data" / "parallel_research"
