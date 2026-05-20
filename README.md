@@ -62,6 +62,9 @@ including parallelism, persistence, telemetry, and library coexistence:
 | `AsyncBaseStatePersister` + `PersisterHookAsync` | Yes; `await persister.save(...)` runs inline on the MCP step path (adapter drives `astep`, hooks fire async) | `async_persister` |
 | `@trace` decorator (auto-span any function called from an action) | Yes; nested call graph maps onto the span tree, inputs/outputs auto-logged as attributes | `trace_decorator` |
 | Burr's prebuilt `StateAndResultsFullLogger` (zero-config JSONL audit log) | Yes; one JSONL row per action with post-step state + result + timing | `full_logger` |
+| FastMCP `ctx.sample` from inside an action body | Yes; `burrmcp.current_mcp_context()` returns the FastMCP `Context` so actions can delegate LLM work to the connected agent's model | `caller_sample` |
+| FastMCP `ctx.elicit` from inside an action body | Yes; action bodies can pop interactive user confirmation prompts mid-step for safety-rail gates | `elicit_confirm` |
+| Output schema on the `step` tool | Yes; clients see a typed response contract (discriminator `error` + per-shape fields) in the MCP tool listing | always-on |
 | `with_graph(Graph)` / `with_graphs(...)` (reusable graph fragments) | Yes; same `Graph` object embedded in multiple Applications | `subgraph_composition` |
 | Class-based `Action` subclasses (escape from `@action`) | Yes; one class, configured instances | `class_action` |
 | Hamilton driver inside an action body | Yes (no special integration) | `hamilton_features` |

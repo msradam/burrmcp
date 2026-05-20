@@ -151,5 +151,3 @@ async def test_no_timeout_means_no_wait_for():
         out = json.loads(r.content[0].text)
         assert "error" not in out
         assert out["state"]["done"] is True
-
-
