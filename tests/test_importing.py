@@ -272,11 +272,14 @@ async def test_tool_with_no_spec_lifts_as_stateless_action():
 
 @pytest.mark.asyncio
 async def test_signature_preserved_through_lift():
-    """Tool's parameter signature carries over to the MCP tool schema.
+    """Tool's parameter signature carries over to the lifted Burr action.
 
-    A frontier-model client introspecting tools needs to see the
+    A frontier-model client introspecting an action needs to see the
     actual parameter names + types from the original tool, not a
-    flattened ``**kwargs``.
+    flattened ``**kwargs``. STEP mode's step tool exposes a generic
+    ``{action, inputs}`` shape on the MCP wire, but the Burr Action's
+    declared inputs are what burr-mcp uses to validate calls, so we
+    introspect those directly.
     """
     flat = FastMCP("sig-test")
 
@@ -289,19 +292,10 @@ async def test_signature_preserved_through_lift():
         entrypoint="make_order",
         tool_specs={"make_order": ToolSpec(writes=["item", "qty"], merge_result=True)},
     )
-
-    # In TOOLS mode each action is its own MCP tool; we can see the
-    # schema FastMCP built. The step meta-tool would also work but
-    # its schema is a generic {action, inputs} pair.
-    server = mount(app, mode=ServingMode.TOOLS, name="sig")
-    async with Client(server) as client:
-        tools = await client.list_tools()
-        by_name = {t.name: t for t in tools}
-        assert "make_order" in by_name
-        schema = by_name["make_order"].inputSchema
-        props = schema.get("properties", {})
-        assert "item" in props
-        assert "qty" in props
-        assert "note" in props
-        assert props["item"].get("type") == "string"
-        assert props["qty"].get("type") == "integer"
+    action = app.graph.get_action("make_order")
+    required, optional = action.optional_and_required_inputs
+    all_inputs = set(required) | set(optional)
+    assert {"item", "qty", "note"}.issubset(all_inputs)
+    assert "item" in required
+    assert "qty" in optional
+    assert "note" in optional

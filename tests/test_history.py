@@ -82,30 +82,6 @@ async def test_history_per_session_in_factory_mode():
 
 
 @pytest.mark.asyncio
-async def test_history_records_in_tools_mode():
-    """TOOLS mode records each per-action tool call."""
-    server = build_server(ServingMode.TOOLS)
-    async with Client(server) as client:
-        await client.call_tool("take_order", {"item": "latte", "qty": 1})
-        await client.call_tool("pay", {"amount": 5.0})
-
-        history = json.loads((await client.read_resource("burr://history"))[0].text)
-        assert [h["action"] for h in history] == ["take_order", "pay"]
-        assert all(h["refused"] is False for h in history)
-
-
-@pytest.mark.asyncio
-async def test_history_records_in_dynamic_mode():
-    """DYNAMIC mode records per-action successes."""
-    server = build_server(ServingMode.DYNAMIC)
-    async with Client(server) as client:
-        await client.call_tool("take_order", {"item": "espresso", "qty": 1})
-        history = json.loads((await client.read_resource("burr://history"))[0].text)
-        assert len(history) == 1
-        assert history[0]["action"] == "take_order"
-
-
-@pytest.mark.asyncio
 async def test_history_entry_shape_is_complete():
     """A history entry has all documented fields."""
     server = build_server(ServingMode.STEP)
