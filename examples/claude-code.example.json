@@ -127,6 +127,20 @@
         "examples"
       ]
     },
+    "skill-security-audit": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/ABSOLUTE/PATH/TO/burrmcp",
+        "run",
+        "burrmcp",
+        "serve",
+        "skill_security_audit:build_application",
+        "--app-dir",
+        "examples"
+      ]
+    },
     "incident-response": {
       "type": "stdio",
       "command": "uv",
