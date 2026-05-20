@@ -1,9 +1,10 @@
 # Records README's demo.gif. Re-record with:
 #   vhs demo.tape
 #
-# Drives a real Claude session via the Agent SDK against the demo
-# bench. Requires `claude auth login` and ~$0.50 of Claude Max API
-# budget per run.
+# Replays the captured trace from examples/scripts/demo_recorded_trace.txt
+# (a real Claude Agent SDK run against the incident-response MCP server).
+# To refresh the trace from a fresh Claude session (costs ~$0.50):
+#   uv run python examples/scripts/demo_walk.py > examples/scripts/demo_recorded_trace.txt
 
 Output demo.gif
 
@@ -13,6 +14,6 @@ Set Height 900
 Set Theme "Dracula"
 Set TypingSpeed 20ms
 
-Type "uv run python examples/scripts/demo_walk.py"
+Type "uv run python examples/scripts/demo_play.py"
 Enter
-Sleep 35s
+Sleep 13s
