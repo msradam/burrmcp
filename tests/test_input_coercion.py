@@ -114,6 +114,30 @@ async def test_normal_object_inputs_still_work():
 
 
 @pytest.mark.asyncio
+async def test_string_inputs_round_trip_through_server():
+    """End-to-end: a client that sends ``inputs`` as a JSON string still
+    reaches the action body with a parsed dict.
+
+    This is the Bob-shaped failure mode (mid-2026): nested object
+    arguments serialized as JSON strings on the wire. With
+    strict_input_validation off plus the coercion middleware, the
+    request succeeds.
+    """
+    server = build_server()
+    async with Client(server) as client:
+        # Client.call_tool serializes whatever it's given; passing a
+        # string for `inputs` matches what Bob does over the wire.
+        r = await client.call_tool(
+            "step",
+            {"action": "take_order", "inputs": '{"item": "mocha"}'},
+        )
+        payload = json.loads(r.content[0].text)
+        assert payload.get("error") is None, payload
+        assert payload["state"]["item"] == "mocha"
+        assert payload["state"]["stage"] == "ordered"
+
+
+@pytest.mark.asyncio
 async def test_non_json_string_left_alone():
     """A string that's not valid JSON for an object-typed param is
     passed through; FastMCP's validator will reject it cleanly."""

@@ -1529,7 +1529,20 @@ def mount(
     )
     parts = [p for p in (instructions, action_surface, discovery_hint) if p]
     effective_instructions = "\n\n".join(parts)
-    mcp = FastMCP(server_name, instructions=effective_instructions)
+    # ``strict_input_validation=False`` lets the coercion middleware below
+    # run before FastMCP rejects out-of-shape arguments. With strict
+    # validation on, the MCP SDK validates JSON-RPC params against the
+    # tool's input schema before middleware ever sees them, so a client
+    # that sends ``inputs: "{\"item\":\"mocha\"}"`` (string) instead of
+    # ``inputs: {"item":"mocha"}`` (object) gets rejected at the SDK
+    # layer. Off plus the coercion middleware means the middleware
+    # parses the string back to a dict, and Burr's own action-input
+    # checking then validates at the action layer.
+    mcp = FastMCP(
+        server_name,
+        instructions=effective_instructions,
+        strict_input_validation=False,
+    )
     # Tolerate clients that JSON-encode object-typed arguments as strings
     # (e.g. IBM Bob as of mid-2026). The middleware re-parses such strings
     # to objects/arrays when the tool's declared schema says the param
