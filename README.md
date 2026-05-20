@@ -1,8 +1,6 @@
 # BurrMCP
 
-**FSM-as-API, not tools-as-API.**
-
-Mount a [Burr](https://burr.dagworks.io/) state machine as an [MCP](https://modelcontextprotocol.io/) server. The agent gets four tools (`step`, `reset_session`, `fork_at`, `fork_from_past`) regardless of how complex the FSM is. State lives on the server, transitions are enforced, and refusals carry the actions that *are* reachable so the agent can self-correct from a single error.
+Mount a [Burr](https://burr.dagworks.io/) state machine as an [MCP](https://modelcontextprotocol.io/) server. Each Burr `@action` is reachable through one `step(action, inputs)` MCP tool. State lives on the server. The server enforces transitions: if the agent calls an action that isn't reachable from the current state, the response is a structured refusal listing the actions that are reachable.
 
 ![demo](demo.gif)
 
