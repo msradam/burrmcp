@@ -23,15 +23,9 @@ Status: v1.12.0.
 
 Refusals come in five structured classes (`invalid_transition`, `unknown_action`, `action_error`, `action_timeout`, `validation_failed`) and are all recorded in `burr://history`.
 
-## Why bother
+## Why this shape
 
-Other "FSM as MCP server" projects exist (LangGraph's MCP endpoint,
-Step Functions Tool MCP Server, the Temporal MCP servers). They all
-expose the whole machine as one opaque tool with arguments. BurrMCP
-exposes each node of the graph as its own tool, and lets the server
-decide which calls are valid given the current state. That difference
-matters when the client is an LLM picking from a tool menu: the menu
-is the graph, not a single black-box call.
+Other "FSM as MCP" projects expose the whole machine as one opaque tool. BurrMCP exposes the graph itself: the agent sees the action namespace via `burr://graph`, calls `step(action=X)`, and the server refuses anything not reachable from the current state with the list of actions that are. The menu is the graph, not a black-box call.
 
 ## What works through `mount()`
 
@@ -71,30 +65,20 @@ including parallelism, persistence, telemetry, and library coexistence:
 | Hamilton driver inside an action body | Yes (no special integration) | `hamilton_features` |
 | `app.run(halt_after=...)` auto-routing | Burr-level only | MCP path always uses agent-chosen actions via `step` |
 
-Anything missing from this table either hasn't been exercised yet or
-genuinely needs adapter work; both cases are tracked in the
-project-internal feature roadmap.
+Anything missing from this table hasn't been exercised yet.
 
-## Three serving modes
+## The four-tool surface
 
-```python
-from burrmcp import mount, ServingMode
+Every server mounted with `mount(...)` exposes the same four MCP tools:
 
-server = mount(application, mode=ServingMode.STEP)  # default
-```
+| Tool | Use |
+|---|---|
+| `step(action, inputs)` | Run one transition. Refuses with `invalid_transition` if the action isn't reachable. |
+| `reset_session` | Rebuild this session's `Application` from the factory. |
+| `fork_at(sequence_id)` | Roll back to a prior point in this session's history. |
+| `fork_from_past(app_id, sequence_id)` | Resume a state another session left in the persister. |
 
-| Mode | Tools exposed | Transition enforcement | Client compatibility |
-|---|---|---|---|
-| `TOOLS` | One per `@action` | None (graph is advisory) | Universal |
-| `STEP` | One meta-tool: `step(action, inputs)` | Yes, server-side | Universal |
-| `DYNAMIC` | One per `@action`, visibility tracks state | Yes, server-side | Needs `tools/list_changed` support |
-
-Default is `STEP` because dynamic tool lists are not handled the same
-way across MCP clients. Claude Code [ignores `tools/list_changed`](https://github.com/anthropics/claude-code/issues/13646),
-Cursor [doesn't refresh on its own](https://forum.cursor.com/t/mcps-tool-list-changed-not-picked-up/132363),
-Claude Desktop's behavior is inconsistent across versions. `STEP` keeps
-the tool list static; the server enforces transitions inside the meta
-tool.
+The action namespace lives in `step`'s argument schema and at `burr://graph`. The shape stays the same whether the FSM has three actions or thirty.
 
 ## Lifting an existing FastMCP server
 
@@ -451,27 +435,9 @@ hand-tagged escape hatch for non-importer Burr actions.
 
 ## Design notes
 
-### Why three modes
+### Why STEP
 
-MCP clients handle mid-conversation tool list changes differently.
-Rather than pick one shape and live with the trade-off, BurrMCP
-exposes three:
-
-- `TOOLS`: closest in shape to existing MCP servers. The graph is
-  advisory; the client can call any action at any time. Useful when
-  you want Burr's state contract and tracker without imposing
-  transitions on the client.
-- `STEP`: one meta tool, transitions enforced server-side, every
-  client works the same way. The model has to learn one indirection
-  (which action name to pass) instead of seeing each action as its
-  own tool.
-- `DYNAMIC`: per-action tools where visibility tracks the current
-  state via FastMCP tag-based enable/disable. The model sees only
-  the tools it can actually call right now. Requires the client to
-  honor `tools/list_changed` notifications.
-
-All three share the same resources and the same Burr tracker output
-under `~/.burr/`.
+The four-tool surface (`step`, `reset_session`, `fork_at`, `fork_from_past`) is constant regardless of FSM complexity, so the client's tool listing stays compact and the action namespace lives in `step`'s argument schema plus `burr://graph`. Earlier versions also shipped a `TOOLS` mode (one MCP tool per action, no transition enforcement) and a `DYNAMIC` mode (per-action visibility tracking current state via `tools/list_changed`). Both were carved out into `src/burrmcp/_experimental/modes.py` once STEP became the only mode in active use. Reviving either is a contained change; see that module's docstring.
 
 ### Per-session isolation
 
@@ -483,10 +449,10 @@ per-server dict.
 
 ```python
 # Shared state across sessions (single-user local tooling).
-server = mount(app, mode=ServingMode.STEP)
+server = mount(app)
 
 # Per-session isolation (multi-user server, web-mounted MCP, etc.).
-server = mount(build_application, mode=ServingMode.STEP)
+server = mount(build_application)
 ```
 
 FastMCP 3.2's built-in `ctx.set_state(serializable=False)` is
@@ -498,7 +464,6 @@ TTL + max-size eviction.
 ```python
 mount(
     build_application,
-    mode=ServingMode.STEP,
     session_ttl_seconds=3600,  # evict after 1 hour idle (default)
     max_sessions=100,          # evict LRU when this many live (default)
 )

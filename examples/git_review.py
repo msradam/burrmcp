@@ -1,39 +1,18 @@
-"""Git review workflow: a CLI-wrapping FSM as a quickstart example.
+"""burr-git-review: gated wrapper around git CLI subcommands.
 
-Industry has been converging on the observation that wrapping the
-system's native CLI (git, gh, kubectl, jq, ripgrep) is more efficient
-for agents than inventing a JSON API per tool. CLIs are battle-tested,
-stable, composable, and the model already knows their semantics. The
-question becomes: how do you keep the agent from running them in the
-wrong order, or skipping steps that matter?
-
-This server is that pattern. An agent connecting to it can only walk
-the legal sequence:
+Walks one legal sequence::
 
     status -> recent_commits -> show_commit (1+) -> summarize
 
-``status``       wraps ``git status --short --branch``
-``recent_commits`` wraps ``git log --oneline -<N>``
-``show_commit``  wraps ``git show --stat <sha>``
-``summarize``    deterministically composes findings into a structured report
+``status`` runs ``git status --short --branch``.
+``recent_commits`` runs ``git log --oneline -<N>``.
+``show_commit`` runs ``git show --stat <sha>`` and validates the SHA
+came from the most recent ``recent_commits`` output.
+``summarize`` composes a structured report from what's been collected.
 
-The FSM gates each step on the prior having run, and the validator on
-``show_commit`` refuses any SHA that didn't appear in the most recent
-``recent_commits`` listing. So the agent can't summarise a repo it
-hasn't looked at, and can't fabricate a SHA out of thin air.
+Defaults to the current working directory. Override via ``GIT_REPO``::
 
-By default the server operates on the current working directory.
-Override via the ``GIT_REPO`` env var:
-
-    GIT_REPO=/path/to/some/repo uv run python examples/git_review.py
-
-Run alongside Claude Code with the snippet in
-``examples/claude-code.example.json`` (swap the script path for this
-file) and try a prompt like:
-
-    "Read burr://graph. Then review this repo's recent activity:
-    check status, list the last five commits, inspect the most
-    recent one, and summarise what's been happening."
+    GIT_REPO=/path/to/repo uv run python examples/git_review.py
 """
 
 from __future__ import annotations
