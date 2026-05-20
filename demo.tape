@@ -1,25 +1,18 @@
 # Records README's demo.gif. Re-record with:
 #   vhs demo.tape
+#
+# Drives a real Claude session via the Agent SDK against the demo
+# bench. Requires `claude auth login` and ~$0.50 of Claude Max API
+# budget per run.
 
 Output demo.gif
 
-Set FontSize 14
-Set Width 1100
-Set Height 620
+Set FontSize 12
+Set Width 1280
+Set Height 900
 Set Theme "Dracula"
-Set TypingSpeed 30ms
-Set PlaybackSpeed 1.0
+Set TypingSpeed 20ms
 
-Type "# A client tries to skip ahead and gets refused with the legal next actions."
-Enter
-Sleep 800ms
 Type "uv run python examples/scripts/demo_walk.py"
 Enter
-Sleep 4s
-Type "# Same four MCP tools (step / reset_session / fork_at / fork_from_past)"
-Enter
-Type "# regardless of how complex the FSM is. The action namespace lives in"
-Enter
-Type "# step's argument schema, discoverable via burr://graph."
-Enter
-Sleep 2.5s
+Sleep 35s
