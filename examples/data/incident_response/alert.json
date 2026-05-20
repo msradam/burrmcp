@@ -1,0 +1,42 @@
+{
+  "version": "4",
+  "groupKey": "{}:{alertname=\"HighErrorRate\",service=\"api-gateway\"}",
+  "truncatedAlerts": 0,
+  "status": "firing",
+  "receiver": "oncall-pager",
+  "groupLabels": {
+    "alertname": "HighErrorRate",
+    "service": "api-gateway"
+  },
+  "commonLabels": {
+    "alertname": "HighErrorRate",
+    "namespace": "production",
+    "service": "api-gateway",
+    "severity": "P2"
+  },
+  "commonAnnotations": {
+    "runbook_url": "https://runbooks.internal/api-gateway/high-error-rate"
+  },
+  "externalURL": "https://alertmanager.internal",
+  "alerts": [
+    {
+      "status": "firing",
+      "labels": {
+        "alertname": "HighErrorRate",
+        "service": "api-gateway",
+        "severity": "P2",
+        "namespace": "production",
+        "pod": "api-gateway-7d8f9-xj2p4",
+        "instance": "10.42.7.18:8080"
+      },
+      "annotations": {
+        "summary": "api-gateway error rate 12.4% (threshold 5%) for 10m+",
+        "description": "Upstream timeouts on /checkout POST. Affects payment completion flow. Started 2026-05-20T14:22:00Z (~6m after deploy v2.14.3 rollout).",
+        "dashboard": "https://grafana.internal/d/api-gateway-errors"
+      },
+      "startsAt": "2026-05-20T14:22:00Z",
+      "endsAt": "0001-01-01T00:00:00Z",
+      "generatorURL": "https://prometheus.internal/graph?g0.expr=rate(api_gateway_requests_errors_total%5B5m%5D)"
+    }
+  ]
+}

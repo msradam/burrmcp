@@ -1,0 +1,41 @@
+{
+  "recent_deploys": [
+    {
+      "id": "v2.14.3",
+      "service": "api-gateway",
+      "started_at": "2026-05-20T14:16:00Z",
+      "completed_at": "2026-05-20T14:20:30Z",
+      "actor": "ci-bot",
+      "commit_sha": "f8a3c91d",
+      "summary": "feat: connection pool tuning + new retry policy on upstream"
+    },
+    {
+      "id": "v2.14.2",
+      "service": "api-gateway",
+      "started_at": "2026-05-19T09:15:00Z",
+      "completed_at": "2026-05-19T09:19:42Z",
+      "actor": "ci-bot",
+      "commit_sha": "a12b9e44",
+      "summary": "chore: bump python base image"
+    },
+    {
+      "id": "v2.14.1",
+      "service": "api-gateway",
+      "started_at": "2026-05-18T11:30:00Z",
+      "completed_at": "2026-05-18T11:34:15Z",
+      "actor": "ci-bot",
+      "commit_sha": "33d7c8f0",
+      "summary": "fix: handle nil pointer in /cart endpoint"
+    },
+    {
+      "id": "v2.14.0",
+      "service": "api-gateway",
+      "started_at": "2026-05-15T16:02:00Z",
+      "completed_at": "2026-05-15T16:06:00Z",
+      "actor": "ci-bot",
+      "commit_sha": "7c2a4e91",
+      "summary": "feat: GraphQL endpoint at /graphql"
+    }
+  ],
+  "notes": "Deploys listed newest first. Each deploy is a rolling release across replicas."
+}
