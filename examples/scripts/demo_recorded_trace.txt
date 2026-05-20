@@ -1,0 +1,40 @@
+[1;36m──────────────────────────────────────────────────────────────────────────────[0m
+[1;33m🧑 user:[0m
+   Use the incident-response MCP server. Walk the incident end-to-end:
+   
+   1. step(action='report')           # parses the shipped alert.json
+   2. step(action='acknowledge', responder='claude')
+   3. step(action='investigate')      # spawns the investigation sub-app
+   4. step(action='mitigate', action_kind='rollback', target='v2.14.2',
+           simulated_offset_minutes=9)
+   5. step(action='verify', verified=true, notes='clean post-rollback')
+   6. step(action='resolve', resolution='rolled back v2.14.3 -> v2.14.2')
+   
+   Don't explain. Just call the tools.
+[1;36m──────────────────────────────────────────────────────────────────────────────[0m
+
+[1;35m🤖 claude →[0m [36mstep(action='report')[0m
+   [32m✓ parsed alert: service=api-gateway severity=P2 pod=api-gateway-7d8f9-xj2p4[0m
+
+[1;35m🤖 claude →[0m [36mstep(action='acknowledge')[0m
+           inputs={'responder': 'claude'}
+   [32m✓ acknowledged by claude[0m
+
+[1;35m🤖 claude →[0m [36mstep(action='investigate')[0m
+   [32m✓ root cause: deploy v2.14.3 (started 6.0m before alert; commit f8a3c91d) likely introduced the regres…[0m
+
+[1;35m🤖 claude →[0m [36mstep(action='mitigate')[0m
+           inputs={'action_kind': 'rollback', 'target': 'v2.14.2', 'simulated_offset_minutes': 9}
+   [32m✓ recorded: rollback -> v2.14.2[0m
+
+[1;35m🤖 claude →[0m [36mstep(action='verify')[0m
+           inputs={'verified': True, 'notes': 'clean post-rollback'}
+   [32m✓ verified: 0 ERROR lines in 13 post-mitigation lines[0m
+
+[1;35m🤖 claude →[0m [36mstep(action='resolve')[0m
+           inputs={'resolution': 'rolled back v2.14.3 -> v2.14.2'}
+   [32m✓ resolved: rolled back v2.14.3 -> v2.14.2[0m
+
+[1;36m──────────────────────────────────────────────────────────────────────────────[0m
+[2m   four MCP tools; agent walks the FSM in plain English. cost: $0.537[0m
+
