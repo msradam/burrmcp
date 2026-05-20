@@ -1649,7 +1649,7 @@ def mount(
         async def step(
             action: str,
             inputs: dict[str, Any] | None = None,
-            ctx: Context = None,
+            ctx: Context | None = None,
         ) -> dict[str, Any]:
             """Advance the FSM by one transition.
 
@@ -1748,7 +1748,7 @@ def mount(
     # the human to restart the server when it reaches a terminal node
     # and wants to try another path.
 
-    async def reset_session(ctx: Context = None) -> dict[str, Any]:
+    async def reset_session(ctx: Context | None = None) -> dict[str, Any]:
         """Reset this session's FSM to its entrypoint.
 
         Rebuilds the session's Application via the factory, clears any
@@ -1821,7 +1821,7 @@ def mount(
     # in-memory history rather than Burr's tracker-based replay so it
     # works without requiring users to wire up a LocalTrackingClient.
 
-    async def fork_at(sequence_id: int, ctx: Context = None) -> dict[str, Any]:
+    async def fork_at(sequence_id: int, ctx: Context | None = None) -> dict[str, Any]:
         """Rewind the session to the state captured after history[seq=N].
 
         ``sequence_id`` is the ``seq`` field on a ``burr://history`` entry.
@@ -1937,7 +1937,7 @@ def mount(
         app_id: str,
         sequence_id: int = -1,
         partition_key: str = "",
-        ctx: Context = None,
+        ctx: Context | None = None,
     ) -> dict[str, Any]:
         """Resume a past Burr run by loading persisted state.
 
