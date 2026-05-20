@@ -24,7 +24,9 @@ def test_valid_next_actions_after_take_order(fresh_app):
     import asyncio
 
     asyncio.run(fresh_app.astep(inputs={"item": "latte", "qty": 1}))
-    assert valid_next_action_names(fresh_app) == ["pay"]
+    # The extended coffee FSM has pay (linear path), add_modifier (loop),
+    # and cancel (escape) all reachable from `ordered`.
+    assert set(valid_next_action_names(fresh_app)) == {"pay", "add_modifier", "cancel"}
 
 
 def test_valid_next_actions_terminal(fresh_app):

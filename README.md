@@ -168,6 +168,8 @@ app = (
 mount(app, mode=ServingMode.STEP, name="coffee").run()
 ```
 
+The shipped `examples/coffee_order.py` extends this with an `add_modifier` loop (`extra_shot` / `oat_milk` / `syrup`, each adds to a running `state.total`) and a `cancel` escape reachable from any pre-pay state, so it demonstrates loop + branch + escape in addition to the linear path.
+
 A client that calls `pay` before `take_order` gets:
 
 ```json
