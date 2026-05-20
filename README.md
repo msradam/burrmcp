@@ -288,6 +288,7 @@ via the snippet in `examples/claude-code.example.json`.
 | `codebase_security.py` | Vulnerability audit with patch-overlay loop | Runs `bandit` + `detect-secrets` against a shipped vulnerable Python repo (`examples/data/codebase_security/vuln_demo/`), normalizes findings to a common schema with CWE IDs, severity, and per-CWE remediation hints. Remediation is search/replace patches recorded in state and applied to a tmpdir overlay on rescan; the original codebase on disk is never modified. Loop caps at 3 rounds; escalates when ≥2 critical/high findings persist across a rescan. |
 | `adaptive_crag.py` | Self-correcting RAG | Granite-graded RAG. `ask(question, corpus_dir=None)` defaults to the shipped parallel_research corpus but accepts any markdown directory. After retrieval and synthesis, a grader scores the answer 1-5 on grounding + relevance; bad grade rewrites the query and loops back to retrieval. Cap at 3 rounds. Based on CRAG ([Yan et al 2024](https://arxiv.org/abs/2401.15884)) with a simplified LLM-as-judge instead of a trained T5 evaluator. |
 | `skill_security_audit.py` | SKILL-to-FSM (caller LLM is the brain) | Real Claude Code SKILL (the MIT-licensed `examples/skills/security-audit/SKILL.md`) decomposed into a Burr FSM whose actions emit structured prompts for the caller LLM (Opus, Sonnet, Granite, whatever drives the MCP client). No server-side LLM, no scanners. Mode-branching on INSIDE / OUTSIDE / BOTH; OUTSIDE / BOTH require an `authorization_source` per the SKILL's written-authorization rule. Six phases gated as transitions. Four more skills ship in `examples/skills/` as reference for future conversions. |
+| `mellea_qiskit_migration.py` | Mellea-in-a-Burr-node | A real Mellea sample mirrored. One action (`mellea_repair_loop`) calls Mellea's `session.instruct` with a deterministic Qiskit-1.0 migration checker as the `validation_fn`; Mellea runs its internal generate-validate-repair loop and returns the chosen sample plus a per-attempt validation log. The FSM owns the workflow (accept input, branch on success/giveup) and the audit trail; Mellea owns the IVR loop. Migration patterns inlined from Qiskit's own deprecation guide so the demo runs without `flake8-qiskit-migration` installed. Pre-req for real runs: `pip install mellea` + Ollama with `granite4:micro` pulled. |
 | `streaming_narrate.py` | Streaming action | An action that yields intermediate chunks; each becomes an MCP progress notification, the final state arrives in the tool response. |
 | `with_otel.py` | OpenTelemetry spans | Burr's `OpenTelemetryBridge` wired into the factory; every action run emits a span. Console exporter for demo; swap for OTLP/Jaeger in production. |
 | `incident_response.py` | Showcase | Realistic ops workflow with all features (validators, sub-graphs, branching, conditional loop). The canonical Claude Code demo. |
@@ -548,13 +549,34 @@ skills (`claude-api`, `mcp-builder`, `webapp-testing`,
 `skill-creator`) ship in `examples/skills/` as reference material
 for future SKILL-to-FSM conversions.
 
+`examples/mellea_qiskit_migration.py` integrates IBM Research's
+[Mellea](https://github.com/generative-computing/mellea) library
+as a single Burr action. Mellea is a generative-programming
+library whose `session.instruct` primitive runs an internal
+generate-validate-repair loop against natural-language requirements
+with deterministic `validation_fn` hooks; this demo mirrors
+Mellea's own
+[qiskit_code_validation](https://github.com/generative-computing/mellea/blob/main/docs/examples/instruct_validate_repair/qiskit_code_validation/qiskit_code_validation.py)
+sample. The FSM hands Mellea pre-Qiskit-1.0 code (uses
+`IBMQ.load_account()`, `execute(circuit, backend)`,
+`Aer.get_backend(...)`, `QasmSimulator()`); the deterministic
+checker validates each Mellea sample against the Qiskit 1.0
+deprecation patterns; Mellea repairs until clean or the budget
+exhausts. The FSM then routes to `finalize_success` or
+`finalize_giveup` based on a canonical re-check on the chosen
+sample. Mellea owns the IVR loop; Burr owns the workflow and the
+audit trail visible in `burr://state` and `burr://history`. Mellea
+is lazy-imported inside `_call_mellea` so the example module is
+importable without Mellea installed; tests monkey-patch the
+wrapper for hermetic runs.
+
 ## Tests
 
 ```bash
 uv run pytest
 ```
 
-Three hundred and nineteen tests in about 16 seconds (real bandit + detect-secrets subprocess scans in the codebase_security tests account for most of the runtime; the rest of the suite is in-process and lands in well under a second). Most use FastMCP's in-process
+Three hundred and thirty-three tests in about 16 seconds (real bandit + detect-secrets subprocess scans in the codebase_security tests account for most of the runtime; the rest of the suite is in-process and lands in well under a second). Most use FastMCP's in-process
 client; `tests/test_http_transport.py` spawns the HTTP example as a
 subprocess and drives it with two real HTTP clients.
 `tests/test_hardening.py` covers action exceptions, concurrent steps
