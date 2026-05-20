@@ -77,9 +77,7 @@ async def test_security_audit_refuses_outside_without_authorization():
         max_budget_usd=3.0,
         max_turns=15,
     )
-    start_calls = calls_with_action(
-        trace["tool_calls"], "mcp__security-audit__step", "start_audit"
-    )
+    start_calls = calls_with_action(trace["tool_calls"], "mcp__security-audit__step", "start_audit")
     assert start_calls, (
         f"Claude never called start_audit on security-audit. "
         f"Tools: {[c['name'] for c in trace['tool_calls']]}"

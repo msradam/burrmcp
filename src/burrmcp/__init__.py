@@ -21,6 +21,7 @@ doesn't refresh on its own.
 from burrmcp.adapter import (
     ServingMode,
     ValidationFailed,
+    current_mcp_context,
     mount,
     mount_multi,
     spawn_subapp,
@@ -32,6 +33,7 @@ __all__ = [
     "ToolSpec",
     "ValidationFailed",
     "burr_app_from_fastmcp",
+    "current_mcp_context",
     "mount",
     "mount_multi",
     "spawn_subapp",

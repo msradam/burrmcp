@@ -59,6 +59,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+import pydantic
 from burr.core import Application
 from burr.core.action import Action, Condition
 from fastmcp import Context, FastMCP
@@ -78,6 +79,190 @@ class ServingMode(str, Enum):  # noqa: UP042  # leaving as (str, Enum) for stabl
     # ``burrmcp._experimental.modes`` after STEP became the sole product.
     # The enum is preserved (single-member) so callers that pass
     # ``mode=ServingMode.STEP`` keep working.
+
+
+# ── step tool response schema ────────────────────────────────────────
+# Models declare the contract clients see in ``step``'s output schema.
+# Body of ``step`` returns plain dicts shaped to match these; the union
+# is registered with FastMCP as a JSON Schema, not used at runtime to
+# validate (so the existing dict-returning code stays unchanged).
+
+
+class _StepSuccess(pydantic.BaseModel):
+    """Successful step: action ran, state advanced."""
+
+    action: str
+    result: dict[str, Any] | None = None
+    state: dict[str, Any]
+    valid_next_actions: list[str]
+    app_id: str
+    tracker_project: str | None = None
+    streamed: bool | None = None
+    chunks: int | None = None
+
+
+class _StepUnknownAction(pydantic.BaseModel):
+    """Refusal: requested action name is not in the FSM."""
+
+    error: typing.Literal["unknown_action"]
+    requested: str
+    known_actions: list[str]
+
+
+class _StepInvalidTransition(pydantic.BaseModel):
+    """Refusal: action exists but is not reachable from current state."""
+
+    error: typing.Literal["invalid_transition"]
+    requested: str
+    valid_next_actions: list[str]
+    message: str
+
+
+class _StepValidationFailed(pydantic.BaseModel):
+    """Refusal: input validation rejected the call before dispatch."""
+
+    error: typing.Literal["validation_failed"]
+    requested: str
+    reason: str
+    details: dict[str, Any] | None = None
+    valid_next_actions: list[str]
+
+
+class _StepActionTimeout(pydantic.BaseModel):
+    """Refusal: action exceeded its timeout budget."""
+
+    error: typing.Literal["action_timeout"]
+    requested: str
+    timeout_seconds: float
+    message: str
+    valid_next_actions: list[str]
+
+
+class _StepActionError(pydantic.BaseModel):
+    """Refusal: action body raised an exception."""
+
+    error: typing.Literal["action_error"]
+    requested: str
+    error_type: str
+    error_message: str
+    valid_next_actions: list[str]
+
+
+def _step_response_schema() -> dict[str, Any]:
+    """JSON Schema for the ``step`` tool's response.
+
+    MCP requires the output schema to be a single ``type: "object"`` at
+    the top level, not a union. We emit a merged object whose ``error``
+    field discriminates: when ``error`` is absent the response carries
+    the ``_StepSuccess`` fields (action, result, state, ...); when
+    ``error`` is present it carries one of the refusal shapes
+    enumerated in ``error``'s allowed values. Per-shape required-field
+    constraints are documented in ``description`` rather than enforced
+    via ``oneOf``; clients should branch on ``error`` to interpret the
+    rest of the payload.
+    """
+    return {
+        "type": "object",
+        "description": (
+            "Result of one step. When `error` is absent, the response is a "
+            "successful step (action, result, state, valid_next_actions, "
+            "app_id, tracker_project, optionally streamed/chunks). When "
+            "`error` is set, the response is a structured refusal; check "
+            "`error` to interpret the rest:\n"
+            "  - unknown_action: requested + known_actions\n"
+            "  - invalid_transition: requested + valid_next_actions + message\n"
+            "  - validation_failed: requested + reason + details + valid_next_actions\n"
+            "  - action_timeout: requested + timeout_seconds + message + valid_next_actions\n"
+            "  - action_error: requested + error_type + error_message + valid_next_actions"
+        ),
+        "properties": {
+            # Success-side fields.
+            "action": {"type": "string", "description": "Name of the action that ran."},
+            "result": {
+                "type": ["object", "null"],
+                "additionalProperties": True,
+                "description": "Action's structured return value.",
+            },
+            "state": {
+                "type": "object",
+                "additionalProperties": True,
+                "description": "Public Application state after the step.",
+            },
+            "app_id": {"type": "string", "description": "Application uid."},
+            "tracker_project": {
+                "type": ["string", "null"],
+                "description": "LocalTrackingClient project name if attached.",
+            },
+            "streamed": {
+                "type": ["boolean", "null"],
+                "description": "True when the action was a streaming action.",
+            },
+            "chunks": {
+                "type": ["integer", "null"],
+                "description": "Streamed chunk count (when streamed is true).",
+            },
+            # Refusal-side fields.
+            "error": {
+                "type": "string",
+                "enum": [
+                    "unknown_action",
+                    "invalid_transition",
+                    "validation_failed",
+                    "action_timeout",
+                    "action_error",
+                ],
+                "description": (
+                    "Refusal discriminator. When set, the response carries the "
+                    "matching refusal payload's fields."
+                ),
+            },
+            "requested": {
+                "type": "string",
+                "description": "Name the client passed; present on every refusal.",
+            },
+            "known_actions": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "All action names in the FSM (unknown_action only).",
+            },
+            "valid_next_actions": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": (
+                    "Actions reachable from the current state. Present on "
+                    "success and on every refusal so the agent can self-correct."
+                ),
+            },
+            "message": {
+                "type": "string",
+                "description": "Human-readable message (invalid_transition, action_timeout).",
+            },
+            "reason": {
+                "type": "string",
+                "description": "Validation failure reason (validation_failed only).",
+            },
+            "details": {
+                "type": ["object", "null"],
+                "additionalProperties": True,
+                "description": "Validation failure details (validation_failed only).",
+            },
+            "timeout_seconds": {
+                "type": "number",
+                "description": "Configured timeout (action_timeout only).",
+            },
+            "error_type": {
+                "type": "string",
+                "description": (
+                    "Exception class name of the underlying error (action_error only)."
+                ),
+            },
+            "error_message": {
+                "type": "string",
+                "description": "Stringified exception (action_error only).",
+            },
+        },
+        "additionalProperties": True,
+    }
 
 
 # State keys Burr writes itself. Hide them from the public state view so
@@ -554,6 +739,32 @@ class ActionTimeoutError(Exception):
 _current_session_entry: contextvars.ContextVar[_SessionEntry | None] = contextvars.ContextVar(
     "_burrmcp_current_session", default=None
 )
+
+#: ContextVar set by the step handler around each ``_step_application``
+#: call. Holds the FastMCP ``Context`` injected by the MCP transport so
+#: action bodies can call ``ctx.sample(...)``, ``ctx.elicit(...)``,
+#: ``ctx.report_progress(...)``, ``ctx.read_resource(...)``, etc.
+#: Reads via the public ``current_mcp_context()`` helper return the
+#: current value (or ``None`` outside an action body).
+_current_fastmcp_context: contextvars.ContextVar[Context | None] = contextvars.ContextVar(
+    "_burrmcp_current_fastmcp_context", default=None
+)
+
+
+def current_mcp_context() -> Context | None:
+    """Return the FastMCP ``Context`` for the currently-dispatching tool call.
+
+    Returns ``None`` outside an action body. Inside an action driven via
+    burrmcp's adapter, returns the Context FastMCP injected into the
+    step handler, so action bodies can call ``ctx.sample(...)``,
+    ``ctx.elicit(...)``, ``ctx.report_progress(...)``,
+    ``ctx.read_resource(...)``, etc.
+
+    Use this to delegate LLM work to the connected agent's model, ask
+    the user for interactive confirmation, or read another resource the
+    server exposes from inside an action body.
+    """
+    return _current_fastmcp_context.get()
 
 
 async def spawn_subapp(
@@ -1147,7 +1358,6 @@ async def _step_streaming_action(
     }
 
 
-
 def mount(
     application: ApplicationOrFactory,
     *,
@@ -1497,6 +1707,7 @@ def mount(
             effective_timeout = _action_timeout(action_map[action], action_timeout_seconds)
             effective_validator = _action_validator(action_map[action], input_validators)
             token = _current_session_entry.set(entry)
+            ctx_token = _current_fastmcp_context.set(ctx)
             subruns_before = set(entry.subruns) if entry is not None else set()
             try:
                 async with lock:
@@ -1514,9 +1725,7 @@ def mount(
                 ActionTimeoutError,
                 ActionExecutionError,
             ) as exc:
-                response, hist_kwargs = _refusal_payload(
-                    exc=exc, action_name=action, app=app
-                )
+                response, hist_kwargs = _refusal_payload(exc=exc, action_name=action, app=app)
                 _record_history(
                     store,
                     ctx,
@@ -1529,6 +1738,7 @@ def mount(
                 return response
             finally:
                 _current_session_entry.reset(token)
+                _current_fastmcp_context.reset(ctx_token)
             new_subruns: list[str] = []
             if entry is not None:
                 new_subruns = [s for s in entry.subruns if s not in subruns_before]
@@ -1545,7 +1755,11 @@ def mount(
             return out
 
         step_description = f"{step.__doc__}\n\n{action_surface}"
-        mcp.tool(name="step", description=step_description)(step)
+        mcp.tool(
+            name="step",
+            description=step_description,
+            output_schema=_step_response_schema(),
+        )(step)
 
     else:
         raise ValueError(f"unknown serving mode: {mode!r}")
