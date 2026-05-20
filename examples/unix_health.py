@@ -678,7 +678,7 @@ def build_server():
     return mount(
         build_application,
         mode=ServingMode.STEP,
-        name="unix-health",
+        name="burr-unix-health",
         instructions=(
             "Unix system-health FSM. Walks df, vm_stat or free, "
             "uptime, and ps via real subprocess invocations. Start "

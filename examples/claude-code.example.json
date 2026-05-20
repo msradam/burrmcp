@@ -71,7 +71,7 @@
         "examples"
       ]
     },
-    "unix-health": {
+    "burr-unix-health": {
       "type": "stdio",
       "command": "uv",
       "args": [
