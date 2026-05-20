@@ -212,7 +212,7 @@ What you get:
 - **Burr UI replay**: `uvx --from "burr[start]" burr` opens a web UI that visualizes every state transition for any tracker project on disk.
 - **Per-session history** at `burr://history` (one entry per MCP step, including refusals). Complementary to `burr://trace`: history captures what the *agent* attempted; trace captures what *Burr* executed.
 
-For OpenTelemetry spans, install `burrmcp[observability]` and use Burr's `OpenTelemetryBridge` as a lifecycle adapter — `examples/with_otel.py` shows the wire-up. Custom span sinks (Datadog, Honeycomb, in-memory) work through Burr's `PreStartSpanHook` / `PostEndSpanHook` / `DoLogAttributeHook` — `examples/custom_telemetry.py` has the pattern.
+For OpenTelemetry spans, install `burrmcp[observability]` and use Burr's `OpenTelemetryBridge` as a lifecycle adapter; `examples/with_otel.py` shows the wire-up. Custom span sinks (Datadog, Honeycomb, in-memory) work through Burr's `PreStartSpanHook` / `PostEndSpanHook` / `DoLogAttributeHook`; `examples/custom_telemetry.py` has the pattern.
 
 ## Resources
 
