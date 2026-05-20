@@ -1,14 +1,14 @@
-"""``burr-mcp`` CLI: launch or validate an importable Burr Application.
+"""``burrmcp`` CLI: launch or validate an importable Burr Application.
 
-Built with Typer, so ``burr-mcp --help`` and ``burr-mcp <subcommand>
+Built with Typer, so ``burrmcp --help`` and ``burrmcp <subcommand>
 --help`` render structured help with the option types, defaults, and
 short descriptions baked in.
 
 Usage:
 
-    burr-mcp serve coffee_order:build_application --mode step
-    burr-mcp serve mymodule:application_factory --mode dynamic --name coffee
-    burr-mcp doctor coffee_order:build_application
+    burrmcp serve coffee_order:build_application --mode step
+    burrmcp serve mymodule:application_factory --mode dynamic --name coffee
+    burrmcp doctor coffee_order:build_application
 
 The ``module:attr`` syntax matches uvicorn / gunicorn conventions. The
 referenced attribute is either a built ``burr.core.Application``
@@ -34,7 +34,7 @@ import typer
 from burrmcp.adapter import ServingMode, mount
 
 app = typer.Typer(
-    name="burr-mcp",
+    name="burrmcp",
     help="Mount a Burr Application as an MCP server.",
     no_args_is_help=True,
     add_completion=False,

@@ -1,7 +1,7 @@
 """Fixtures shared across the smoke suite.
 
 The headline fixture is ``flask_repo``: a session-scoped checkout of
-Flask at a pinned tag, cached at ``~/.cache/burr-mcp-smoke/flask`` so
+Flask at a pinned tag, cached at ``~/.cache/burrmcp-smoke/flask`` so
 repeat runs don't re-clone. The first run does a shallow clone (~30s);
 subsequent runs reuse the cache instantly.
 """
@@ -19,7 +19,7 @@ import pytest
 # commit's content, only that the checkout is a real Python codebase.
 _FLASK_TAG = "3.0.3"
 _FLASK_URL = "https://github.com/pallets/flask"
-_CACHE_DIR = Path("~/.cache/burr-mcp-smoke").expanduser()
+_CACHE_DIR = Path("~/.cache/burrmcp-smoke").expanduser()
 
 
 @pytest.fixture(scope="session")

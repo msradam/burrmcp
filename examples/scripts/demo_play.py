@@ -27,17 +27,13 @@ def main() -> None:
         sys.stdout.flush()
         # Tune cadence by line shape:
         stripped = raw.strip()
-        # Trim ANSI for shape-matching.
-        plain = stripped
-        for prefix in ("\033[", ""):
-            pass
         if "claude →" in stripped:
             # Each tool-call header gets a beat before the outcome.
             time.sleep(0.45)
-        elif stripped.startswith("\033[32m✓") or stripped.startswith("\033[31m✗"):
+        elif stripped.startswith(("\033[32m✓", "\033[31m✗")):
             # Outcome lines get a longer pause so the eye lands on them.
             time.sleep(0.75)
-        elif stripped.startswith("─") or stripped.startswith("\033[1;36m─"):
+        elif stripped.startswith(("─", "\033[1;36m─")):
             # Section dividers get a clear break.
             time.sleep(0.4)
         elif not stripped:

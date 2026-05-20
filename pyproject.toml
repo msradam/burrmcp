@@ -18,7 +18,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    # Burr's public API is stable, but burr-mcp depends on some details
+    # Burr's public API is stable, but burrmcp depends on some details
     # that aren't part of Burr's public surface: ``Action.fn``, the shape
     # of ``Action.inputs`` as a (required, optional) tuple, and Burr's
     # internal ``__PRIOR_STEP`` state key. Pin to a minor range so a
@@ -27,15 +27,15 @@ dependencies = [
     "burr>=0.40.2,<0.41",
     "fastmcp>=3.2,<3.3",
     "pydantic>=2,<3",
-    # Typer for the burr-mcp CLI (serve, doctor). Brings click as a
+    # Typer for the burrmcp CLI (serve, doctor). Brings click as a
     # transitive; that's fine.
     "typer>=0.12,<1.0",
 ]
 
 [project.optional-dependencies]
 # Turnkey OpenTelemetry: pulls Burr's opentelemetry extra plus the
-# core OTel API/SDK so a user can wire spans into their burr-mcp
-# server in one ``pip install 'burr-mcp[observability]'``. See
+# core OTel API/SDK so a user can wire spans into their burrmcp
+# server in one ``pip install 'burrmcp[observability]'``. See
 # ``examples/with_otel.py`` for the wire-up pattern.
 observability = [
     "burr[opentelemetry]>=0.40.2,<0.41",

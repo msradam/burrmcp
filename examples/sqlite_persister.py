@@ -15,7 +15,7 @@ two places:
 1. The factory: ``ApplicationBuilder().with_state_persister(persister)``
    so Burr's ``PersisterHook`` calls ``persister.save(...)`` after every
    step. State lands in a real SQLite file on disk, not in-memory.
-2. The mount: ``mount(..., state_loader=persister)`` so the burr-mcp
+2. The mount: ``mount(..., state_loader=persister)`` so the burrmcp
    server's ``fork_from_past`` meta-tool resolves through the same
    persister. The canonical "session went away, a new session comes
    back with the same app_id, ``fork_from_past`` restores the state"
@@ -168,7 +168,7 @@ class SQLitePersister(BaseStatePersister):
 
         ``sequence_id=None`` returns the latest row for (partition, app_id),
         matching Burr's documented contract. An unknown ``app_id``
-        returns ``None`` rather than raising; the burr-mcp adapter
+        returns ``None`` rather than raising; the burrmcp adapter
         translates ``None`` into the ``unknown_past_run`` error.
         """
         if app_id is None:

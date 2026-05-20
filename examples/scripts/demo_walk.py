@@ -1,7 +1,7 @@
 """Records README's demo.gif via vhs.
 
 Drives a real Claude session through the Agent SDK against the demo
-bench (``~/burr-mcp-demo/.mcp.json``). The user gives one
+bench (``~/burrmcp-demo/.mcp.json``). The user gives one
 natural-language instruction; Claude figures out which MCP tool to
 call and walks the incident_response FSM end-to-end.
 
@@ -17,7 +17,6 @@ GIF only when the demo's shape changes.
 from __future__ import annotations
 
 import asyncio
-import json
 import sys
 from pathlib import Path
 

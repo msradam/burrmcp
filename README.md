@@ -27,7 +27,7 @@ Refusals come in five structured classes (`invalid_transition`, `unknown_action`
 
 ## Why this shape
 
-Other "FSM as MCP" projects expose the whole machine as one opaque tool. BurrMCP exposes the graph itself: the agent sees the action namespace via `burr://graph`, calls `step(action=X)`, and the server refuses anything not reachable from the current state with the list of actions that are. The menu is the graph, not a black-box call.
+BurrMCP exposes the graph itself: the agent reads the action namespace from `burr://graph`, calls `step(action=X)`, and the server refuses anything not reachable from the current state with the list of actions that are. The menu is the graph.
 
 ## What works through `mount()`
 
@@ -295,8 +295,8 @@ filesystem access to Burr's tracker output.
 Currently a private repo. From source:
 
 ```bash
-git clone git@github.com:msradam/burr-mcp.git
-cd burr-mcp
+git clone git@github.com:msradam/burrmcp.git
+cd burrmcp
 uv sync
 ```
 
