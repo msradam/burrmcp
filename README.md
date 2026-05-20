@@ -17,41 +17,11 @@ You can also go the other direction: lift an existing flat FastMCP server into a
 
 Status: v1.12.0.
 
-## What this is
+## Sessions
 
-An adapter library. You write a Burr state machine. `mount(application)`
-returns a FastMCP server. That's the whole pitch.
+`mount(...)` takes either a built `Application` (shared across all clients) or a callable `() -> Application` (each MCP session gets its own state). Factory mode is the default for multi-client servers; instance mode is fine for single-user local tooling. Sessions get TTL + LRU eviction and per-session locks so concurrent calls don't race on Burr's not-thread-safe `Application`. An action can call `spawn_subapp(sub_app)` and the nested timeline becomes addressable at `burr://subruns/{id}`.
 
-The adapter does the wiring:
-
-- Each Burr `@action` becomes an MCP tool (or one meta-tool, or a
-  state-gated tool list; see "serving modes" below).
-- The full graph is advertised as a static `burr://graph` resource so
-  a connecting agent learns the topology in one read.
-- Current state and valid-next-actions are inlined on every tool
-  response so the agent doesn't have to keep polling.
-- Per-session isolation via factory mode; TTL/LRU eviction; session
-  locks so concurrent calls don't race on Burr's not-thread-safe
-  Application instance.
-- Sub-Application composition: an action can call
-  `spawn_subapp(sub_app)` and the nested timeline becomes addressable
-  at `burr://subruns/{id}`.
-- Five structured refusal classes (invalid transition, unknown action,
-  action error, action timeout, validation failed) recorded in a
-  per-session history resource.
-
-`mount(...)` accepts either a built `Application` (shared across all
-connected clients) or a callable `() -> Application` (each MCP
-session gets its own state). The factory form is the right default
-for multi-client servers; the instance form is fine for single-user
-local tooling.
-
-The example library covers the common shapes: see [Examples](#examples)
-for a CLI-wrapping git review server, a text adventure, an incident-
-response showcase, a flat-server lift, a sub-graph composition, and
-the toy coffee/triage FSMs. These mirror patterns from
-[Burr's own example library](https://github.com/apache/burr/tree/main/examples)
-applied to the MCP wire format.
+Refusals come in five structured classes (`invalid_transition`, `unknown_action`, `action_error`, `action_timeout`, `validation_failed`) and are all recorded in `burr://history`.
 
 ## Why bother
 
@@ -300,122 +270,84 @@ uv sync
 
 Python 3.11 through 3.13.
 
+
 ## Examples
 
-The `examples/` directory has eight self-contained servers covering
-the patterns most people will hit. Each is runnable as
-`uv run python examples/<file>.py` and can be wired into Claude Code
-via the snippet in `examples/claude-code.example.json`.
+`examples/` ships self-contained FSMs across these patterns. Each is runnable as `uv run python examples/<file>.py` and can be wired into Claude Code via `examples/claude-code.example.json`.
 
-| File | Pattern | Notes |
-|---|---|---|
-| `coffee_order.py` | Linear FSM | Smallest interesting example: `take_order → pay → fulfill`. |
-| `triage.py` | Branching FSM | Classify input, then route to one of three branches based on the result. |
-| `subgraphs.py` | Sub-Application composition | Parent action spawns a sub-FSM via `spawn_subapp`; nested timeline at `burr://subruns/{id}`. |
-| `parallel_research.py` | Parallel fan-out | Research agent over a markdown corpus organised into per-source subfolders. `research(query, corpus_dir=None)` defaults to the shipped corpus at `examples/data/parallel_research/{services,runbooks,faqs}/` but accepts any directory the caller points it at (supports `~` and relative paths). Parent action fans out one search sub-Application per source via `asyncio.gather`; each sub-app runs a four-step pipeline (`load_documents → score_documents → extract_snippets → summarize`). Pure-Python term-frequency search, no external deps. Each sub-run is its own subrun with the source as label. |
-| `granite_oncall.py` | LLM call inside the graph | On-call alert triage where two nodes call a real Granite model via Ollama. FSM provides the structure around the LLM: malformed outputs trigger retry-as-transition (max 3) before escalating to `route_to_human`. Requires `ollama serve` with `granite4.1:3b` pulled. |
-| `unix_health.py` | Deterministic ops checks via shellouts | System-health FSM that runs real `df`, `uptime`, `ps`, and `vm_stat` (macOS) or `free` (Linux) via `asyncio.create_subprocess_exec` and parses each tool's stdout. Triages overall severity, branches to clean report or critical alert with deep-dive detail (top mounts, top processes by RSS or CPU, zombie reaper hunt) on the worst subsystem. Raw stdout per check is recorded in `state.raw_outputs` so `burr://state` shows what an operator would have seen at the terminal. macOS + Linux (WSL on Windows). No LLM. |
-| `codebase_security.py` | Vulnerability audit with patch-overlay loop | Runs `bandit` + `detect-secrets` against a shipped vulnerable Python repo (`examples/data/codebase_security/vuln_demo/`), normalizes findings to a common schema with CWE IDs, severity, and per-CWE remediation hints. Remediation is search/replace patches recorded in state and applied to a tmpdir overlay on rescan; the original codebase on disk is never modified. Loop caps at 3 rounds; escalates when ≥2 critical/high findings persist across a rescan. |
-| `adaptive_crag.py` | Self-correcting RAG | Granite-graded RAG. `ask(question, corpus_dir=None)` defaults to the shipped parallel_research corpus but accepts any markdown directory. After retrieval and synthesis, a grader scores the answer 1-5 on grounding + relevance; bad grade rewrites the query and loops back to retrieval. Cap at 3 rounds. Based on CRAG ([Yan et al 2024](https://arxiv.org/abs/2401.15884)) with a simplified LLM-as-judge instead of a trained T5 evaluator. |
-| `skill_security_audit.py` | SKILL-to-FSM (caller LLM is the brain) | Real Claude Code SKILL (the MIT-licensed `examples/skills/security-audit/SKILL.md`) decomposed into a Burr FSM whose actions emit structured prompts for the caller LLM (Opus, Sonnet, Granite, whatever drives the MCP client). No server-side LLM, no scanners. Mode-branching on INSIDE / OUTSIDE / BOTH; OUTSIDE / BOTH require an `authorization_source` per the SKILL's written-authorization rule. Six phases gated as transitions. Four more skills ship in `examples/skills/` as reference for future conversions. |
-| `mellea_qiskit_migration.py` | Mellea-in-a-Burr-node | A real Mellea sample mirrored. One action (`mellea_repair_loop`) calls Mellea's `session.instruct` with a deterministic Qiskit-1.0 migration checker as the `validation_fn`; Mellea runs its internal generate-validate-repair loop and returns the chosen sample plus a per-attempt validation log. The FSM owns the workflow (accept input, branch on success/giveup) and the audit trail; Mellea owns the IVR loop. Migration patterns inlined from Qiskit's own deprecation guide so the demo runs without `flake8-qiskit-migration` installed. Pre-req for real runs: `pip install mellea` + Ollama with `granite4:micro` pulled. |
-| `streaming_narrate.py` | Streaming action | An action that yields intermediate chunks; each becomes an MCP progress notification, the final state arrives in the tool response. |
-| `with_otel.py` | OpenTelemetry spans | Burr's `OpenTelemetryBridge` wired into the factory; every action run emits a span. Console exporter for demo; swap for OTLP/Jaeger in production. |
-| `incident_response.py` | Showcase | Realistic ops workflow with all features (validators, sub-graphs, branching, conditional loop). The canonical Claude Code demo. |
-| `git_review.py` | CLI wrapping | An FSM whose actions wrap `git status` / `log` / `show` via subprocess. Demonstrates the "agent driving CLIs" pattern with FSM-enforced sequence. |
-| `adventure.py` | State-space traversal | Tiny text adventure where rooms are states and moves are gated transitions. Mirrors Burr's `llm-adventure-game`. Sharpest illustration of FSM-as-API. |
-| `http_serve.py` / `sse_serve.py` | Transports | Same coffee FSM served over Streamable HTTP / SSE. |
+**Pure FSM, no external deps:**
 
-For more FSM patterns to draw from, [Burr's example library](https://github.com/apache/burr/tree/main/examples)
-has 30+ Applications covering chatbots, RAG pipelines, ML training
-orchestration, recursive agents, and parallelism. Most of them can be
-mounted via `burrmcp.mount(...)` without modification, and the
-audit/transition/validator surface comes along for free.
+| File | Pattern |
+|---|---|
+| `coffee_order.py` | Linear FSM: `take_order -> pay -> fulfill`. |
+| `triage.py` | Branching FSM with conditional transitions. |
+| `adventure.py` | State-space traversal. Rooms are states, moves are gated transitions. |
+| `chargen.py` | Sequential narrowing wizard with strict ordering. |
+| `release_pipeline.py` | Agent refuses to skip-ahead. Gated tests/canary/promote. |
+| `local_shell.py` | Read-before-edit safety rails; patch-overlay via state. |
+| `incident_response.py` | Realistic ops workflow with all features. Canonical Claude Code demo. |
+| `subgraphs.py` | Sub-Application composition via `spawn_subapp`. |
+| `ml_training.py` | Non-LLM iterative training (pure stdlib logistic regression). |
+| `streaming_narrate.py` | Streaming actions as MCP progress notifications. |
+| `skill_security_audit.py` | SKILL-to-FSM. Caller LLM is the brain, no server-side LLM. |
 
-## Try it with Claude Code
+**Shellout / deterministic tooling:**
 
-The included `examples/incident_response.py` is a realistic ops
-workflow: an on-call engineer (or the agent) walks an incident from
-report to postmortem, with the server enforcing the order
-(`report → acknowledge → investigate → mitigate → verify →
-resolve → write_postmortem`), validating that severity is one of
-P1/P2/P3, and delegating the investigation step to a sub-graph whose
-timeline is addressable at `burr://subruns/{id}`.
+| File | Pattern |
+|---|---|
+| `unix_health.py` | Real `df` / `uptime` / `ps` / `vm_stat` shellouts with severity-branching diagnostics. |
+| `codebase_security.py` | Real `bandit` + `detect-secrets` against a shipped vulnerable repo; patch-overlay loop. |
+| `git_review.py` | Wraps `git status` / `log` / `show` via subprocess. |
 
-To wire it into Claude Code:
+**LLM-in-the-graph (server-side calls):**
 
-1. Copy `examples/claude-code.example.json` to `.mcp.json` in any
-   project you'd like to test from, and edit the absolute path under
-   `args[1]` to match your checkout of this repo.
-2. Run `claude` from that project. Use `/mcp` to confirm the
-   `incident-response` server connected.
-3. Try a happy-path prompt:
+| File | Pattern |
+|---|---|
+| `granite_oncall.py` | Granite via Ollama; retry-as-transitions for malformed output. |
+| `adaptive_crag.py` | Granite self-grading RAG; query-rewrite loop. Simplified CRAG ([Yan et al 2024](https://arxiv.org/abs/2401.15884)). |
+| `mellea_qiskit_migration.py` | Mellea's IVR loop wrapped as one Burr action. FSM owns workflow, Mellea owns the loop. |
 
-   > Open a P1 incident: API 500s started 5 minutes ago, reporter
-   > is alice. Then acknowledge as bob. Then run an investigation.
-   > Then read `burr://subruns` and tell me what the investigation
-   > found. Then mitigate by rolling back deploy 89a3. Verify the
-   > mitigation worked. Resolve the incident. Write a one-paragraph
-   > postmortem.
+**External-library coexistence and observability:**
 
-4. Try a refusal-path prompt:
+| File | Pattern |
+|---|---|
+| `hamilton_features.py` | Hamilton driver inside a Burr action body. No special integration. |
+| `burr_map_parallel.py` | Burr's native `MapStates` primitive; inline note documents the `RayExecutor` swap. |
+| `sqlite_persister.py` | Custom `BaseStatePersister`; `fork_from_past` round-trips through SQLite. |
+| `parallel_research.py` | `asyncio.gather` fan-out per source folder over a shipped markdown corpus. |
+| `with_otel.py` | `OpenTelemetryBridge` wired into the factory; spans for every action. |
+| `http_serve.py` / `sse_serve.py` | Same coffee FSM served over Streamable HTTP / SSE. |
 
-   > Open a Sev-2 incident: alerts firing on the queue worker.
+[Burr's own example library](https://github.com/apache/burr/tree/main/examples) has 30+ more Applications. Most mount via `burrmcp.mount(...)` unchanged; the compatibility matrix above is the source of truth on what's been exercised.
 
-   Severity `Sev-2` isn't P1/P2/P3, so the validator refuses and
-   returns the legal values. The model should retry with `P2`.
+## Try it
 
-5. Try an out-of-order prompt:
-
-   > Resolve incident INC-99 with resolution "rolled back".
-
-   No incident is open yet (FSM is at `report`), so the call comes
-   back as `invalid_transition` with `valid_next_actions: ["report"]`.
-
-The `burr://history` resource records every attempt, refusals and
-successes alike, so you can ask the agent: "show me the audit trail"
-and it'll read the resource and summarise.
-
-## Run other examples
+Stdio (default), for Claude Code / mcphost / any spawning client:
 
 ```bash
-uv run python examples/coffee_order.py
+uv run python examples/coffee_order.py               # direct
+uv run burrmcp serve coffee_order:build_application  # CLI form
 ```
 
-That starts the FastMCP server in stdio mode. Wire it into any MCP
-client with a config that points at the command.
-
-For HTTP deployments:
+HTTP, for browser or remote clients:
 
 ```bash
 uv run python examples/http_serve.py            # binds 127.0.0.1:8765
 BURR_MCP_PORT=9000 uv run python examples/http_serve.py
 ```
 
-Connect with a FastMCP client by URL:
+Wiring into Claude Code: copy `examples/claude-code.example.json` to `.mcp.json` in any project, edit the `args[1]` absolute path to match your checkout, then run `claude` and `/mcp` to confirm. `examples/mcphost.example.json` is the mcphost-flavored equivalent.
 
-```python
-from fastmcp import Client
-async with Client("http://127.0.0.1:8765/mcp") as client:
-    await client.call_tool("step", {"action": "take_order", "inputs": {"item": "latte"}})
-```
+A typical session against `incident_response`:
 
-`tests/test_http_transport.py` spawns this example as a subprocess
-and connects two concurrent HTTP clients to verify session isolation
-on the wire format.
+> Open a P2 incident, db latency spiking on shard 7. Reporter is alice.
+> Acknowledge as bob. Run an investigation. Read `burr://subruns` and
+> tell me what it found. Mitigate by rolling back deploy 89a3.
+> Verify. Resolve. Write a one-paragraph postmortem.
 
-To drive it from a local LLM with [mcphost](https://github.com/mark3labs/mcphost),
-copy `examples/mcphost.example.json` somewhere, edit the absolute path
-to match your checkout, then:
+Try `Resolve incident INC-99 with resolution "rolled back"` on a fresh session: the FSM is at `report`, so the call comes back as `invalid_transition` with `valid_next_actions: ["report"]`. The agent self-corrects from there.
 
-```bash
-mcphost --config /path/to/mcphost.json -m ollama:granite4.1:3b -p \
-  'Place a coffee order. Call step with action=take_order and inputs={"item":"latte","qty":1}, then step with action=pay and inputs={"amount":5.5}, then step with action=fulfill and inputs={}.'
-```
-
-The server returns the new state and `valid_next_actions` after each
-call. Try `pay` before `take_order` and the server returns
-`invalid_transition` with `valid_next_actions: ["take_order"]`.
+To observe the FSM live from another terminal: `uv run burrmcp watch` tails `~/.burr/<project>/<app-id>/log.jsonl` for the most-recently-touched session and pretty-prints each step.
 
 ## CLI
 
@@ -444,160 +376,6 @@ Exit code is `0` when there are no failures (warnings and info notes
 don't block) and `1` otherwise, so a `burrmcp doctor` invocation
 slots into CI. Importable from Python too: `from burrmcp.doctor
 import run_checks`.
-
-## Branching example
-
-`examples/triage.py` shows conditional transitions: after `classify`
-writes `severity` into state, the graph branches into `escalate`,
-`queue`, or `drop`. `burr://next` returns only the branch matching
-current state; calling the wrong branch is refused with the right one
-listed in the response.
-
-```bash
-burrmcp serve triage:build_application
-```
-
-## More self-contained demos
-
-`examples/chargen.py` is a six-stage D&D-style character builder:
-`begin -> choose_race -> choose_class -> assign_stats -> pick_skills
--> equip -> finalize`. Each step writes one slice of the character
-sheet and unlocks exactly one next step. Prompt your MCP client with
-"just finalize my character" and watch the FSM refuse, pointing at
-`begin` as the only legal next move.
-
-`examples/release_pipeline.py` is the canonical "agent refuses to
-skip-ahead" demo: a deploy pipeline that gates promotion behind tests,
-canary deployment, and at least two healthy canary observations. The
-demo line is "just promote this hotfix to prod". `step` returns
-`invalid_transition` with `valid_next_actions: ["submit_change"]`, and
-the agent has to walk through the gates instead. A degraded canary
-observation forces `rollback`; only `rollback` is callable, not
-`promote_to_prod`.
-
-`examples/local_shell.py` is a tiny Claude-Code-style local-shell
-agent with four safety rules baked into the FSM: you cannot
-`edit_file` a path you haven't `read_file`'d first, you cannot
-`create_file` over a path that already exists or is already
-pending, you cannot `commit` unless tests passed since the last
-edit (or create), and deletion is two-step (`request_delete` then
-`confirm_delete`). None of these rules are written in the agent's
-prompt; the server refuses unsafe sequences. Demo line: "edit
-main.py to print goodbye". A naive agent goes straight to
-`edit_file`, the server returns
-`"must read 'main.py' before editing it. Files read so far: []"`,
-and the agent self-corrects. Another demo line: "create main.py
-with new contents". `create_file` refuses because main.py already
-exists in workspace; the agent rewires to read-then-edit.
-
-All three work with no external dependencies. Wire them into Claude
-Code via `examples/claude-code.example.json`.
-
-`examples/granite_oncall.py` puts a real LLM call inside the graph.
-An on-call alert text comes in; the FSM runs two Granite calls
-(via Ollama) sandwiched around a deterministic corpus lookup:
-`report_alert -> classify_severity -> extract_service ->
-suggest_runbook -> format_response`. Each LLM step auto-retries up
-to three times on malformed output (severity not in `{P0,P1,P2,P3}`,
-service not in the known list), and after three strikes the FSM
-routes to a `route_to_human` terminal action with every Granite
-attempt captured in state so an operator can see what the model
-was saying. The retry loop is encoded as transitions, so each
-attempt is its own visible step in `burr://history` and the trace,
-not buried in a Python `while`. Requires Ollama running with
-`granite4.1:3b` pulled; tests monkey-patch the Granite call so
-they stay hermetic.
-
-`examples/unix_health.py` is a deterministic Unix system-health
-FSM that shells out to the canonical Unix tools an ops engineer
-would actually type: `df -k /` for disk, `vm_stat` (macOS) or
-`free -b` (Linux) for memory, `uptime` for load average, and
-`ps -A -o pid,stat,pcpu,comm` for processes. Each tool runs via
-`asyncio.create_subprocess_exec`; raw stdout per check is recorded
-in `state.raw_outputs` so `burr://state` shows the literal terminal
-output. The FSM computes overall severity as the max of the
-per-check statuses, then branches: a healthy or warning system
-goes straight to `produce_report`; a critical system routes
-through `deep_dive` (which runs an additional shellout for the
-worst subsystem, e.g. `df -k` for all mounts or `ps -A -o pid,rss,comm`
-sorted by RSS) into `raise_alert`. The triage node refuses the
-wrong terminal: `produce_report` is unreachable when any check is
-critical, and `deep_dive` is unreachable when nothing is critical.
-macOS and Linux supported; Windows via WSL.
-
-`examples/codebase_security.py` is the vulnerability-audit FSM.
-Points at a Python repo, runs real `bandit` and `detect-secrets`
-subprocesses, normalizes every finding to a common schema with CWE
-ID, severity, file:line, offending snippet, and a per-CWE
-remediation hint. The remediation loop is the interesting bit: the
-agent calls `propose_patch(file_path, search, replace)` one or more
-times (every patch is recorded in `state.patch_log` and visible in
-`burr://history`), optionally `acknowledge_finding` to suppress
-known-OK findings, then `confirm_fixes_applied` to trigger a
-rescan. The rescan copies the repo to a tmpdir, applies every
-recorded patch via literal string replace, runs the scanners
-against the overlay, and cleans the tmpdir up. The original
-codebase on disk is never modified, so the demo is re-runnable
-indefinitely. A stuck-counter forces escalation when ≥2 critical or
-high findings persist across a rescan; the budget caps at 3 rounds.
-Ships with a deliberately-vulnerable Python micro-app at
-`examples/data/codebase_security/vuln_demo/` covering CWE-89
-(SQL injection), CWE-78 (command injection), CWE-502 (insecure
-deserialization), CWE-95 (eval), CWE-327 (weak crypto), and CWE-798
-(hardcoded credentials).
-
-`examples/adaptive_crag.py` is self-correcting RAG over the
-`parallel_research` corpus. After retrieval and Granite synthesis,
-a second Granite call grades the answer 1-5 on grounding +
-relevance. A bad grade prompts a third Granite call to rewrite the
-search query, and the FSM loops back to retrieval. Cap at 3 rounds.
-Implements a simplified version of the CRAG pattern from
-[Yan et al 2024](https://arxiv.org/abs/2401.15884), with two
-simplifications: the trained T5 evaluator is replaced by an
-LLM-as-judge, and the corrective branch is a query rewrite rather
-than an external web fallback.
-
-`examples/skill_security_audit.py` takes a real Claude Code SKILL
-(the MIT-licensed web-app security audit at
-`examples/skills/security-audit/SKILL.md`) and decomposes its
-phases into a Burr FSM whose actions emit prompts for the *caller*
-LLM. No server-side LLM call, no scanners. Whoever is driving
-BurrMCP through MCP (Sonnet, Opus, Granite, whatever) processes
-the prompts; the FSM enforces order. Six phases: context detection
--> source review (INSIDE / BOTH only) -> blackbox review (OUTSIDE /
-BOTH only, requires `authorization_source` per the SKILL's "you
-need written authorization" rule) -> infra sweep -> rate-limit
-deep-dive -> write_advisory (terminal). The pitch: the SKILL was
-unstructured markdown; the FSM makes its order verifiable, every
-phase a visible step in `burr://history`, and the audit trail of
-prompts plus the agent's structured findings is the artifact.
-Complementary to `codebase_security.py` (real scanners against a
-vulnerable demo repo): that one is "scanners find findings", this
-one is "agent applies a SKILL under FSM-enforced order". Four more
-skills (`claude-api`, `mcp-builder`, `webapp-testing`,
-`skill-creator`) ship in `examples/skills/` as reference material
-for future SKILL-to-FSM conversions.
-
-`examples/mellea_qiskit_migration.py` integrates IBM Research's
-[Mellea](https://github.com/generative-computing/mellea) library
-as a single Burr action. Mellea is a generative-programming
-library whose `session.instruct` primitive runs an internal
-generate-validate-repair loop against natural-language requirements
-with deterministic `validation_fn` hooks; this demo mirrors
-Mellea's own
-[qiskit_code_validation](https://github.com/generative-computing/mellea/blob/main/docs/examples/instruct_validate_repair/qiskit_code_validation/qiskit_code_validation.py)
-sample. The FSM hands Mellea pre-Qiskit-1.0 code (uses
-`IBMQ.load_account()`, `execute(circuit, backend)`,
-`Aer.get_backend(...)`, `QasmSimulator()`); the deterministic
-checker validates each Mellea sample against the Qiskit 1.0
-deprecation patterns; Mellea repairs until clean or the budget
-exhausts. The FSM then routes to `finalize_success` or
-`finalize_giveup` based on a canonical re-check on the chosen
-sample. Mellea owns the IVR loop; Burr owns the workflow and the
-audit trail visible in `burr://state` and `burr://history`. Mellea
-is lazy-imported inside `_call_mellea` so the example module is
-importable without Mellea installed; tests monkey-patch the
-wrapper for hermetic runs.
 
 ## Tests
 
@@ -692,300 +470,6 @@ on next call" behavior.
   `burrmcp` decides whether the call is allowed.
 - Not a workflow engine. No retries, no durability, no scheduling.
   Use Temporal if you need those.
-
-## Roadmap
-
-Shipped in v0.1.0:
-
-- Per-session isolation via factory mode.
-- Branching example (conditional transitions).
-- `burrmcp serve module:attr` CLI.
-- CI on 3.11/3.12/3.13.
-
-Shipped in v0.2.0:
-
-- `burr://history` resource: per-session audit trail of every action
-  attempt (successes and refusals).
-- DYNAMIC mode now uses `ctx.enable_components` / `ctx.disable_components`
-  for true per-session visibility. Concurrent sessions see independent
-  tool lists, verified by `tests/test_dynamic_per_session.py`. The
-  earlier version used the server-wide `mcp.enable`/`mcp.disable`,
-  which leaked visibility across sessions.
-
-Shipped in v0.3.0:
-
-- Session-store eviction: TTL + max-size, lazy, configurable via
-  `mount(..., session_ttl_seconds=..., max_sessions=...)`. Defaults
-  to 3600 seconds and 100 sessions.
-- `examples/http_serve.py`: Streamable HTTP example.
-- `tests/test_http_transport.py`: spawns the HTTP example as a
-  subprocess and drives it with two concurrent HTTP clients to
-  verify per-session isolation on the wire format.
-
-Shipped in v1.9.0:
-
-- Every tool response (step, reset_session, fork_at, fork_from_past)
-  now carries an `app_id` field. Clients tracking sessions across
-  server restarts have a stable id to remember without fishing it
-  out of `burr://trace`.
-- `fork_from_past` generalized to support any Burr `BaseStateLoader`,
-  not just `LocalTrackingClient`. Pass `state_loader=...` to `mount()`
-  and resume works against custom SQLite/postgres/S3 persisters.
-  Three-tier source resolution: explicit loader wins, then the
-  Application's `LocalTrackingClient` if present, then refuse.
-- `fork_from_past` accepts an optional `partition_key` parameter for
-  persisters that use partitioned storage.
-
-Shipped in v1.8.0:
-
-- `fork_from_past(app_id, sequence_id)` meta-tool. Loads a persisted
-  Burr run from disk and rewinds the session to that state. Lets an
-  agent resume a session across server restarts (track the app_id
-  on the client, restore here after reconnect) or fork from any
-  past persisted run, not just the current session's in-memory
-  history. Requires the Application to have a `LocalTrackingClient`
-  attached (the same setup that powers `burr://trace`). Refuses
-  cleanly when the app_id doesn't exist on disk, when no tracker is
-  attached, or in shared-app mode.
-- `fork_from_past` joins `reset_session`, `fork_at`, and the others
-  in `burr://graph`'s `meta_tools` advertisement so a connecting
-  agent discovers it during cold-start.
-
-Shipped in v1.7.0:
-
-- OpenTelemetry observability via Burr's `OpenTelemetryBridge`
-  lifecycle adapter. Wire it into your Application factory with
-  `.with_hooks(OpenTelemetryBridge(tracer_name=...))` and every
-  action run emits a span. Works transparently through the MCP wire:
-  spans from `step`, `spawn_subapp`, streaming actions, `fork_at`,
-  all flow through the same bridge.
-- New `[observability]` install extra: `pip install
-  'burrmcp[observability]'` pulls Burr's opentelemetry extra plus
-  the core OTel API/SDK.
-- `examples/with_otel.py` demonstrates the full wire-up with a
-  console span exporter. Swap the exporter for OTLP/Jaeger/Honeycomb
-  by changing one line.
-
-Shipped in v1.6.0:
-
-- Streaming Burr actions plumbed through to MCP progress
-  notifications. When an action is decorated with
-  `@streaming_action`, the adapter detects it (via the
-  `action.streaming` attribute) and uses `app.astream_result` instead
-  of `astep`. Each yielded chunk is forwarded to the client via
-  `ctx.report_progress` (the MCP-spec mechanism for partial results
-  during a long-running tool call); the final state arrives in the
-  regular tool response with `streamed: true` and a `chunks` count.
-- `examples/streaming_narrate.py`: a streaming narration action that
-  yields chunks of a generated story. Works with any client that
-  honours progress notifications (Claude Code does).
-- Clients that don't supply a progress token still get the final
-  result; intermediate chunks are dropped silently. The streaming
-  path stays robust to that.
-
-Shipped in v1.5.0:
-
-- Parallel sub-Application spawn works without any new code in the
-  adapter. ``spawn_subapp`` intentionally doesn't acquire the
-  session lock, so an action body can call it inside
-  ``asyncio.gather`` to fan out: N sub-applications run concurrently,
-  each becomes its own ``burr://subruns/{id}`` entry, and the parent
-  history entry lists every spawned id under ``subruns``.
-  ``examples/parallel_research.py`` is the canonical pattern. The
-  timing test proves five 50ms sub-apps complete in under 200ms
-  rather than the 250ms a serial walk would take.
-
-Shipped in v1.4.0:
-
-- `fork_at(sequence_id)` meta-tool. Rewind the session's Application
-  to the state captured after any prior history entry, letting an
-  agent explore alternate paths without disconnecting. Implemented
-  via the in-memory `burr://history`, so it works without users
-  having to wire up a Burr `LocalTrackingClient`. Refuses to fork to
-  a refusal entry, to a meta-tool entry (would be a hall of mirrors),
-  or in shared-app mode.
-- Typed state schemas in `burr://graph`. If the Application is built
-  with Burr's `PydanticTypingSystem`, the full state JSON schema
-  (one Pydantic model) is surfaced under `state_schema` so an MCP
-  client gets the typed shape without inspecting each action's
-  writes. Untyped state shows `state_schema: null`.
-- Discovery hint in server instructions now mentions both
-  `reset_session` and `fork_at` so an agent learns both escape
-  hatches at cold start.
-
-Shipped in v1.3.0:
-
-- `reset_session` MCP tool. Always callable regardless of FSM state.
-  In factory mode, rebuilds the session's Application via the factory,
-  clears any spawned sub-runs, and appends a `reset_session` marker
-  to history (prior entries preserved, so the audit trail shows the
-  reset rather than wiping it). In shared-app mode, refuses with a
-  structured `reset_not_supported` error explaining why. Surfaced in
-  `burr://graph` under a new `meta_tools` field so a connecting agent
-  discovers the escape hatch during cold-start.
-- The cold-start discovery hint in server instructions now mentions
-  `reset_session` so agents know to call it after reaching a terminal
-  state or a dead-end branch, instead of asking the human to restart
-  the server.
-
-Surfaced by a real Claude Code session: an agent that walked the
-adventure to victory wanted to try the alternate path, correctly
-diagnosed that the FSM was terminal, and asked whether the server
-exposed a reset mechanism. It didn't. Now it does.
-
-Shipped in v1.2.0:
-
-- Two new examples for the quickstart library:
-  - `examples/git_review.py`: CLI-wrapping FSM that runs real `git`
-    commands via subprocess and forces a useful inspection sequence
-    (`status → recent_commits → show_commit → summarize`). The
-    canonical example of the "wrap CLIs as gated actions" pattern.
-  - `examples/adventure.py`: text adventure with rooms as states
-    and inventory-gated moves, mirroring Burr's `llm-adventure-game`.
-    The FSM-as-API pitch at its sharpest.
-- Sharpened README opening to lead with the one-line definition
-  ("an adapter that turns a Burr state machine into an MCP server")
-  and a new `## Examples` table indexing all eight examples.
-- Bug fix: `_step_application` now forces Burr to execute the
-  specifically-requested action via a one-call override of
-  `app.get_next_action`. Previously, in branching graphs where two
-  transitions from the same source both satisfied their conditions,
-  Burr's `astep` ran whichever was listed first regardless of what
-  the client asked for. The adventure example surfaced it; the fix
-  is contained and tracker hooks still fire normally through Burr's
-  regular `_astep` machinery.
-
-Shipped in v1.1.0:
-
-- `burr://graph` resource. Static description of the FSM topology
-  (actions with their reads/writes/inputs/docstring, transitions with
-  their conditions). Computed once at mount time. Lets a connecting
-  model learn the whole graph in one read instead of inferring it
-  from trial-and-error or per-tool docstrings.
-- Server-level `instructions` now include a one-line discovery hint
-  pointing at `burr://graph`, so the model sees it before its first
-  tool call. User-supplied `instructions` are preserved alongside.
-
-Shipped in v1.0.1:
-
-- `burr://subruns` index entries now include a fully-rendered ``uri``
-  field (e.g. ``burr://subruns/sub-abc...``) so consumers don't have
-  to construct the URI from the template.
-- History entries that spawned sub-runs now carry both ``subruns``
-  (bare ids) and ``subrun_uris`` (rendered URIs) so a client reading
-  ``burr://history`` can follow cross-references without inference.
-
-Shipped in v1.0.0:
-
-- Subgraph mounting. A Burr action body can call
-  `await burrmcp.spawn_subapp(sub_app, label=...)` to delegate a
-  multi-step procedure to a sub-Application. The sub-run's timeline
-  is recorded under the parent session and addressable via two new
-  MCP resources: `burr://subruns` (index) and
-  `burr://subruns/{id}` (full record). The parent action's history
-  entry carries the new subrun ids under a `subruns` field so a
-  client can correlate parent action with child timeline.
-- The session entry now also tracks a ContextVar so spawn_subapp
-  knows which session it's running inside without callers having to
-  thread context manually.
-- `examples/subgraphs.py` shows the pattern end-to-end with a
-  three-step investigation sub-graph spawned from a parent FSM.
-
-Shipped in v0.9.0:
-
-- Input validators. A callable that runs between MCP arrival and
-  action execution; can refuse the call with `ValidationFailed`,
-  return a dict to substitute normalised inputs, or return None to
-  accept the originals. Sync and async both supported. Three ways to
-  declare:
-  - `mount(input_validators={"action_name": fn, ...})` server-wide.
-  - `ToolSpec(validator=fn)` per-tool via the importer.
-  - `fn._burrmcp_validator = callable` on a hand-written Burr action.
-  Refusals show up as `error: "validation_failed"` on the wire and
-  `refusal_reason: "validation_failed"` in history, with the validator's
-  reason and details preserved.
-
-Shipped in v0.8.0:
-
-- `examples/sse_serve.py`: serve over the older SSE transport for
-  clients that don't yet support Streamable HTTP.
-- Per-action timeout overrides. `ToolSpec(timeout_seconds=N)` in the
-  importer applies a timeout to that action only, regardless of the
-  server-wide `action_timeout_seconds`. Hand-written Burr actions can
-  opt in by setting `fn._burrmcp_timeout_seconds = N` on the
-  decorated function.
-
-Shipped in v0.7.0:
-
-- `burr://trace` resource: read-through of Burr's on-disk
-  `LocalTrackingClient` log for the current session's Application.
-  Closes the cross-reference gap between BurrMCP's in-memory
-  `burr://history` and Burr's own structured trace format. Capped at
-  1000 most-recent records to keep the wire payload bounded. Path
-  resolution is safe against `app.uid` containing traversal sequences.
-  Requires the Application to have been built with
-  `.with_tracker(LocalTrackingClient(project=...))`; otherwise
-  returns a `no_tracker` error explaining how to enable it.
-
-Shipped in v0.6.0:
-
-- Action timeouts. `mount(..., action_timeout_seconds=N)` wraps every
-  action invocation in `asyncio.wait_for`. On expiry the coroutine is
-  cancelled, the call returns `{"error": "action_timeout"}` to the
-  client, the timeout is recorded in `burr://history` with
-  `refusal_reason: "action_timeout"`, and the FSM does not advance.
-  Default is `None` (no timeout, original behavior). Cancellation is
-  prompt for async I/O work; best-effort for sync or CPU-bound work.
-
-Shipped in v0.5.0:
-
-- `burr_app_from_fastmcp(...)` importer: lift an existing FastMCP
-  server's tools into a Burr Application by declaring per-tool
-  reads/writes plus the legal transitions. The result re-mounts via
-  `mount()` like any other Burr Application, gaining transition
-  enforcement, audit history, per-session isolation, eviction, and
-  everything else BurrMCP provides.
-- `ToolSpec` dataclass for the per-tool declarations:
-  `reads`/`writes`/`merge_result`/`state_update`/`rename`.
-- `tests/test_importing.py` covers the full importer surface end-to-end
-  (state-mutation declaration, conditional transitions, rename, the
-  rejection of duplicate-tool registration, signature preservation
-  across async/sync).
-
-Shipped in v0.4.0 (hardening for frontier-model deployments):
-
-- Action exceptions are captured. If an action's wrapped function
-  raises, the adapter wraps it as `ActionExecutionError`, returns a
-  structured `{"error": "action_error", "error_type": "...",
-  "error_message": "..."}` to the client, records the same shape in
-  `burr://history` with `refusal_reason: "action_error"`, and does
-  not advance state. The session stays at its prior position.
-- Per-session `asyncio.Lock` around `app.astep`. Burr Applications
-  are not thread-safe and the MCP protocol permits parallel tool
-  calls within one session; the lock serialises them. Different
-  sessions still proceed in parallel.
-- Non-JSON-serialisable state values are coerced to strings rather
-  than silently breaking the resource. The state response surfaces
-  affected keys under `_burrmcp.coerced_keys` so the client knows
-  the round-trip is lossy.
-- Burr pinned to `>=0.40.2,<0.41` since we rely on internal API
-  surface (`Action.fn`, `Action.inputs` tuple shape, `__PRIOR_STEP`).
-
-Shipped in v1.10.0:
-
-- `burrmcp doctor module:attr` CLI subcommand for static validation
-  before mounting. Checks: target resolves, factory builds, every
-  action is reachable from the entrypoint, terminal nodes are
-  surfaced, every state-key read has a writer or initial seed, orphan
-  initial keys are flagged. Importable as
-  `from burrmcp.doctor import run_checks` for use in tests too.
-
-Next (v1.x):
-
-- Public PyPI release.
-- WebSocket transport example.
-- Optional Pydantic-model output schemas surfaced as MCP tool
-  `outputSchema` for stronger client contracts.
 
 ## License
 
