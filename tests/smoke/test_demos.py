@@ -21,8 +21,9 @@ SKILL wrong" regressions that pytest can't see.
 Prerequisites
 -------------
 
-* `claude` CLI on PATH and logged in (`claude login`); the Agent SDK
-  inherits this OAuth session. Without a credentials file, every
+* `claude` CLI on PATH and signed in (`claude auth login` once); the
+  Agent SDK inherits this OAuth session via the macOS keychain (or
+  the platform-equivalent secure store). When auth is missing, every
   test in this module is converted to a skip with a clear message
   instead of failing opaquely.
 * `~/burr-mcp-demo/.mcp.json` present and pointing at this repo.
@@ -74,15 +75,30 @@ except ImportError:  # pragma: no cover - covered by the dep being present
     pytest.skip("claude-agent-sdk not installed", allow_module_level=True)
 
 
-# The Agent SDK reads OAuth credentials from ~/.claude/.credentials.json
-# when running against a Claude subscription. If that file is missing the
-# subprocess exits fast with an opaque "error result: success" message;
-# skip cleanly so the user sees a "run claude login" hint instead.
-_CREDENTIALS_FILE = Path("~/.claude/.credentials.json").expanduser()
-if not _CREDENTIALS_FILE.exists():
+# Credentials live in the platform-native secure store (macOS keychain,
+# DPAPI on Windows, libsecret on Linux), so a file-presence check is
+# unreliable. Use `claude auth status --json` instead: cross-platform,
+# instant, and tells us exactly whether the SDK subprocess will be
+# able to authenticate.
+import json as _json
+import subprocess
+
+try:
+    _auth_proc = subprocess.run(
+        ["claude", "auth", "status"],
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    _auth_info = _json.loads(_auth_proc.stdout or "{}")
+    _logged_in = bool(_auth_info.get("loggedIn"))
+except (subprocess.SubprocessError, _json.JSONDecodeError, FileNotFoundError):
+    _logged_in = False
+
+if not _logged_in:
     pytest.skip(
-        "Smoke tests require Claude OAuth credentials. Run `claude login` "
-        f"once, then re-run `pytest -m smoke`. Looked for: {_CREDENTIALS_FILE}",
+        "Smoke tests require Claude OAuth. Run `claude auth login` once, "
+        "then re-run `pytest -m smoke`.",
         allow_module_level=True,
     )
 
@@ -93,8 +109,8 @@ if not _CREDENTIALS_FILE.exists():
 async def _drive(
     prompt: str,
     *,
-    max_budget_usd: float = 0.25,
-    max_turns: int = 20,
+    max_budget_usd: float = 5.0,
+    max_turns: int = 30,
 ) -> dict[str, Any]:
     """Send `prompt` to Claude with the demo bench wired in, collect the trace.
 
@@ -256,7 +272,7 @@ async def test_skill_security_audit_refuses_outside_without_authorization():
         "in OUTSIDE mode, with NO authorization_source set (we want to see "
         "the SKILL's authorization gate fire). Just try the start_audit "
         "call once; don't retry or work around it.",
-        max_budget_usd=0.25,
+        max_budget_usd=3.0,
         max_turns=15,
     )
     audit_calls = _calls_to(trace["tool_calls"], "mcp__skill-security-audit__step")
@@ -299,8 +315,8 @@ async def test_incident_response_walks_through_multi_phase_workflow():
         "Acknowledge as bob. Run an investigation. Mitigate by rolling "
         "back deploy 89a3. Verify. Resolve. Write a one-paragraph "
         "postmortem. Walk the full FSM; don't ask me for more details.",
-        max_budget_usd=0.50,
-        max_turns=30,
+        max_budget_usd=10.0,
+        max_turns=40,
     )
     incident_calls = _calls_to(trace["tool_calls"], "mcp__incident-response__step")
     assert len(incident_calls) >= 5, (
