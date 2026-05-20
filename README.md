@@ -46,6 +46,7 @@ including parallelism, persistence, telemetry, and library coexistence:
 | `with_tracker(LocalTrackingClient)` | Yes; surfaced at `burr://trace` | every narrative demo |
 | `with_state_persister(BaseStatePersister)` | Yes | `sqlite_persister` |
 | `with_typed_state(Pydantic)` | Yes; JSON schema exported via `burr://graph` `state_schema` | `typed_state_loan` |
+| `@pydantic_action` decorator | Yes; subset-model machinery surfaces the action's typed slice | `pydantic_actions` |
 | `with_parallel_executor(...)` | Yes (default thread-pool); `RayExecutor` swap documented inline | `burr_map_parallel` |
 | `MapStates` / parallel sub-runs | Yes | `burr_map_parallel` |
 | Streaming actions | Yes; emitted as MCP progress notifications | `streaming_narrate` |
