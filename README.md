@@ -60,6 +60,7 @@ including parallelism, persistence, telemetry, and library coexistence:
 | Span tracing hooks (`PreStartSpanHook`, `PostEndSpanHook`, `DoLogAttributeHook`) via the `__tracer` parameter | Yes; user-defined hook captures sub-span trees and attribute logs alongside `OpenTelemetryBridge` | `custom_telemetry`, `with_otel` |
 | `ApplicationBuilder.initialize_from(persister, fork_from_app_id=..., fork_from_sequence_id=...)` (builder-level state forking) | Yes; two Applications share an initial state via a persister, then walk independently with their own `uid`s | `state_forking`, `sqlite_persister` |
 | `AsyncBaseStatePersister` + `PersisterHookAsync` | Yes; `await persister.save(...)` runs inline on the MCP step path (adapter drives `astep`, hooks fire async) | `async_persister` |
+| `@trace` decorator (auto-span any function called from an action) | Yes; nested call graph maps onto the span tree, inputs/outputs auto-logged as attributes | `trace_decorator` |
 | `with_graph(Graph)` / `with_graphs(...)` (reusable graph fragments) | Yes; same `Graph` object embedded in multiple Applications | `subgraph_composition` |
 | Class-based `Action` subclasses (escape from `@action`) | Yes; one class, configured instances | `class_action` |
 | Hamilton driver inside an action body | Yes (no special integration) | `hamilton_features` |
