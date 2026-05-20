@@ -214,7 +214,7 @@ keep its own model of the graph can recover from one error.
 
 ## Resources
 
-Every mounted server registers seven MCP resources:
+Every mounted server registers eight MCP resources:
 
 | URI | Returns |
 |---|---|
@@ -223,6 +223,7 @@ Every mounted server registers seven MCP resources:
 | `burr://next` | Action names reachable from the current state. Empty list after a terminal action. |
 | `burr://history` | Per-session timeline of every action attempted (successes and refusals). |
 | `burr://trace` | Burr's on-disk `LocalTrackingClient` log for the current session's Application. Capped at 1000 most-recent records. Returns `{"error": "no_tracker"}` if no `LocalTrackingClient` was attached. |
+| `burr://session` | Tracker coordinates for this session: `{project, app_id, app_dir, partition_key}`. Lets a client (or terminal tooling) locate the session's data on disk without guessing. `project` and `app_dir` are null when no `LocalTrackingClient` is attached. |
 | `burr://subruns` | Index of sub-Application runs spawned in this session via `spawn_subapp`. Each entry has `id`, `uri`, `label`, `started_ts`, `ended_ts`, `parent_action`. |
 | `burr://subruns/{id}` | Full record for one sub-run: id, label, timestamps, in-memory history, final state, and any error. |
 
