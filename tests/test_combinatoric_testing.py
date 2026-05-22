@@ -16,7 +16,6 @@ Three layers:
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
@@ -232,19 +231,19 @@ async def test_mcp_step_through_full_search():
     server = build_server()
     async with Client(server) as client:
         r = await client.call_tool("step", {"action": "initialize"})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["action"] == "initialize"
 
         r = await client.call_tool(
             "step",
             {"action": "propose_and_run", "inputs": {"values": [1, 2, 3, 4, 5], "p": 80}},
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["action"] == "propose_and_run"
         assert out["state"]["last_trial"]["abs_diff"] == pytest.approx(0.2)
 
         r = await client.call_tool("step", {"action": "finalize"})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["action"] == "finalize"
         assert out["state"]["summary"]["trials"] == 1
         assert out["state"]["summary"]["best"]["abs_diff"] == pytest.approx(0.2)

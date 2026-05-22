@@ -17,7 +17,6 @@ happens in CI scope.
 
 from __future__ import annotations
 
-import json
 import sqlite3
 
 import pytest
@@ -235,7 +234,7 @@ async def test_fork_from_past_restores_state_from_sqlite(tmp_path):
             "fork_from_past",
             {"app_id": past_app_id, "sequence_id": -1, "partition_key": ""},
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["action"] == "fork_from_past"
         assert out["result"]["loaded_app_id"] == past_app_id
         assert out["state"]["counter"] == 3
@@ -269,7 +268,7 @@ async def test_fork_from_past_at_explicit_sequence_id(tmp_path):
             "fork_from_past",
             {"app_id": past_app_id, "sequence_id": 1, "partition_key": ""},
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["state"]["counter"] == 1
         assert out["result"]["from_action"] == "tick"
 
@@ -293,7 +292,7 @@ async def test_fork_from_past_unknown_app_id_refuses(tmp_path):
             "fork_from_past",
             {"app_id": "no-such-uid", "sequence_id": -1, "partition_key": ""},
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "unknown_past_run"
 
 

@@ -98,7 +98,7 @@ async def test_session_app_id_matches_step_response(tmp_path, monkeypatch):
         session_text = (await client.read_resource("burr://session"))[0].text
         session_info = json.loads(session_text)
         step_result = await client.call_tool("step", {"action": "tick"})
-        step_payload = json.loads(step_result.content[0].text)
+        step_payload = step_result.structured_content
         assert step_payload["app_id"] == session_info["app_id"]
 
 
@@ -115,7 +115,7 @@ async def test_step_response_carries_tracker_project(tmp_path, monkeypatch):
     )
     async with Client(server) as client:
         result = await client.call_tool("step", {"action": "tick"})
-        payload = json.loads(result.content[0].text)
+        payload = result.structured_content
         assert payload["tracker_project"] == project
         assert "app_id" in payload
 
@@ -126,5 +126,5 @@ async def test_step_response_tracker_project_null_without_tracker():
     server = mount(_untracked_app, mode=ServingMode.STEP, name="step-no-tracker")
     async with Client(server) as client:
         result = await client.call_tool("step", {"action": "tick"})
-        payload = json.loads(result.content[0].text)
+        payload = result.structured_content
         assert payload["tracker_project"] is None

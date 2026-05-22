@@ -66,7 +66,7 @@ async def test_validator_refusal_returns_structured_error():
             "step",
             {"action": "place_order", "inputs": {"item": "latte", "qty": -1}},
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "validation_failed"
         assert out["reason"] == "qty must be positive"
         assert out["details"]["field"] == "qty"
@@ -128,7 +128,7 @@ async def test_validator_accepting_advances_normally():
             "step",
             {"action": "place_order", "inputs": {"item": "latte", "qty": 1}},
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert "error" not in out
         assert out["state"]["qty"] == 1
 
@@ -152,7 +152,7 @@ async def test_validator_can_substitute_normalised_inputs():
             "step",
             {"action": "place_order", "inputs": {"item": "LATTE", "qty": 1}},
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["state"]["item"] == "latte"
 
 
@@ -176,7 +176,7 @@ async def test_async_validators_supported():
             "step",
             {"action": "place_order", "inputs": {"item": "latte", "qty": 999}},
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "validation_failed"
         assert out["reason"] == "qty too large"
 
@@ -211,7 +211,7 @@ async def test_tool_spec_validator_wires_through_importer():
     server = mount(app, mode=ServingMode.STEP, name="lifted-validator")
     async with Client(server) as client:
         r = await client.call_tool("step", {"action": "buy", "inputs": {"item": "x", "amount": -5}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "validation_failed"
         assert out["reason"] == "amount must be > 0"
 
@@ -247,7 +247,7 @@ async def test_hand_tagged_validator_via_function_attribute():
     server = mount(factory, mode=ServingMode.STEP, name="hand-tagged-v")
     async with Client(server) as client:
         r = await client.call_tool("step", {"action": "tagged", "inputs": {"qty": 0}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "validation_failed"
 
 
@@ -273,6 +273,6 @@ async def test_validator_returning_non_dict_is_caught():
         r = await client.call_tool(
             "step", {"action": "place_order", "inputs": {"item": "latte", "qty": 1}}
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "validation_failed"
         assert "non-dict" in out["reason"]

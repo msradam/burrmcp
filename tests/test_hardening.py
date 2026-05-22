@@ -53,7 +53,7 @@ async def test_action_error_returns_structured_response_and_records_history():
     server = mount(_erroring_app, mode=ServingMode.STEP, name="boom")
     async with Client(server) as client:
         r = await client.call_tool("step", {"action": "boom", "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "action_error"
         assert out["error_type"] == "RuntimeError"
         assert "intentional failure" in out["error_message"]

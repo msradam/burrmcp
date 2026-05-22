@@ -14,7 +14,6 @@ live round-trip through the in-process Client where the
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
@@ -108,7 +107,7 @@ async def test_normal_object_inputs_still_work():
             "step",
             {"action": "take_order", "inputs": {"item": "latte"}},
         )
-        payload = json.loads(r.content[0].text)
+        payload = r.structured_content
         assert payload.get("error") is None, payload
         assert payload["state"]["item"] == "latte"
 
@@ -131,7 +130,7 @@ async def test_string_inputs_round_trip_through_server():
             "step",
             {"action": "take_order", "inputs": '{"item": "mocha"}'},
         )
-        payload = json.loads(r.content[0].text)
+        payload = r.structured_content
         assert payload.get("error") is None, payload
         assert payload["state"]["item"] == "mocha"
         assert payload["state"]["stage"] == "ordered"

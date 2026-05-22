@@ -62,7 +62,7 @@ async def test_slow_action_is_cancelled_and_returns_timeout_error():
     )
     async with Client(server) as client:
         r = await client.call_tool("step", {"action": "slow_step", "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "action_timeout"
         assert out["requested"] == "slow_step"
         assert out["timeout_seconds"] == 0.2
@@ -116,7 +116,7 @@ async def test_fast_action_under_timeout_succeeds_normally():
     )
     async with Client(server) as client:
         r = await client.call_tool("step", {"action": "fast_step", "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         # No error key; state advanced.
         assert "error" not in out
         assert out["state"]["done"] is True
@@ -148,6 +148,6 @@ async def test_no_timeout_means_no_wait_for():
     )
     async with Client(server) as client:
         r = await client.call_tool("step", {"action": "medium_step", "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert "error" not in out
         assert out["state"]["done"] is True

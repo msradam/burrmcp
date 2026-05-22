@@ -10,7 +10,6 @@ transition gates on triage.
 
 from __future__ import annotations
 
-import json
 import sys
 from collections import deque
 from pathlib import Path
@@ -242,7 +241,7 @@ async def test_configure_rejects_negative_disk_pct():
     server = build_server()
     async with Client(server) as client:
         r = await client.call_tool("step", {"action": "configure", "inputs": {"disk_pct": -1}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "action_error"
         assert "disk_pct" in out["error_message"]
 
@@ -252,7 +251,7 @@ async def test_configure_rejects_memory_pct_over_100():
     server = build_server()
     async with Client(server) as client:
         r = await client.call_tool("step", {"action": "configure", "inputs": {"memory_pct": 150}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "action_error"
 
 
@@ -287,7 +286,7 @@ async def test_walk_to_produce_report_on_clean_host(monkeypatch):
         ]:
             await client.call_tool("step", {"action": act, "inputs": {}})
         r = await client.call_tool("step", {"action": "produce_report", "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["state"]["overall_severity"] == "healthy"
         assert out["state"]["report"]["overall_severity"] == "healthy"
         for key in ("disk", "memory", "load", "processes"):
@@ -323,12 +322,12 @@ async def test_walk_to_raise_alert_when_disk_critical(monkeypatch):
         ]:
             await client.call_tool("step", {"action": act, "inputs": {}})
         r = await client.call_tool("step", {"action": "deep_dive", "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["state"]["overall_severity"] == "critical"
         assert out["state"]["worst_subsystem"] == "disk"
         assert "top_mounts" in out["state"]["deep_dive"]
         r = await client.call_tool("step", {"action": "raise_alert", "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["state"]["report"]["overall_severity"] == "critical"
         assert out["state"]["report"]["worst_subsystem"] == "disk"
 
@@ -362,7 +361,7 @@ async def test_walk_to_raise_alert_when_zombies_critical(monkeypatch):
         ]:
             await client.call_tool("step", {"action": act, "inputs": {}})
         r = await client.call_tool("step", {"action": "deep_dive", "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["state"]["worst_subsystem"] == "processes"
         assert len(out["state"]["deep_dive"]["zombies"]) == 3
 
@@ -397,7 +396,7 @@ async def test_triage_to_produce_report_invalid_when_critical(monkeypatch):
         ]:
             await client.call_tool("step", {"action": act, "inputs": {}})
         r = await client.call_tool("step", {"action": "produce_report", "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "invalid_transition"
         assert out["valid_next_actions"] == ["deep_dive"]
 
@@ -423,7 +422,7 @@ async def test_raw_outputs_recorded_verbatim(monkeypatch):
         await client.call_tool("step", {"action": "configure", "inputs": {}})
         await client.call_tool("step", {"action": "check_disk", "inputs": {}})
         r = await client.call_tool("step", {"action": "check_memory", "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert "Filesystem" in out["state"]["raw_outputs"]["disk"]
         assert "/dev/disk1s5" in out["state"]["raw_outputs"]["disk"]
 
@@ -441,6 +440,6 @@ async def test_check_disk_surfaces_command_failure(monkeypatch):
     async with Client(server) as client:
         await client.call_tool("step", {"action": "configure", "inputs": {}})
         r = await client.call_tool("step", {"action": "check_disk", "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "action_error"
         assert "df" in out["error_message"]

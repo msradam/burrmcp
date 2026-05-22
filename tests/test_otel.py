@@ -13,8 +13,6 @@ body.
 
 from __future__ import annotations
 
-import json
-
 import pytest
 from burr.core import ApplicationBuilder, State, action
 from burr.integrations.opentelemetry import OpenTelemetryBridge
@@ -162,7 +160,7 @@ async def test_streaming_action_still_emits_span(otel_exporter):
     server = mount(factory, mode=ServingMode.STEP, name="otel-streaming")
     async with Client(server) as client:
         r = await client.call_tool("step", {"action": "narrate", "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["streamed"] is True
 
     spans = otel_exporter.get_finished_spans()

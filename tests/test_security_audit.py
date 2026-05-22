@@ -27,7 +27,7 @@ async def _step(client, action, **inputs):
 
 
 def _payload(result):
-    return json.loads(result.content[0].text)
+    return result.structured_content
 
 
 # ── start_audit validation ─────────────────────────────────────────

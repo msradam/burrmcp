@@ -7,7 +7,6 @@ that the SHA validator catches a fabricated commit hash.
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
@@ -25,13 +24,13 @@ async def test_full_git_review_walk():
     server = build_server()
     async with Client(server) as client:
         r = await client.call_tool("step", {"action": "status", "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["state"]["branch"]
         assert out["state"]["status_output"] is not None
         assert out["valid_next_actions"] == ["recent_commits"]
 
         r = await client.call_tool("step", {"action": "recent_commits", "inputs": {"count": 5}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         commits = out["state"]["recent_commits"]
         lines = commits.splitlines()
         assert len(lines) >= 1
@@ -43,7 +42,7 @@ async def test_full_git_review_walk():
             "step",
             {"action": "show_commit", "inputs": {"sha": first_sha, "done": False}},
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert first_sha in out["state"]["commit_details"]
         assert out["state"]["done_inspecting"] is False
         assert out["valid_next_actions"] == ["show_commit"]
@@ -53,11 +52,11 @@ async def test_full_git_review_walk():
             "step",
             {"action": "show_commit", "inputs": {"sha": first_sha, "done": True}},
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["valid_next_actions"] == ["summarize"]
 
         r = await client.call_tool("step", {"action": "summarize", "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         summary = out["state"]["summary"]
         assert summary["branch"]
         assert first_sha in summary["commits_inspected"]
@@ -72,7 +71,7 @@ async def test_unknown_sha_rejected_by_validator():
         r = await client.call_tool(
             "step", {"action": "show_commit", "inputs": {"sha": "deadbeef0000"}}
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "validation_failed"
         assert "not in the most recent" in out["reason"]
 
@@ -86,6 +85,6 @@ async def test_show_commit_without_recent_commits_first_refuses():
         # before the validator even runs.
         await client.call_tool("step", {"action": "status", "inputs": {}})
         r = await client.call_tool("step", {"action": "show_commit", "inputs": {"sha": "abcdef"}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "invalid_transition"
         assert out["valid_next_actions"] == ["recent_commits"]

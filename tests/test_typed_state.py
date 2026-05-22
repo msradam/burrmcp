@@ -97,6 +97,6 @@ async def test_typed_application_runs_normally():
             "step",
             {"action": "order", "inputs": {"item": "latte", "qty": 2}},
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["state"]["item"] == "latte"
         assert out["state"]["qty"] == 2

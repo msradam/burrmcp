@@ -26,7 +26,7 @@ async def test_streaming_action_returns_final_state():
     server = build_server()
     async with Client(server) as client:
         r = await client.call_tool("step", {"action": "narrate", "inputs": {"topic": "wizard"}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["state"]["story"] is not None
         assert "wizard" in out["state"]["story"]
         assert out["streamed"] is True

@@ -24,7 +24,7 @@ async def test_step_happy_path_three_actions():
         r1 = await client.call_tool(
             "step", {"action": "take_order", "inputs": {"item": "latte", "qty": 2}}
         )
-        out1 = json.loads(r1.content[0].text)
+        out1 = r1.structured_content
         assert out1["action"] == "take_order"
         assert out1["state"]["stage"] == "ordered"
         assert out1["state"]["item"] == "latte"
@@ -34,13 +34,13 @@ async def test_step_happy_path_three_actions():
 
         # pay
         r2 = await client.call_tool("step", {"action": "pay", "inputs": {"amount": 9.0}})
-        out2 = json.loads(r2.content[0].text)
+        out2 = r2.structured_content
         assert out2["state"]["stage"] == "paid"
         assert out2["valid_next_actions"] == ["fulfill"]
 
         # fulfill (terminal)
         r3 = await client.call_tool("step", {"action": "fulfill", "inputs": {}})
-        out3 = json.loads(r3.content[0].text)
+        out3 = r3.structured_content
         assert out3["state"]["stage"] == "fulfilled"
         assert out3["valid_next_actions"] == []
 
@@ -51,7 +51,7 @@ async def test_step_refuses_invalid_transition():
     async with Client(server) as client:
         # Try to pay before taking an order.
         r = await client.call_tool("step", {"action": "pay", "inputs": {"amount": 9.0}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "invalid_transition"
         assert out["requested"] == "pay"
         assert out["valid_next_actions"] == ["take_order"]
@@ -62,7 +62,7 @@ async def test_step_refuses_unknown_action():
     server = build_server(ServingMode.STEP)
     async with Client(server) as client:
         r = await client.call_tool("step", {"action": "nonexistent", "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "unknown_action"
         assert "take_order" in out["known_actions"]
 

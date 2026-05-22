@@ -72,7 +72,7 @@ async def test_streaming_hooks_fire_through_mcp_step():
         r = await client.call_tool(
             "step", {"action": "transcribe", "inputs": {"prompt": "one two three four"}}
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out.get("error") is None, out
         assert out["streamed"] is True
         # MCP-level chunk count matches what stats saw.

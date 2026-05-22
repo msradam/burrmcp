@@ -7,7 +7,6 @@ current state, and that calls to other branches are refused.
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
@@ -66,7 +65,7 @@ async def test_step_refuses_wrong_branch():
         )
         await client.call_tool("step", {"action": "classify", "inputs": {"severity": "routine"}})
         r = await client.call_tool("step", {"action": "escalate", "inputs": {"oncall": "alice"}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "invalid_transition"
         assert out["valid_next_actions"] == ["queue"]
 
@@ -81,7 +80,7 @@ async def test_step_allows_correct_branch():
         )
         await client.call_tool("step", {"action": "classify", "inputs": {"severity": "urgent"}})
         r = await client.call_tool("step", {"action": "escalate", "inputs": {"oncall": "alice"}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["state"]["stage"] == "escalated"
         assert out["state"]["ticket_id"] == "INC-ALICE-001"
         assert out["valid_next_actions"] == []

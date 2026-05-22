@@ -86,7 +86,7 @@ async def test_default_sources_fan_out_across_all_three_folders():
         r = await client.call_tool(
             "step", {"action": "research", "inputs": {"query": "auth token"}}
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert set(out["state"]["sources"]) == {"services", "runbooks", "faqs"}
         assert len(out["state"]["results"]) == 3
         subs = json.loads((await client.read_resource("burr://subruns"))[0].text)
@@ -103,7 +103,7 @@ async def test_scoring_finds_authoritative_doc_per_source():
     server = build_server()
     async with Client(server) as client:
         r = await client.call_tool("step", {"action": "research", "inputs": {"query": "auth"}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         report = out["state"]["report"]
         assert "auth.md" in report
         assert "auth-debug.md" in report
@@ -120,7 +120,7 @@ async def test_source_filter_only_spawns_requested_sources():
                 "inputs": {"query": "rollback", "sources": ["runbooks"]},
             },
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["state"]["sources"] == ["runbooks"]
         subs = json.loads((await client.read_resource("burr://subruns"))[0].text)
         assert len(subs) == 1
@@ -138,7 +138,7 @@ async def test_unknown_source_returns_actionable_error():
                 "inputs": {"query": "x", "sources": ["nope"]},
             },
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "action_error"
         assert "nope" in out["error_message"]
         # Available sources listed for the agent.
@@ -159,7 +159,7 @@ async def test_query_with_no_matches_reports_no_hits_gracefully():
                 },
             },
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert "no matches" in out["state"]["report"]
 
 
@@ -251,7 +251,7 @@ async def test_research_accepts_custom_corpus_dir(tmp_path):
                 "inputs": {"query": "quokka", "corpus_dir": str(tmp_path)},
             },
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert "error" not in out
         assert sorted(out["state"]["sources"]) == ["kb", "trivia"]
         # Resolved corpus_dir lands in state.
@@ -275,6 +275,6 @@ async def test_research_rejects_nonexistent_corpus_dir():
                 },
             },
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "action_error"
         assert "does not exist" in out["error_message"]

@@ -14,7 +14,6 @@ Three layers, mirroring test_combinatoric_testing.py:
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
@@ -283,7 +282,7 @@ async def test_mcp_step_through_combo_search():
     server = build_server()
     async with Client(server) as client:
         r = await client.call_tool("step", {"action": "initialize"})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["action"] == "initialize"
 
         r = await client.call_tool(
@@ -298,11 +297,11 @@ async def test_mcp_step_through_combo_search():
                 },
             },
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["action"] == "run_test"
         assert out["state"]["last_trial"]["matches"] is False
         assert out["state"]["last_trial"]["delta"] != 0
 
         r = await client.call_tool("step", {"action": "finalize"})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["state"]["summary"]["failures"] == 1

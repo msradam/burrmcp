@@ -8,7 +8,6 @@ fails loudly.
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
@@ -37,17 +36,17 @@ async def test_modifier_loop_accumulates_total():
                 "step",
                 {"action": "add_modifier", "inputs": {"modifier": modifier}},
             )
-            out = json.loads(r.content[0].text)
+            out = r.structured_content
             assert out["action"] == "add_modifier"
             assert modifier in out["state"]["modifiers"]
         # Base $5 + 3x $1 = $8.
         assert out["state"]["total"] == pytest.approx(8.0)
 
         r = await client.call_tool("step", {"action": "pay", "inputs": {"amount": 8.0}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["state"]["stage"] == "paid"
         r = await client.call_tool("step", {"action": "fulfill", "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["state"]["stage"] == "fulfilled"
 
 
@@ -59,7 +58,7 @@ async def test_cancel_from_ordered_state():
             "step", {"action": "take_order", "inputs": {"item": "latte", "qty": 1}}
         )
         r = await client.call_tool("step", {"action": "cancel", "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["state"]["stage"] == "cancelled"
         assert out["valid_next_actions"] == []
 
@@ -76,7 +75,7 @@ async def test_cancel_from_modifier_state():
             "step", {"action": "add_modifier", "inputs": {"modifier": "extra_shot"}}
         )
         r = await client.call_tool("step", {"action": "cancel", "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["state"]["stage"] == "cancelled"
 
 
@@ -90,7 +89,7 @@ async def test_cancel_unreachable_post_pay():
         )
         await client.call_tool("step", {"action": "pay", "inputs": {"amount": 5.0}})
         r = await client.call_tool("step", {"action": "cancel", "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "invalid_transition"
         assert out["valid_next_actions"] == ["fulfill"]
 

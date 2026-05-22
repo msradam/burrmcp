@@ -54,7 +54,7 @@ async def test_reset_from_terminal_restores_entrypoint():
 
         # Reset.
         r = await client.call_tool("reset_session", {})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["action"] == "reset_session"
         # The previous state captured the win.
         assert out["result"]["previous_state"]["won"] is True
@@ -111,7 +111,7 @@ async def test_reset_session_refuses_in_shared_app_mode():
     server = mount(shared_app, mode=ServingMode.STEP, name="shared-no-reset")
     async with Client(server) as client:
         r = await client.call_tool("reset_session", {})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "reset_not_supported"
         assert "shared-app mode" in out["reason"]
 
@@ -129,7 +129,7 @@ async def test_reset_session_mid_workflow_works():
         assert state_before["has_key"] is True
 
         r = await client.call_tool("reset_session", {})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["state"]["has_key"] is False
         assert out["valid_next_actions"] == ["enter_foyer"]
 

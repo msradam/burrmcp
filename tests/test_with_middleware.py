@@ -38,7 +38,7 @@ async def test_rate_limit_refuses_after_burst():
         for _ in range(8):
             try:
                 r = await client.call_tool("step", {"action": "tick", "inputs": {}})
-                outcomes.append(("ok", json.loads(r.content[0].text)))
+                outcomes.append(("ok", r.structured_content))
             except Exception as exc:
                 outcomes.append(("error", str(exc)))
         errored = [o for o in outcomes if o[0] == "error"]

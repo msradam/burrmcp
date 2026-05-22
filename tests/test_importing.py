@@ -65,7 +65,7 @@ async def test_lifted_graph_enforces_transitions():
         r = await client.call_tool(
             "step", {"action": "pay", "inputs": {"order_id": "X", "amount": 5}}
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "invalid_transition"
         assert out["valid_next_actions"] == ["create_order"]
 
@@ -73,7 +73,7 @@ async def test_lifted_graph_enforces_transitions():
         r = await client.call_tool(
             "step", {"action": "create_order", "inputs": {"item": "latte", "qty": 2}}
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["state"]["order_id"] == "ORD-LATTE"
         assert out["state"]["item"] == "latte"
         assert out["state"]["qty"] == 2
@@ -82,7 +82,7 @@ async def test_lifted_graph_enforces_transitions():
         r = await client.call_tool(
             "step", {"action": "pay", "inputs": {"order_id": "ORD-LATTE", "amount": 5.0}}
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["state"]["paid"] is True
         assert out["state"]["paid_amount"] == 5.0
         assert out["valid_next_actions"] == ["fulfill"]
@@ -90,7 +90,7 @@ async def test_lifted_graph_enforces_transitions():
         r = await client.call_tool(
             "step", {"action": "fulfill", "inputs": {"order_id": "ORD-LATTE"}}
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["state"]["status"] == "fulfilled"
         assert out["valid_next_actions"] == []
 
@@ -179,7 +179,7 @@ async def test_state_update_callable_overrides_merge_result():
     server = mount(app, mode=ServingMode.STEP, name="custom")
     async with Client(server) as client:
         r = await client.call_tool("step", {"action": "stamp", "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         # state_update result wins; merge_result wasn't even set.
         assert out["state"]["stamped"] is True
         assert out["state"]["from_result"] == 1
@@ -203,7 +203,7 @@ async def test_sync_tools_lift_correctly():
     server = mount(app, mode=ServingMode.STEP, name="sync")
     async with Client(server) as client:
         r = await client.call_tool("step", {"action": "go", "inputs": {"x": 5}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["state"]["y"] == 10
 
 
@@ -264,7 +264,7 @@ async def test_tool_with_no_spec_lifts_as_stateless_action():
     server = mount(app, mode=ServingMode.STEP, name="noop")
     async with Client(server) as client:
         r = await client.call_tool("step", {"action": "noop", "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         # State unchanged because no writes declared.
         assert out["state"]["x"] == 1
         assert out["action"] == "noop"

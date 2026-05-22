@@ -14,7 +14,6 @@ behaviours:
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
@@ -243,7 +242,7 @@ async def test_mcp_step_through_high_risk_review():
                 "inputs": {"target": "PR-100", "codebase_size": "SMALL"},
             },
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["action"] == "start_review"
 
         r = await client.call_tool(
@@ -260,7 +259,7 @@ async def test_mcp_step_through_high_risk_review():
                 },
             },
         )
-        assert "PHASE 0" in json.loads(r.content[0].text)["state"]["current_prompt"]
+        assert "PHASE 0" in r.structured_content["state"]["current_prompt"]
 
         r = await client.call_tool(
             "step",
@@ -269,7 +268,7 @@ async def test_mcp_step_through_high_risk_review():
                 "inputs": {"per_file_risk": {"src/auth.py": "HIGH"}},
             },
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["state"]["overall_risk"] == "HIGH"
         assert (
             "deep_context" in out["valid_next_actions"]
@@ -298,7 +297,7 @@ async def test_mcp_step_refuses_skipping_pre_analysis():
                 "inputs": {"per_file_risk": {"src/a.py": "HIGH"}},
             },
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out.get("error") == "invalid_transition"
         assert "pre_analysis" in out["valid_next_actions"]
 
@@ -330,6 +329,6 @@ async def test_mcp_step_refuses_skipping_adversarial_on_high_risk():
             await client.call_tool("step", {"action": action_name, "inputs": inputs})
 
         r = await client.call_tool("step", {"action": "write_report", "inputs": {"report": "skip"}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out.get("error") == "invalid_transition"
         assert "deep_context" in out["valid_next_actions"]

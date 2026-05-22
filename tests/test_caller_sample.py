@@ -8,7 +8,6 @@ demo's ``ctx.sample`` calls land in deterministic test territory.
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
@@ -48,7 +47,7 @@ async def test_compose_delegates_to_caller_llm():
                 "inputs": {"topic": "quantum computing", "style": "concise"},
             },
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out.get("error") is None, out
         assert out["state"]["draft"] == "Quantum computing is fast. Photons help."
         assert out["state"]["topic"] == "quantum computing"
@@ -75,7 +74,7 @@ async def test_revise_loops_with_caller_llm():
         r = await client.call_tool(
             "step", {"action": "revise", "inputs": {"direction": "even shorter"}}
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out.get("error") is None, out
         assert out["state"]["draft"] == "Very concise: cats."
         revisions = out["state"]["revisions"]
@@ -92,7 +91,7 @@ async def test_revise_refuses_when_no_draft():
         # revise requires compose to have run first; calling out of order
         # triggers Burr's transition refusal.
         r = await client.call_tool("step", {"action": "revise", "inputs": {"direction": "tighter"}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "invalid_transition"
 
 
