@@ -152,6 +152,6 @@ async def test_mcp_walk_to_finalized():
         )
         for name in ("validate_address", "compute_shipping", "compute_total", "finalize"):
             r = await client.call_tool("step", {"action": name, "inputs": {}})
-            out = json.loads(r.content[0].text)
+            out = r.structured_content
             assert out.get("error") is None, f"{name}: {out}"
         assert out["state"]["stage"] == "finalized"

@@ -58,7 +58,7 @@ async def test_happy_path_through_all_six_stages():
         )
         await client.call_tool("step", {"action": "equip", "inputs": {}})
         r = await client.call_tool("step", {"action": "finalize", "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         sheet = out["state"]["sheet"]
         assert sheet["name"] == "Aelin"
         assert sheet["race"] == "elf"
@@ -75,7 +75,7 @@ async def test_skipping_ahead_to_finalize_is_refused():
     server = build_server()
     async with Client(server) as client:
         r = await client.call_tool("step", {"action": "finalize", "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "invalid_transition"
         assert "begin" in out["valid_next_actions"]
 
@@ -101,7 +101,7 @@ async def test_cannot_assign_stats_before_choosing_class():
                 },
             },
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "invalid_transition"
         assert out["valid_next_actions"] == ["choose_class"]
 
@@ -133,7 +133,7 @@ async def test_point_buy_total_validated():
                 },
             },
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "action_error"
         assert "27" in out["error_message"]
 
@@ -167,7 +167,7 @@ async def test_skills_must_come_from_class_list():
             "step",
             {"action": "pick_skills", "inputs": {"skills": ["stealth", "arcana"]}},
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "action_error"
         assert "rogue" in out["error_message"]
 

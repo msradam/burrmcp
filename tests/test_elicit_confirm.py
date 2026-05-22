@@ -10,7 +10,6 @@ to the FastMCP test Client. Confirms that:
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
@@ -43,7 +42,7 @@ async def test_purge_on_user_confirm():
         await client.call_tool("step", {"action": "stage", "inputs": {"item": "a.txt"}})
         await client.call_tool("step", {"action": "stage", "inputs": {"item": "b.txt"}})
         r = await client.call_tool("step", {"action": "purge", "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out.get("error") is None, out
         assert out["state"]["staged"] == []
         assert out["state"]["purged"] == ["a.txt", "b.txt"]
@@ -57,7 +56,7 @@ async def test_abort_on_user_abort():
     async with Client(server, elicitation_handler=handler) as client:
         await client.call_tool("step", {"action": "stage", "inputs": {"item": "x.txt"}})
         r = await client.call_tool("step", {"action": "purge", "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["state"]["staged"] == []
         assert out["state"]["purged"] == []
         assert out["state"]["outcome"] == "aborted"
@@ -71,7 +70,7 @@ async def test_abort_on_user_decline():
     async with Client(server, elicitation_handler=handler) as client:
         await client.call_tool("step", {"action": "stage", "inputs": {"item": "y.txt"}})
         r = await client.call_tool("step", {"action": "purge", "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["state"]["purged"] == []
         assert out["state"]["outcome"] == "aborted"
 
@@ -82,6 +81,6 @@ async def test_stage_rejects_empty_item():
     handler = _make_handler("confirm")
     async with Client(server, elicitation_handler=handler) as client:
         r = await client.call_tool("step", {"action": "stage", "inputs": {"item": "   "}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "action_error"
         assert "item must not be empty" in out["error_message"]

@@ -35,7 +35,7 @@ async def test_happy_path_to_garden_via_hallway():
             "go_to_garden_via_hallway",
         ]:
             r = await client.call_tool("step", {"action": action, "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["state"]["room"] == "garden"
         assert out["state"]["won"] is True
 
@@ -49,7 +49,7 @@ async def test_unlock_door_without_key_is_refused():
         # Walk to hallway without taking the key.
         await client.call_tool("step", {"action": "go_to_hallway", "inputs": {}})
         r = await client.call_tool("step", {"action": "unlock_door", "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "invalid_transition"
         # No legal moves from hallway without the key. Stuck.
         assert out["valid_next_actions"] == []
@@ -64,7 +64,7 @@ async def test_garden_direct_does_not_win():
     async with Client(server) as client:
         await client.call_tool("step", {"action": "enter_foyer", "inputs": {}})
         r = await client.call_tool("step", {"action": "go_to_garden_direct", "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["state"]["room"] == "garden"
         assert out["state"]["won"] is False
         # No outgoing transitions; you've reached a dead end.

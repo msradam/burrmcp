@@ -74,7 +74,7 @@ async def test_trace_spans_via_mcp():
         r = await client.call_tool(
             "step", {"action": "analyze", "inputs": {"text": "foo bar baz foo"}}
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out.get("error") is None, out
         assert out["state"]["analysis"]["unique_count"] == 3
         text = (await client.read_resource("burr://trace-spans"))[0].text

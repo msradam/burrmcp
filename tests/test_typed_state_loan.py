@@ -166,6 +166,6 @@ async def test_mcp_step_walk_to_decision():
         )
         await client.call_tool("step", {"action": "underwrite"})
         r = await client.call_tool("step", {"action": "decide"})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["state"]["decision"] == "approved"
         assert out["valid_next_actions"] == []

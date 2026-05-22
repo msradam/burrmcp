@@ -13,7 +13,6 @@ Same shape as test_differential_review.py:
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
@@ -213,7 +212,7 @@ async def test_mcp_refuses_skipping_step0():
             "step",
             {"action": "route_path", "inputs": {"path": "standard"}},
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out.get("error") == "invalid_transition"
         assert "step0_restate" in out["valid_next_actions"]
 
@@ -239,6 +238,6 @@ async def test_mcp_refuses_final_verdict_before_all_gates():
             "step",
             {"action": "final_verdict", "inputs": {"notes": "skip"}},
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out.get("error") == "invalid_transition"
         assert "gate1_process" in out["valid_next_actions"]

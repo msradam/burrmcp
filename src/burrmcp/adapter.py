@@ -63,6 +63,8 @@ import pydantic
 from burr.core import Application
 from burr.core.action import Action, Condition
 from fastmcp import Context, FastMCP
+from fastmcp.tools.base import ToolResult
+from mcp.types import TextContent
 
 ApplicationFactory = Callable[[], Application]
 ApplicationOrFactory = Application | ApplicationFactory
@@ -1218,9 +1220,7 @@ def _build_coercion_middleware():
                 # FastMCP's internal Tool exposes the schema as ``parameters``;
                 # the MCP wire-level Tool exposes it as ``inputSchema``.
                 schema = (
-                    getattr(tool, "parameters", None)
-                    or getattr(tool, "inputSchema", None)
-                    or {}
+                    getattr(tool, "parameters", None) or getattr(tool, "inputSchema", None) or {}
                 )
                 out[tool.name] = schema.get("properties", {}) or {}
             return out
@@ -1439,6 +1439,44 @@ async def _step_streaming_action(
         "streamed": True,
         "chunks": chunk_count,
     }
+
+
+async def _emit_log(ctx: Context | None, msg: str) -> None:
+    if ctx is None:
+        return
+    with contextlib.suppress(Exception):
+        await ctx.info(msg)
+
+
+def _step_tool_result(body: dict[str, Any], headline: str) -> ToolResult:
+    return ToolResult(
+        content=[
+            TextContent(type="text", text=headline),
+            TextContent(type="text", text=json.dumps(body, default=str)),
+        ],
+        structured_content=body,
+    )
+
+
+def _success_headline(seq: int, action: str, valid_next: list[str]) -> str:
+    if valid_next:
+        peek = ",".join(valid_next[:3])
+        more = "" if len(valid_next) <= 3 else f"+{len(valid_next) - 3}"
+        return f"Step {seq}: {action} ✓ → {peek}{more}"
+    return f"Step {seq}: {action} ✓ (terminal)"
+
+
+def _refusal_headline(seq: int, action: str, refusal_reason: str, detail: str = "") -> str:
+    tail = f" ({detail})" if detail else ""
+    return f"Step {seq}: {action} ✗ {refusal_reason}{tail}"
+
+
+def _has_local_tracker(app: Application) -> bool:
+    try:
+        from burr.tracking.client import LocalTrackingClient
+    except ImportError:
+        return False
+    return isinstance(getattr(app, "_tracker", None), LocalTrackingClient)
 
 
 def mount(
@@ -1767,7 +1805,7 @@ def mount(
             action: str,
             inputs: dict[str, Any] | str | None = None,
             ctx: Context | None = None,
-        ) -> dict[str, Any]:
+        ) -> ToolResult:
             """Advance the FSM by one transition.
 
             Args:
@@ -1793,6 +1831,9 @@ def mount(
                 except (json.JSONDecodeError, ValueError):
                     parsed = None
                 inputs = parsed if isinstance(parsed, dict) else None
+            # Peek the seq that this call's history entry will get, so
+            # the ctx.info headline matches the recorded seq.
+            seq = len(store.history(ctx.session_id)) if ctx is not None else 0
             if action not in action_map:
                 _record_history(
                     store,
@@ -1805,11 +1846,14 @@ def mount(
                     refused=True,
                     refusal_reason="unknown_action",
                 )
-                return {
+                body = {
                     "error": "unknown_action",
                     "requested": action,
                     "known_actions": action_names,
                 }
+                headline = f"Step {seq}: {action} ✗ unknown_action"
+                await _emit_log(ctx, headline)
+                return _step_tool_result(body, headline)
             app, lock, entry = _session_app_and_lock(ctx, shared_app, shared_lock, factory, store)
             effective_timeout = _action_timeout(action_map[action], action_timeout_seconds)
             effective_validator = _action_validator(action_map[action], input_validators)
@@ -1842,7 +1886,14 @@ def mount(
                     state_after=None,
                     **hist_kwargs,
                 )
-                return response
+                headline = _refusal_headline(
+                    seq,
+                    action,
+                    response["error"],
+                    detail=response.get("error_type", "") or "",
+                )
+                await _emit_log(ctx, headline)
+                return _step_tool_result(response, headline)
             finally:
                 _current_session_entry.reset(token)
                 _current_fastmcp_context.reset(ctx_token)
@@ -1859,7 +1910,9 @@ def mount(
                 valid_next_actions=out["valid_next_actions"],
                 subruns=new_subruns or None,
             )
-            return out
+            headline = _success_headline(seq, action, out["valid_next_actions"])
+            await _emit_log(ctx, headline)
+            return _step_tool_result(out, headline)
 
         step_description = f"{step.__doc__}\n\n{action_surface}"
         mcp.tool(
@@ -1878,7 +1931,7 @@ def mount(
     # the human to restart the server when it reaches a terminal node
     # and wants to try another path.
 
-    async def reset_session(ctx: Context | None = None) -> dict[str, Any]:
+    async def reset_session(ctx: Context | None = None) -> ToolResult | dict[str, Any]:
         """Reset this session's FSM to its entrypoint.
 
         Rebuilds the session's Application via the factory, clears any
@@ -1894,17 +1947,20 @@ def mount(
         matters.
         """
         if factory is None:
-            return {
-                "error": "reset_not_supported",
-                "reason": (
-                    "this server runs in shared-app mode (no factory was passed "
-                    "to mount); resetting would affect every connected client. "
-                    "Disconnect and reconnect for a fresh session, or remount "
-                    "the server with a factory: mount(() -> Application, ...)"
-                ),
-            }
+            return _step_tool_result(
+                {
+                    "error": "reset_not_supported",
+                    "reason": (
+                        "this server runs in shared-app mode (no factory was passed "
+                        "to mount); resetting would affect every connected client. "
+                        "Disconnect and reconnect for a fresh session, or remount "
+                        "the server with a factory: mount(() -> Application, ...)"
+                    ),
+                },
+                "reset_session ✗ shared-app mode",
+            )
         if ctx is None:
-            return {"error": "no_session"}
+            return _step_tool_result({"error": "no_session"}, "reset_session ✗ no_session")
 
         entry = store.get_or_create(ctx.session_id, factory)
         async with entry.lock:
@@ -1933,14 +1989,19 @@ def mount(
             valid_next_actions=valid_next,
         )
 
-        return {
-            "action": "reset_session",
-            "result": {"previous_state": previous_state},
-            "state": new_state,
-            "valid_next_actions": valid_next,
-            "app_id": new_app.uid,
-            "tracker_project": _tracker_project(new_app),
-        }
+        headline = f"Session reset → {new_app.entrypoint}"
+        await _emit_log(ctx, headline)
+        return _step_tool_result(
+            {
+                "action": "reset_session",
+                "result": {"previous_state": previous_state},
+                "state": new_state,
+                "valid_next_actions": valid_next,
+                "app_id": new_app.uid,
+                "tracker_project": _tracker_project(new_app),
+            },
+            headline,
+        )
 
     mcp.tool(name="reset_session", description=reset_session.__doc__)(reset_session)
 
@@ -1951,7 +2012,7 @@ def mount(
     # in-memory history rather than Burr's tracker-based replay so it
     # works without requiring users to wire up a LocalTrackingClient.
 
-    async def fork_at(sequence_id: int, ctx: Context | None = None) -> dict[str, Any]:
+    async def fork_at(sequence_id: int, ctx: Context | None = None) -> ToolResult | dict[str, Any]:
         """Rewind the session to the state captured after history[seq=N].
 
         ``sequence_id`` is the ``seq`` field on a ``burr://history`` entry.
@@ -1971,44 +2032,56 @@ def mount(
             walking a hall of mirrors).
         """
         if factory is None:
-            return {
-                "error": "fork_not_supported",
-                "reason": (
-                    "this server runs in shared-app mode (no factory was passed "
-                    "to mount); forking would affect every connected client. "
-                    "Remount with a factory to enable fork_at."
-                ),
-            }
+            return _step_tool_result(
+                {
+                    "error": "fork_not_supported",
+                    "reason": (
+                        "this server runs in shared-app mode (no factory was passed "
+                        "to mount); forking would affect every connected client. "
+                        "Remount with a factory to enable fork_at."
+                    ),
+                },
+                "fork_at ✗ shared-app mode",
+            )
         if ctx is None:
-            return {"error": "no_session"}
+            return _step_tool_result({"error": "no_session"}, "fork_at ✗ no_session")
 
         entry = store.get_or_create(ctx.session_id, factory)
         async with entry.lock:
             if sequence_id < 0 or sequence_id >= len(entry.history):
-                return {
-                    "error": "unknown_sequence_id",
-                    "requested": sequence_id,
-                    "history_length": len(entry.history),
-                }
+                return _step_tool_result(
+                    {
+                        "error": "unknown_sequence_id",
+                        "requested": sequence_id,
+                        "history_length": len(entry.history),
+                    },
+                    f"fork_at ✗ unknown_sequence_id ({sequence_id})",
+                )
             target = entry.history[sequence_id]
             if target.get("refused"):
-                return {
-                    "error": "cannot_fork_to_refusal",
-                    "sequence_id": sequence_id,
-                    "refusal_reason": target.get("refusal_reason"),
-                }
+                return _step_tool_result(
+                    {
+                        "error": "cannot_fork_to_refusal",
+                        "sequence_id": sequence_id,
+                        "refusal_reason": target.get("refusal_reason"),
+                    },
+                    f"fork_at ✗ cannot_fork_to_refusal (seq={sequence_id})",
+                )
             if target.get("action") in {"fork_at", "reset_session"}:
-                return {
-                    "error": "cannot_fork_to_meta_entry",
-                    "sequence_id": sequence_id,
-                    "action": target.get("action"),
-                }
+                return _step_tool_result(
+                    {
+                        "error": "cannot_fork_to_meta_entry",
+                        "sequence_id": sequence_id,
+                        "action": target.get("action"),
+                    },
+                    f"fork_at ✗ cannot_fork_to_meta_entry (seq={sequence_id})",
+                )
             saved_state = target.get("state_after")
             if saved_state is None:
-                return {
-                    "error": "no_state_snapshot",
-                    "sequence_id": sequence_id,
-                }
+                return _step_tool_result(
+                    {"error": "no_state_snapshot", "sequence_id": sequence_id},
+                    f"fork_at ✗ no_state_snapshot (seq={sequence_id})",
+                )
             target_action = target.get("action")
 
             # Keep sub-runs spawned at or before the fork point; the
@@ -2040,17 +2113,22 @@ def mount(
             valid_next_actions=valid_next,
         )
 
-        return {
-            "action": "fork_at",
-            "result": {
-                "sequence_id": sequence_id,
-                "from_action": target_action,
+        headline = f"Forked to seq={sequence_id} ({target_action})"
+        await _emit_log(ctx, headline)
+        return _step_tool_result(
+            {
+                "action": "fork_at",
+                "result": {
+                    "sequence_id": sequence_id,
+                    "from_action": target_action,
+                },
+                "state": new_state,
+                "valid_next_actions": valid_next,
+                "app_id": new_app.uid,
+                "tracker_project": _tracker_project(new_app),
             },
-            "state": new_state,
-            "valid_next_actions": valid_next,
-            "app_id": new_app.uid,
-            "tracker_project": _tracker_project(new_app),
-        }
+            headline,
+        )
 
     mcp.tool(name="fork_at", description=fork_at.__doc__)(fork_at)
 
@@ -2068,7 +2146,7 @@ def mount(
         sequence_id: int = -1,
         partition_key: str = "",
         ctx: Context | None = None,
-    ) -> dict[str, Any]:
+    ) -> ToolResult | dict[str, Any]:
         """Resume a past Burr run by loading persisted state.
 
         Three-tier source resolution:
@@ -2097,16 +2175,19 @@ def mount(
           - the requested app_id/sequence_id doesn't exist.
         """
         if factory is None:
-            return {
-                "error": "fork_not_supported",
-                "reason": (
-                    "this server runs in shared-app mode (no factory was passed "
-                    "to mount); cross-session resume requires per-session "
-                    "isolation. Remount with a factory."
-                ),
-            }
+            return _step_tool_result(
+                {
+                    "error": "fork_not_supported",
+                    "reason": (
+                        "this server runs in shared-app mode (no factory was passed "
+                        "to mount); cross-session resume requires per-session "
+                        "isolation. Remount with a factory."
+                    ),
+                },
+                "fork_from_past ✗ shared-app mode",
+            )
         if ctx is None:
-            return {"error": "no_session"}
+            return _step_tool_result({"error": "no_session"}, "fork_from_past ✗ no_session")
 
         entry = store.get_or_create(ctx.session_id, factory)
         async with entry.lock:
@@ -2127,19 +2208,25 @@ def mount(
                     else:
                         loaded = raw
                 except Exception as exc:
-                    return {
-                        "error": "unknown_past_run",
-                        "reason": str(exc),
-                        "app_id": app_id,
-                        "sequence_id": sequence_id,
-                    }
+                    return _step_tool_result(
+                        {
+                            "error": "unknown_past_run",
+                            "reason": str(exc),
+                            "app_id": app_id,
+                            "sequence_id": sequence_id,
+                        },
+                        f"fork_from_past ✗ unknown_past_run ({app_id})",
+                    )
                 if loaded is None:
-                    return {
-                        "error": "unknown_past_run",
-                        "reason": "loader returned None",
-                        "app_id": app_id,
-                        "sequence_id": sequence_id,
-                    }
+                    return _step_tool_result(
+                        {
+                            "error": "unknown_past_run",
+                            "reason": "loader returned None",
+                            "app_id": app_id,
+                            "sequence_id": sequence_id,
+                        },
+                        f"fork_from_past ✗ unknown_past_run ({app_id})",
+                    )
                 # PersistedStateData has state as a burr State; pull
                 # the dict out and let the rebuild path normalise.
                 loaded_state_obj = loaded["state"]
@@ -2150,19 +2237,22 @@ def mount(
                 try:
                     from burr.tracking.client import LocalTrackingClient
                 except ImportError:
-                    return {"error": "no_tracker"}
+                    return _step_tool_result({"error": "no_tracker"}, "fork_from_past ✗ no_tracker")
                 tracker = getattr(entry.application, "_tracker", None)
                 if not isinstance(tracker, LocalTrackingClient):
-                    return {
-                        "error": "no_tracker",
-                        "reason": (
-                            "no state_loader passed to mount() and the current "
-                            "Application has no LocalTrackingClient. Either "
-                            "pass `state_loader=<BaseStateLoader>` to mount() "
-                            "or add `.with_tracker(LocalTrackingClient(...))` "
-                            "to the factory."
-                        ),
-                    }
+                    return _step_tool_result(
+                        {
+                            "error": "no_tracker",
+                            "reason": (
+                                "no state_loader passed to mount() and the current "
+                                "Application has no LocalTrackingClient. Either "
+                                "pass `state_loader=<BaseStateLoader>` to mount() "
+                                "or add `.with_tracker(LocalTrackingClient(...))` "
+                                "to the factory."
+                            ),
+                        },
+                        "fork_from_past ✗ no_tracker",
+                    )
                 try:
                     import warnings
 
@@ -2175,12 +2265,15 @@ def mount(
                             storage_dir=tracker.raw_storage_dir,
                         )
                 except (ValueError, FileNotFoundError, OSError) as exc:
-                    return {
-                        "error": "unknown_past_run",
-                        "reason": str(exc),
-                        "app_id": app_id,
-                        "sequence_id": sequence_id,
-                    }
+                    return _step_tool_result(
+                        {
+                            "error": "unknown_past_run",
+                            "reason": str(exc),
+                            "app_id": app_id,
+                            "sequence_id": sequence_id,
+                        },
+                        f"fork_from_past ✗ unknown_past_run ({app_id})",
+                    )
 
             # In-memory subruns belonged to the previous session state,
             # which has been replaced; clear all of them.
@@ -2201,20 +2294,35 @@ def mount(
             valid_next_actions=valid_next,
         )
 
-        return {
-            "action": "fork_from_past",
-            "result": {
-                "loaded_app_id": app_id,
-                "loaded_sequence_id": sequence_id,
-                "from_action": last_action,
+        headline = f"Resumed app_id={app_id} seq={sequence_id}"
+        await _emit_log(ctx, headline)
+        return _step_tool_result(
+            {
+                "action": "fork_from_past",
+                "result": {
+                    "loaded_app_id": app_id,
+                    "loaded_sequence_id": sequence_id,
+                    "from_action": last_action,
+                },
+                "state": new_state,
+                "valid_next_actions": valid_next,
+                "app_id": new_app.uid,
+                "tracker_project": _tracker_project(new_app),
             },
-            "state": new_state,
-            "valid_next_actions": valid_next,
-            "app_id": new_app.uid,
-            "tracker_project": _tracker_project(new_app),
-        }
+            headline,
+        )
 
     mcp.tool(name="fork_from_past", description=fork_from_past.__doc__)(fork_from_past)
+
+    # Surfaces resources as tools for clients without resources/read
+    # (IBM Bob Shell, as of mid-2026).
+    from fastmcp.server.transforms import ResourcesAsTools, Visibility
+
+    mcp.add_transform(ResourcesAsTools(mcp))
+
+    # Without a tracker or loader, fork_from_past can only refuse.
+    if state_loader is None and not _has_local_tracker(shared_app):
+        mcp.add_transform(Visibility(False, names={"fork_from_past"}))
 
     return mcp
 

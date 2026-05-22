@@ -8,7 +8,6 @@ that both parents walk through the embedded subgraph cleanly.
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
@@ -130,6 +129,6 @@ async def test_mcp_walk_loan_parent():
             ("finalize_loan", {}),
         ]:
             r = await client.call_tool("step", {"action": action_name, "inputs": inputs})
-            out = json.loads(r.content[0].text)
+            out = r.structured_content
             assert out.get("error") is None, f"{action_name}: {out}"
         assert out["state"]["final_status"] == "loan_approved"

@@ -117,7 +117,7 @@ async def test_hook_fires_through_mcp_step():
             ("finalize", {}),
         ]:
             r = await client.call_tool("step", {"action": action_name, "inputs": inputs})
-            out = json.loads(r.content[0].text)
+            out = r.structured_content
             assert out.get("error") is None, f"step {action_name} failed: {out}"
 
         text = (await client.read_resource("burr://timings"))[0].text
@@ -139,7 +139,7 @@ async def test_full_walk_produces_summary():
         await client.call_tool("step", {"action": "enrich", "inputs": {}})
         await client.call_tool("step", {"action": "aggregate", "inputs": {}})
         r = await client.call_tool("step", {"action": "finalize", "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["state"]["stage"] == "done"
         summary = out["state"]["summary"]
         # Each batch of 10 produces deterministic high/low buckets via

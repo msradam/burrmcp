@@ -70,7 +70,7 @@ async def test_spans_resource_via_mcp():
         r = await client.call_tool(
             "step", {"action": "render_report", "inputs": {"title": "Daily"}}
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out.get("error") is None, out
         text = (await client.read_resource("burr://spans"))[0].text
         spans = json.loads(text)

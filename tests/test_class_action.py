@@ -9,7 +9,6 @@ different configurations.
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
@@ -136,12 +135,12 @@ async def test_class_action_works_through_mcp_step():
             },
         )
         r = await client.call_tool("step", {"action": "shallow_check", "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out.get("error") is None
         assert out["state"]["shallow_violations"] == []
         r = await client.call_tool("step", {"action": "deep_check", "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out.get("error") is None
         r = await client.call_tool("step", {"action": "finalize", "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["state"]["verdict"] == "clean"

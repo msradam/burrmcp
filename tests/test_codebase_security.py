@@ -14,7 +14,6 @@ mutates the demo files would be a serious regression.
 from __future__ import annotations
 
 import asyncio
-import json
 import sys
 from pathlib import Path
 from typing import Any
@@ -44,7 +43,7 @@ async def _step(client, action, **inputs):
 
 
 def _payload(result):
-    return json.loads(result.content[0].text)
+    return result.structured_content
 
 
 async def _walk_to_audit_report(client, repo_path: str, max_rescans: int = 3) -> dict[str, Any]:

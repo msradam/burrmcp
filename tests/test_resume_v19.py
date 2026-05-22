@@ -9,7 +9,6 @@ postgres, etc.) rather than being restricted to LocalTrackingClient.
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 import pytest
@@ -45,7 +44,7 @@ async def test_step_response_includes_app_id():
     server = mount(_factory, mode=ServingMode.STEP, name="appid-step")
     async with Client(server) as client:
         r = await client.call_tool("step", {"action": "tick", "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert "app_id" in out
         assert isinstance(out["app_id"], str)
         assert len(out["app_id"]) > 0
@@ -57,7 +56,7 @@ async def test_reset_session_response_includes_app_id():
     async with Client(server) as client:
         await client.call_tool("step", {"action": "tick", "inputs": {}})
         r = await client.call_tool("reset_session", {})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert "app_id" in out
 
 
@@ -67,7 +66,7 @@ async def test_fork_at_response_includes_app_id():
     async with Client(server) as client:
         await client.call_tool("step", {"action": "tick", "inputs": {}})
         r = await client.call_tool("fork_at", {"sequence_id": 0})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert "app_id" in out
 
 
@@ -79,7 +78,7 @@ async def test_app_id_stable_across_session():
         ids: list[str] = []
         for _ in range(3):
             r = await client.call_tool("step", {"action": "tick", "inputs": {}})
-            out = json.loads(r.content[0].text)
+            out = r.structured_content
             ids.append(out["app_id"])
         assert len(set(ids)) == 1, f"app_id should be stable, saw {ids}"
 
@@ -90,9 +89,9 @@ async def test_app_id_changes_after_reset():
     server = mount(_factory, mode=ServingMode.STEP, name="appid-reset-changes")
     async with Client(server) as client:
         r1 = await client.call_tool("step", {"action": "tick", "inputs": {}})
-        id_before = json.loads(r1.content[0].text)["app_id"]
+        id_before = r1.structured_content["app_id"]
         r2 = await client.call_tool("reset_session", {})
-        id_after = json.loads(r2.content[0].text)["app_id"]
+        id_after = r2.structured_content["app_id"]
         assert id_before != id_after
 
 
@@ -169,7 +168,7 @@ async def test_fork_from_past_uses_custom_state_loader():
             "fork_from_past",
             {"app_id": "saved-run-99", "sequence_id": 5, "partition_key": ""},
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["action"] == "fork_from_past"
         assert out["state"]["counter"] == 42
         assert out["result"]["from_action"] == "tick"
@@ -189,7 +188,7 @@ async def test_fork_from_past_state_loader_unknown_id_refuses():
             "fork_from_past",
             {"app_id": "nope", "sequence_id": 0},
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "unknown_past_run"
 
 
@@ -234,6 +233,6 @@ async def test_fork_from_past_state_loader_takes_precedence_over_tracker(tmp_pat
             "fork_from_past",
             {"app_id": "my-app", "sequence_id": 0},
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         # The 999 came from the loader, not from any tracker file.
         assert out["state"]["counter"] == 999

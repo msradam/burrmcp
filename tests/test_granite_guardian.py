@@ -15,7 +15,6 @@ Coverage:
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
@@ -97,7 +96,7 @@ async def _step(client, action, **inputs):
 
 
 def _payload(result):
-    return json.loads(result.content[0].text)
+    return result.structured_content
 
 
 @pytest.mark.asyncio

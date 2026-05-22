@@ -10,7 +10,6 @@ action with ``fn._burrmcp_timeout_seconds = N`` works too.
 from __future__ import annotations
 
 import asyncio
-import json
 
 import pytest
 from burr.core import ApplicationBuilder, State, action
@@ -51,7 +50,7 @@ async def test_tool_spec_timeout_wins_over_server_default():
     )
     async with Client(server) as client:
         r = await client.call_tool("step", {"action": "slow_one", "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "action_timeout"
         # The per-tool override, not the server default, is what fired.
         assert out["timeout_seconds"] == 0.1
@@ -80,7 +79,7 @@ async def test_tool_spec_timeout_applies_when_server_default_is_none():
     )
     async with Client(server) as client:
         r = await client.call_tool("step", {"action": "slow", "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "action_timeout"
         assert out["timeout_seconds"] == 0.1
 
@@ -109,7 +108,7 @@ async def test_no_per_tool_override_inherits_server_default():
     )
     async with Client(server) as client:
         r = await client.call_tool("step", {"action": "slow", "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "action_timeout"
         assert out["timeout_seconds"] == 0.2
 
@@ -146,6 +145,6 @@ async def test_hand_tagged_action_function_works_too():
     )
     async with Client(server) as client:
         r = await client.call_tool("step", {"action": "hand_slow", "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "action_timeout"
         assert out["timeout_seconds"] == 0.1

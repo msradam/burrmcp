@@ -52,7 +52,7 @@ async def _step(client, action, **inputs):
 
 
 def _payload(result):
-    return json.loads(result.content[0].text)
+    return result.structured_content
 
 
 # ── pure-function unit tests ────────────────────────────────────────
@@ -105,7 +105,7 @@ async def test_ask_accepts_custom_corpus_dir(monkeypatch, tmp_path):
         # (retrieve was already called once above; check current state.)
         await client.call_tool("step", {"action": "synthesize", "inputs": {}})
         r = await client.call_tool("step", {"action": "grade", "inputs": {}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["state"]["corpus_dir"].rstrip("/") == str(tmp_path).rstrip("/")
         # Citations come from the custom corpus.
         assert any("ops/rollback.md" in k for k in out["state"]["retrieved"])
@@ -128,7 +128,7 @@ async def test_ask_rejects_nonexistent_corpus_dir():
                 },
             },
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "action_error"
         assert "does not exist" in out["error_message"]
 

@@ -56,7 +56,7 @@ async def test_fork_at_rewinds_to_an_earlier_state():
 
         # Fork back to after enter_foyer (seq 0).
         r = await client.call_tool("fork_at", {"sequence_id": 0})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["action"] == "fork_at"
         assert out["result"]["from_action"] == "enter_foyer"
         assert out["state"]["room"] == "foyer"
@@ -91,7 +91,7 @@ async def test_fork_at_refuses_to_a_refusal_entry():
         assert history[0]["refused"] is True
 
         r = await client.call_tool("fork_at", {"sequence_id": 0})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "cannot_fork_to_refusal"
 
 
@@ -101,7 +101,7 @@ async def test_fork_at_refuses_out_of_range():
     async with Client(server) as client:
         await client.call_tool("step", {"action": "enter_foyer", "inputs": {}})
         r = await client.call_tool("fork_at", {"sequence_id": 99})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "unknown_sequence_id"
         assert out["history_length"] == 1
 
@@ -116,7 +116,7 @@ async def test_fork_at_refuses_to_meta_entry():
         await client.call_tool("reset_session", {})
         # Now history is: enter_foyer (seq 0), reset_session (seq 1).
         r = await client.call_tool("fork_at", {"sequence_id": 1})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "cannot_fork_to_meta_entry"
         assert out["action"] == "reset_session"
 
@@ -127,7 +127,7 @@ async def test_fork_at_refuses_in_shared_app_mode():
     server = mount(shared_app, mode=ServingMode.STEP, name="shared-no-fork")
     async with Client(server) as client:
         r = await client.call_tool("fork_at", {"sequence_id": 0})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "fork_not_supported"
 
 

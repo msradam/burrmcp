@@ -91,7 +91,7 @@ async def test_full_async_walk_through_mcp_step():
             ("pick_best", {}),
         ]:
             r = await client.call_tool("step", {"action": name, "inputs": inputs})
-            out = json.loads(r.content[0].text)
+            out = r.structured_content
             assert out.get("error") is None, f"{name}: {out}"
         # Read the hooks resource.
         text = (await client.read_resource("burr://hooks"))[0].text

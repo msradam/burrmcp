@@ -81,7 +81,7 @@ async def test_fork_from_past_resumes_state_from_disk(tmp_path, monkeypatch):
             "fork_from_past",
             {"app_id": past_app_id, "sequence_id": -1},
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["action"] == "fork_from_past"
         assert out["state"]["counter"] == 3
         assert out["result"]["loaded_app_id"] == past_app_id
@@ -109,23 +109,30 @@ async def test_fork_from_past_refuses_unknown_app_id(tmp_path, monkeypatch):
             "fork_from_past",
             {"app_id": "nope-not-a-real-uid", "sequence_id": -1},
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "unknown_past_run"
 
 
 @pytest.mark.asyncio
-async def test_fork_from_past_refuses_without_tracker(tmp_path, monkeypatch):
-    """An Application without LocalTrackingClient can't fork from a
-    past on-disk run."""
+async def test_fork_from_past_hidden_without_tracker(tmp_path, monkeypatch):
+    """An Application without a LocalTrackingClient or explicit state_loader
+    has fork_from_past hidden from the tool listing entirely, since the
+    tool's body would only ever return a ``no_tracker`` refusal there.
+    The Visibility transform filters it at the Provider level so list_tools
+    omits it and direct calls error with 'Unknown tool'."""
+    from fastmcp.exceptions import ToolError
+
     monkeypatch.setenv("HOME", str(tmp_path))
     server = mount(_untracked_factory, mode=ServingMode.STEP, name="ffp-no-tracker")
     async with Client(server) as client:
-        r = await client.call_tool(
-            "fork_from_past",
-            {"app_id": "anything", "sequence_id": -1},
-        )
-        out = json.loads(r.content[0].text)
-        assert out["error"] == "no_tracker"
+        tool_names = {t.name for t in await client.list_tools()}
+        assert "fork_from_past" not in tool_names
+        assert "step" in tool_names and "fork_at" in tool_names
+        with pytest.raises(ToolError, match="Unknown tool"):
+            await client.call_tool(
+                "fork_from_past",
+                {"app_id": "anything", "sequence_id": -1},
+            )
 
 
 @pytest.mark.asyncio
@@ -139,7 +146,7 @@ async def test_fork_from_past_refuses_in_shared_mode(tmp_path, monkeypatch):
             "fork_from_past",
             {"app_id": "anything", "sequence_id": -1},
         )
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out["error"] == "fork_not_supported"
 
 

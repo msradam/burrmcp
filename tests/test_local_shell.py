@@ -7,7 +7,6 @@ session-on-process-exit leakage.
 
 from __future__ import annotations
 
-import json
 import shutil
 import sys
 from pathlib import Path
@@ -164,7 +163,7 @@ async def test_full_walk_through_mcp_step():
     server = build_server()
     async with Client(server) as client:
         r = await client.call_tool("step", {"action": "execute", "inputs": {"command": "ls -1"}})
-        out = json.loads(r.content[0].text)
+        out = r.structured_content
         assert out.get("error") is None, out
         assert "data.csv" in out["state"]["history"][-1]["stdout"]
 
@@ -172,12 +171,12 @@ async def test_full_walk_through_mcp_step():
             "step",
             {"action": "execute", "inputs": {"command": "cat /etc/passwd"}},
         )
-        refusal = json.loads(r.content[0].text)
+        refusal = r.structured_content
         assert refusal["error"] == "action_error"
         assert "sandbox-escape" in refusal["error_message"]
 
         r = await client.call_tool("step", {"action": "done", "inputs": {}})
-        done = json.loads(r.content[0].text)
+        done = r.structured_content
         # The refused call wasn't appended to state.history, so the
         # summary only sees the successful ls.
         assert done["state"]["summary"]["command_count"] == 1

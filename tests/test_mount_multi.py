@@ -117,7 +117,7 @@ async def test_apps_have_independent_state():
             "order_step",
             {"action": "open_session", "inputs": {"value": 7}},
         )
-        order_after = json.loads(r.content[0].text)
+        order_after = r.structured_content
         assert order_after["state"]["value"] == 7
 
         # `review` should still be at its initial state.
@@ -132,8 +132,8 @@ async def test_namespaced_step_returns_app_id_per_app():
     async with Client(server) as client:
         ra = await client.call_tool("order_step", {"action": "open_session", "inputs": {}})
         rb = await client.call_tool("review_step", {"action": "open_session", "inputs": {}})
-        a_payload = json.loads(ra.content[0].text)
-        b_payload = json.loads(rb.content[0].text)
+        a_payload = ra.structured_content
+        b_payload = rb.structured_content
         assert a_payload["app_id"] != b_payload["app_id"]
 
 

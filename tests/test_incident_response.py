@@ -160,7 +160,7 @@ async def test_full_walk_through_mcp_step():
         await client.call_tool("step", {"action": "report", "inputs": {}})
         await client.call_tool("step", {"action": "acknowledge", "inputs": {"responder": "dave"}})
         r_invest = await client.call_tool("step", {"action": "investigate", "inputs": {}})
-        invest_payload = json.loads(r_invest.content[0].text)
+        invest_payload = r_invest.structured_content
         # Investigation should have populated findings + hypothesis.
         assert invest_payload["state"]["findings"]
         assert "v2.14.3" in invest_payload["state"]["hypothesis"]
@@ -186,7 +186,7 @@ async def test_full_walk_through_mcp_step():
             "step",
             {"action": "verify", "inputs": {"verified": True, "notes": "clean post-rollback"}},
         )
-        verify_payload = json.loads(r_verify.content[0].text)
+        verify_payload = r_verify.structured_content
         assert verify_payload["state"]["verification_evidence"]["error_count"] == 0
         await client.call_tool(
             "step", {"action": "resolve", "inputs": {"resolution": "rolled back to v2.14.2"}}
@@ -198,5 +198,5 @@ async def test_full_walk_through_mcp_step():
                 "inputs": {"postmortem_md": "# Postmortem\n\nv2.14.3 broke checkout."},
             },
         )
-        pm = json.loads(r_pm.content[0].text)
+        pm = r_pm.structured_content
         assert pm["state"]["status"] == "closed"
