@@ -499,7 +499,7 @@ def build_server():
             "stores your responses. Start with "
             "start_audit(target, mode, authorization_source=None). "
             "Modes: INSIDE (you have filesystem access), OUTSIDE (URL "
-            "only, scope-on-file required), BOTH (most powerful). "
+            "only, scope-on-file required), BOTH (widest scope). "
             "Each subsequent step takes your findings from the prior "
             "phase as input and emits the next phase's prompt in "
             "state.current_prompt. Phases: context -> source review "

@@ -46,6 +46,14 @@ observability = [
     "opentelemetry-sdk>=1.20",
 ]
 
+# Burr UI (`burrmcp ui`) for inspecting tracked sessions. Optional
+# because the [start] extra is heavy (streamlit, graphviz, openai). The
+# CLI also auto-bootstraps via uvx when this extra isn't installed, so
+# most users don't need to install it explicitly.
+ui = [
+    "apache-burr[start]>=0.42,<0.43",
+]
+
 # Mellea for the mellea_qiskit_migration demo. Also needs an Ollama
 # runtime with `ollama pull granite4:micro` (runtime, not a Python dep).
 mellea = [
@@ -56,6 +64,7 @@ mellea = [
 all = [
     "burrmcp[observability]",
     "burrmcp[mellea]",
+    "burrmcp[ui]",
 ]
 
 [project.scripts]
@@ -100,7 +109,7 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "B", "C4", "UP", "SIM", "RUF", "PERF", "PIE", "RET"]
+select = ["E", "F", "W", "I", "B", "C4", "UP", "SIM", "RUF", "PERF", "PIE", "RET", "FURB"]
 
 [tool.ruff.lint.per-file-ignores]
 # Tests insert examples/ into sys.path before importing the demo modules.

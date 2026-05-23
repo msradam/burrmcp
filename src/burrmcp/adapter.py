@@ -377,10 +377,7 @@ def _restore_snapshot(
     new_app = entry.application
     assert new_app is not None
 
-    forked_state_dict: dict[str, Any] = {
-        **state_dict,
-        "__PRIOR_STEP": last_action,
-    }
+    forked_state_dict: dict[str, Any] = state_dict | {"__PRIOR_STEP": last_action}
     if sequence_id_override is not None:
         forked_state_dict["__SEQUENCE_ID"] = sequence_id_override
     new_app.update_state(_BurrState(forked_state_dict))
@@ -476,8 +473,7 @@ def _render_action_surface(app: Application) -> str:
         else:
             lines.append(f"  - {a.name}")
 
-    lines.append("")
-    lines.append("Transitions:")
+    lines.extend(("", "Transitions:"))
     for t in app.graph.transitions:
         cond = getattr(t.condition, "_name", None) or getattr(t.condition, "name", None)
         if cond and cond != "default":
@@ -825,12 +821,10 @@ async def spawn_subapp(
         # a populated ``history`` rather than an empty list. Best-effort:
         # a missing tracker, missing file, or read error all just leave
         # ``history`` empty.
-        try:
+        with contextlib.suppress(Exception):
             trace_path = _tracker_log_path(sub_application)
             if trace_path is not None and trace_path.exists():
                 record["history"] = _read_trace(trace_path)
-        except Exception:
-            pass
         return {"subrun_id": sub_id, "label": label, "final_state": final}
     except Exception as exc:
         record["error"] = {"type": type(exc).__name__, "message": str(exc)}

@@ -81,7 +81,7 @@ _LOG_LINE = re.compile(r"^(\S+)\s+(\w+)\s+(\S+)\s+(.+)$")
 
 def _parse_ts(s: str) -> datetime:
     """Parse an ISO-8601 timestamp; tolerant of the trailing 'Z' form."""
-    return datetime.fromisoformat(s.replace("Z", "+00:00"))
+    return datetime.fromisoformat(s)
 
 
 def _read_log_lines(path: Path) -> list[tuple[datetime, str, str, str]]:

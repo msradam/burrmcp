@@ -67,18 +67,22 @@ including parallelism, persistence, telemetry, and library coexistence:
 
 Anything missing from this table hasn't been exercised yet.
 
-## The four-tool surface
+## The tool surface
 
-Every server mounted with `mount(...)` exposes the same four MCP tools:
+Every server mounted with `mount(...)` exposes the same MCP tools:
 
 | Tool | Use |
 |---|---|
 | `step(action, inputs)` | Run one transition. Refuses with `invalid_transition` if the action isn't reachable. |
 | `reset_session` | Rebuild this session's `Application` from the factory. |
 | `fork_at(sequence_id)` | Roll back to a prior point in this session's history. |
-| `fork_from_past(app_id, sequence_id)` | Resume a state another session left in the persister. |
+| `fork_from_past(app_id, sequence_id)` | Resume a state another session left in the persister. Hidden when no `state_loader` or `LocalTrackingClient` is wired, since the body would only refuse there. |
+| `list_resources()` | Catalog of the server's `burr://...` resources. From FastMCP's `ResourcesAsTools` transform; for clients that don't implement `resources/read` natively (IBM Bob Shell as of mid-2026). |
+| `read_resource(uri)` | Fetch one resource through the tool surface. Same payload as the native MCP resource read. |
 
 The action namespace lives in `step`'s argument schema and at `burr://graph`. The shape stays the same whether the FSM has three actions or thirty.
+
+`step`'s result has a one-line headline at `content[0]` (`"Step 3: form_hypothesis ✓ → report_findings"`) followed by the JSON body at `content[1]`, plus the same dict in `structured_content`. Clients that show only the first content block in collapsed tool-call previews (Claude Code) surface the headline rather than opening braces. The same headline is also emitted as an MCP log notification per step, so clients that render server logs inline (Bob, Claude Code's streaming output) show the FSM walk without expansion.
 
 ## Lifting an existing FastMCP server
 
@@ -207,7 +211,7 @@ What you get:
 - **JSONL trace on disk** at `~/.burr/coffee-demo/<app-id>/log.jsonl`. One entry per action: enter, exit, state diff, timing, errors. Tail it for a live feed.
 - **MCP resource** at `burr://trace` mirrors that file for the connecting agent. The agent can read its own audit trail without filesystem access.
 - **Tracker coordinates** at `burr://session` (project, app_id, app_dir, partition_key) so terminal tools like `burrmcp watch <project>` can find the right session.
-- **Burr UI replay**: `uvx --from "burr[start]" burr` opens a web UI that visualizes every state transition for any tracker project on disk.
+- **Burr UI replay**: `burrmcp ui` opens a web UI that visualizes every state transition for any tracker project on disk. Bootstraps via `uvx` on first run; permanent install with `uv pip install 'burrmcp[ui]'`.
 - **Per-session history** at `burr://history` (one entry per MCP step, including refusals). Complementary to `burr://trace`: history captures what the *agent* attempted; trace captures what *Burr* executed.
 
 For OpenTelemetry spans, install `burrmcp[observability]` and use Burr's `OpenTelemetryBridge` as a lifecycle adapter; `examples/with_otel.py` shows the wire-up. Custom span sinks (Datadog, Honeycomb, in-memory) work through Burr's `PreStartSpanHook` / `PostEndSpanHook` / `DoLogAttributeHook`; `examples/custom_telemetry.py` has the pattern.
@@ -305,6 +309,7 @@ Python 3.11 through 3.13.
 ```bash
 pip install 'burrmcp[observability]'   # OpenTelemetry: examples/with_otel.py
 pip install 'burrmcp[mellea]'          # Mellea: examples/mellea_qiskit_migration.py
+pip install 'burrmcp[ui]'              # apache-burr[start] for `burrmcp ui` (auto-bootstraps via uvx otherwise)
 pip install 'burrmcp[all]'             # everything above
 ```
 
@@ -411,7 +416,10 @@ A typical session against `incident_response`:
 
 Try `Resolve incident INC-99 with resolution "rolled back"` on a fresh session: the FSM is at `report`, so the call comes back as `invalid_transition` with `valid_next_actions: ["report"]`. The agent self-corrects from there.
 
-To observe the FSM live from another terminal: `uv run burrmcp watch` tails `~/.burr/<project>/<app-id>/log.jsonl` for the most-recently-touched session and pretty-prints each step.
+To observe the FSM live from another terminal:
+
+- `uv run burrmcp watch` tails `~/.burr/<project>/<app-id>/log.jsonl` for the most-recently-touched session and pretty-prints each step.
+- `uv run burrmcp ui` opens the Burr UI in a browser for full session replay. First run bootstraps the UI dependencies via `uvx`; subsequent runs use the cache. Permanent install: `uv pip install 'burrmcp[ui]'`.
 
 ## CLI
 
@@ -419,13 +427,15 @@ To observe the FSM live from another terminal: `uv run burrmcp watch` tails `~/.
 script. Launch any importable Application or factory:
 
 ```bash
-burrmcp serve coffee_order:build_application --mode step
-burrmcp serve triage:build_application --mode dynamic --name triage
+burrmcp serve coffee_order:build_application
+burrmcp serve triage:build_application --name triage
 ```
 
 The first argument is a `module:attr` target, the same shape uvicorn
 and gunicorn use. The attr may be a built `Application` or a callable
-returning one.
+returning one. `--mode step` is the default and only supported mode;
+the historical `TOOLS` and `DYNAMIC` modes are stashed in
+`src/burrmcp/_experimental/modes.py` with revival notes.
 
 `burrmcp doctor` runs static validation against the same target
 before you mount it. Catches the failure modes that only surface at
@@ -434,7 +444,14 @@ state keys read before anything writes them, orphan initial state.
 
 ```bash
 burrmcp doctor coffee_order:build_application --app-dir examples
+burrmcp doctor coffee_order:build_application --app-dir examples --runtime
 ```
+
+With `--runtime`, doctor also mounts the server in-process and probes
+its wire shape: tool listing, resource catalog, `step` result content
+blocks. Confirms ResourcesAsTools is exposing `list_resources` and
+`read_resource`, Visibility is hiding `fork_from_past` when no tracker
+is wired, and `step` returns the headline-at-content[0] shape.
 
 Exit code is `0` when there are no failures (warnings and info notes
 don't block) and `1` otherwise, so a `burrmcp doctor` invocation
@@ -447,7 +464,7 @@ import run_checks`.
 uv run pytest
 ```
 
-Three hundred and thirty-three tests in about 16 seconds (real bandit + detect-secrets subprocess scans in the codebase_security tests account for most of the runtime; the rest of the suite is in-process and lands in well under a second). Most use FastMCP's in-process
+Five hundred and seventy-four tests in about 25 seconds (real bandit + detect-secrets subprocess scans in the codebase_security tests account for most of the runtime; the rest of the suite is in-process and lands in well under a second). Most use FastMCP's in-process
 client; `tests/test_http_transport.py` spawns the HTTP example as a
 subprocess and drives it with two real HTTP clients.
 `tests/test_hardening.py` covers action exceptions, concurrent steps
@@ -457,7 +474,7 @@ and async tools, branching transitions, signature preservation, and
 the `only`/`rename`/`state_update` options.
 `tests/test_timeouts.py` covers the action-timeout knob: slow actions
 get cancelled, fast ones pass through, no-timeout leaves slow work
-alone, and timeouts apply in TOOLS mode too.
+alone.
 `tests/test_trace.py` covers the tracker passthrough: no-tracker
 error, post-step content, path resolution, traversal safety.
 `tests/test_per_action_timeout.py` covers the per-tool override:

@@ -6,16 +6,19 @@ short descriptions baked in.
 
 Usage:
 
-    burrmcp serve coffee_order:build_application --mode step
-    burrmcp serve mymodule:application_factory --mode dynamic --name coffee
-    burrmcp doctor coffee_order:build_application
+    burrmcp serve coffee_order:build_application
+    burrmcp doctor coffee_order:build_application --runtime
+    burrmcp ui
 
 The ``module:attr`` syntax matches uvicorn / gunicorn conventions. The
 referenced attribute is either a built ``burr.core.Application``
 (shared across sessions) or a callable factory returning one (one
 build per session for state isolation). See ``burrmcp.mount`` for
 the distinction. The ``doctor`` subcommand runs static validation
-against the resolved Application before you mount it.
+(and optionally a runtime wire-shape probe with ``--runtime``)
+against the resolved Application. The ``ui`` subcommand launches
+Burr's web UI for inspecting tracked sessions. The ``watch``
+subcommand tails a tracker JSONL log live.
 """
 
 from __future__ import annotations
@@ -143,15 +146,108 @@ def doctor(
             help="Print message and details for every check, not just failures and warnings.",
         ),
     ] = False,
+    runtime: Annotated[
+        bool,
+        typer.Option(
+            "--runtime",
+            help=(
+                "Also mount the server in-process and probe its wire shape: "
+                "tool listing, resource catalog, step result content blocks. "
+                "Confirms the polish surfaces (headline, ResourcesAsTools, "
+                "Visibility) are wired end-to-end."
+            ),
+        ),
+    ] = False,
 ) -> None:
     """Statically validate a Burr Application or factory before mounting."""
     from burrmcp.doctor import format_report, run_checks
 
     application_or_factory = _import_target(target, app_dir or [])
-    report = run_checks(application_or_factory)
+    report = run_checks(application_or_factory, runtime=runtime)
     typer.echo(format_report(report, verbose=verbose))
     if not report.ok:
         raise typer.Exit(code=1)
+
+
+@app.command()
+def ui(
+    port: Annotated[
+        int,
+        typer.Option(
+            "--port",
+            help="Port for the Burr UI server.",
+        ),
+    ] = 7241,
+    host: Annotated[
+        str,
+        typer.Option(
+            "--host",
+            help="Bind address. Use 0.0.0.0 to expose on the network.",
+        ),
+    ] = "127.0.0.1",
+    no_open: Annotated[
+        bool,
+        typer.Option(
+            "--no-open",
+            help="Don't open a browser tab when the UI starts.",
+        ),
+    ] = False,
+) -> None:
+    """Launch the Burr UI to inspect tracked sessions.
+
+    Prefers the local install if apache-burr\\[start] is present (one
+    process). Otherwise shells out to ``uvx --from 'apache-burr\\[start]'``,
+    which bootstraps on first run and reuses the cache after. For
+    permanent install: ``uv pip install 'burrmcp\\[ui]'``.
+    """
+    import shutil
+    import subprocess
+    import sys
+
+    forwarded = ["--port", str(port), "--host", host]
+    if no_open:
+        forwarded.append("--no-open")
+
+    # Fast path: if apache-burr[start] is installed in this env, drive
+    # the same Python that built any local tracker data. ``loguru`` is
+    # the first dep the burr CLI imports; its absence is the actual
+    # gating signal, not the presence of the ``burr`` script (which has
+    # a broken entry point in apache-burr 0.42, see the run-server
+    # function in burr/cli/__main__.py).
+    try:
+        import loguru
+    except ImportError:
+        loguru = None  # type: ignore[assignment]
+
+    if loguru is not None:
+        # Burr's __main__ dynamically creates ``cli_<command>`` attributes
+        # for each subcommand of its click group; ``cli_run_server`` is
+        # the UI launcher exposed as the ``burr`` console script.
+        cmd = [
+            sys.executable,
+            "-c",
+            "from burr.cli.__main__ import cli_run_server; cli_run_server()",
+            *forwarded,
+        ]
+    elif shutil.which("uvx") is not None:
+        cmd = ["uvx", "--from", "apache-burr[start]", "burr", *forwarded]
+    else:
+        typer.echo(
+            "burrmcp ui needs either apache-burr[start] installed in the "
+            "current env (try `uv pip install 'burrmcp[ui]'`) or `uvx` on "
+            "PATH (https://docs.astral.sh/uv/) for one-shot bootstrap.",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+    typer.echo(f"Launching Burr UI on http://{host}:{port}")
+    try:
+        subprocess.run(cmd, check=True)
+    except subprocess.CalledProcessError as exc:
+        raise typer.Exit(code=exc.returncode or 1) from exc
+    except KeyboardInterrupt:
+        # Subprocess already handled SIGINT; exit cleanly.
+        pass
 
 
 @app.command()

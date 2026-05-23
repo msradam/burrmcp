@@ -1,21 +1,17 @@
 """burrmcp: mount Burr Applications as MCP servers.
 
-Each Burr @action becomes an MCP tool. State lives on the server.
-Transitions can be enforced server-side.
+State lives on the server. Every mounted server exposes a constant
+four-tool surface (``step``, ``reset_session``, ``fork_at``,
+``fork_from_past``) regardless of FSM complexity; the action namespace
+lives in ``step``'s argument schema and at ``burr://graph``. Plus two
+synthetic tools from FastMCP's ``ResourcesAsTools`` transform
+(``list_resources``, ``read_resource``) for clients that don't
+implement native ``resources/read`` (IBM Bob Shell as of mid-2026).
 
-Three serving modes:
-
-  • tools:   every @action exposed as its own MCP tool, no gating.
-             Closest to a flat MCP server today.
-  • step:    one ``step(action_name, **args)`` meta-tool. Server
-             enforces valid transitions. Works on every MCP client,
-             including those that ignore tools/list_changed.
-  • dynamic: per-action tools whose visibility tracks current state.
-             Best when the client honors dynamic tool lists.
-
-Default is ``step`` because client support for dynamic tool lists is
-patchy as of mid-2026: Claude Code ignores list_changed, Cursor
-doesn't refresh on its own.
+``TOOLS`` and ``DYNAMIC`` serving modes were carved into
+``burrmcp._experimental.modes`` once ``STEP`` became the sole product;
+the ``ServingMode`` enum keeps ``STEP`` as its only member so callers
+passing ``mode=ServingMode.STEP`` keep working.
 """
 
 from burrmcp.adapter import (
