@@ -63,6 +63,27 @@ def test_clean_factory_passes_all_checks():
     assert _find(report, "State contract").status == CheckStatus.PASS
 
 
+# ── runtime probe ───────────────────────────────────────────────────
+
+
+def test_runtime_probe_validates_polished_surface():
+    """--runtime confirms tools, resources, and step result shape."""
+    report = run_checks(_two_node_factory, runtime=True)
+    assert report.ok
+    assert _find(report, "Runtime: mount").status == CheckStatus.PASS
+    assert _find(report, "Runtime: native tools").status == CheckStatus.PASS
+    assert _find(report, "Runtime: ResourcesAsTools").status == CheckStatus.PASS
+    assert _find(report, "Runtime: resources").status == CheckStatus.PASS
+    assert _find(report, "Runtime: step result shape").status == CheckStatus.PASS
+
+
+def test_runtime_probe_reports_fork_from_past_hidden_without_tracker():
+    report = run_checks(_two_node_factory, runtime=True)
+    ffp = _find(report, "Runtime: fork_from_past visibility")
+    assert ffp.status == CheckStatus.PASS
+    assert "hidden" in ffp.message
+
+
 def test_clean_application_instance_passes():
     report = run_checks(_two_node_factory())
     assert report.ok

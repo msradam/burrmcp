@@ -1,5 +1,5 @@
 {
-  "_comment": "Several burrmcp example servers wired up for IBM Bob (IDE + Shell share this schema). Copy to .bob/mcp.json in your project root, or to ~/.bob/mcp_settings.json for global. Replace /ABSOLUTE/PATH/TO/burrmcp with your checkout. The alwaysAllow lists pre-approve burrmcp's four meta tools so Bob doesn't prompt for permission on every FSM step. See https://bob.ibm.com/docs/ide/configuration/mcp/mcp-in-bob and https://bob.ibm.com/docs/shell/configuration/mcp/mcp-bobshell.",
+  "_comment": "Several burrmcp example servers wired up for IBM Bob (IDE + Shell share this schema). Copy to .bob/mcp.json in your project root, or to ~/.bob/mcp_settings.json for global. Replace /ABSOLUTE/PATH/TO/burrmcp with your checkout. The alwaysAllow lists pre-approve the four FSM meta tools (step, reset_session, fork_at, fork_from_past) plus the two ResourcesAsTools-generated tools (list_resources, read_resource), so Bob (especially the Shell variant, which lacks native resources/read) doesn't prompt on every step. See https://bob.ibm.com/docs/ide/configuration/mcp/mcp-in-bob and https://bob.ibm.com/docs/shell/configuration/mcp/mcp-bobshell.",
   "mcpServers": {
     "coffee": {
       "command": "uv",
@@ -13,7 +13,7 @@
         "--app-dir",
         "examples"
       ],
-      "alwaysAllow": ["step", "reset_session", "fork_at", "fork_from_past"]
+      "alwaysAllow": ["step", "reset_session", "fork_at", "fork_from_past", "list_resources", "read_resource"]
     },
     "adventure": {
       "command": "uv",
@@ -27,7 +27,7 @@
         "--app-dir",
         "examples"
       ],
-      "alwaysAllow": ["step", "reset_session", "fork_at", "fork_from_past"]
+      "alwaysAllow": ["step", "reset_session", "fork_at", "fork_from_past", "list_resources", "read_resource"]
     },
     "chargen": {
       "command": "uv",
@@ -41,7 +41,7 @@
         "--app-dir",
         "examples"
       ],
-      "alwaysAllow": ["step", "reset_session", "fork_at", "fork_from_past"]
+      "alwaysAllow": ["step", "reset_session", "fork_at", "fork_from_past", "list_resources", "read_resource"]
     },
     "burr-shell": {
       "command": "uv",
@@ -55,7 +55,7 @@
         "--app-dir",
         "examples"
       ],
-      "alwaysAllow": ["step", "reset_session", "fork_at", "fork_from_past"]
+      "alwaysAllow": ["step", "reset_session", "fork_at", "fork_from_past", "list_resources", "read_resource"]
     },
     "granite-oncall": {
       "command": "uv",
@@ -69,7 +69,7 @@
         "--app-dir",
         "examples"
       ],
-      "alwaysAllow": ["step", "reset_session", "fork_at", "fork_from_past"]
+      "alwaysAllow": ["step", "reset_session", "fork_at", "fork_from_past", "list_resources", "read_resource"]
     },
     "burr-unix-health": {
       "command": "uv",
@@ -83,7 +83,7 @@
         "--app-dir",
         "examples"
       ],
-      "alwaysAllow": ["step", "reset_session", "fork_at", "fork_from_past"]
+      "alwaysAllow": ["step", "reset_session", "fork_at", "fork_from_past", "list_resources", "read_resource"]
     },
     "codebase-security": {
       "command": "uv",
@@ -97,7 +97,7 @@
         "--app-dir",
         "examples"
       ],
-      "alwaysAllow": ["step", "reset_session", "fork_at", "fork_from_past"]
+      "alwaysAllow": ["step", "reset_session", "fork_at", "fork_from_past", "list_resources", "read_resource"]
     },
     "adaptive-crag": {
       "command": "uv",
@@ -111,7 +111,7 @@
         "--app-dir",
         "examples"
       ],
-      "alwaysAllow": ["step", "reset_session", "fork_at", "fork_from_past"]
+      "alwaysAllow": ["step", "reset_session", "fork_at", "fork_from_past", "list_resources", "read_resource"]
     },
     "security-audit": {
       "command": "uv",
@@ -125,7 +125,7 @@
         "--app-dir",
         "examples"
       ],
-      "alwaysAllow": ["step", "reset_session", "fork_at", "fork_from_past"]
+      "alwaysAllow": ["step", "reset_session", "fork_at", "fork_from_past", "list_resources", "read_resource"]
     },
     "mellea-qiskit-migration": {
       "command": "uv",
@@ -139,7 +139,7 @@
         "--app-dir",
         "examples"
       ],
-      "alwaysAllow": ["step", "reset_session", "fork_at", "fork_from_past"]
+      "alwaysAllow": ["step", "reset_session", "fork_at", "fork_from_past", "list_resources", "read_resource"]
     },
     "incident-response": {
       "command": "uv",
@@ -153,7 +153,7 @@
         "--app-dir",
         "examples"
       ],
-      "alwaysAllow": ["step", "reset_session", "fork_at", "fork_from_past"]
+      "alwaysAllow": ["step", "reset_session", "fork_at", "fork_from_past", "list_resources", "read_resource"]
     }
   }
 }

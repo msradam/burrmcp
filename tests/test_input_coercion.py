@@ -52,7 +52,7 @@ def test_expects_object_or_array_anyof():
 
 
 def test_expects_object_or_array_oneof_with_string():
-    # A union of string and object — still object-allowed.
+    # A union of string and object: still object-allowed.
     schema = {"oneOf": [{"type": "string"}, {"type": "object"}]}
     assert _expects_object_or_array(schema) is True
 

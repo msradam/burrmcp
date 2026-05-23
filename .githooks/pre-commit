@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Pre-commit hook: run voice lint against staged files.
+#
+# Enable with:
+#     git config core.hooksPath .githooks
+#
+# Disable for a single commit:
+#     git commit --no-verify
+
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+exec "$REPO_ROOT/.venv/bin/python" "$REPO_ROOT/scripts/voice_lint.py" --staged

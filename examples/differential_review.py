@@ -236,7 +236,7 @@ HIGH file does not yield a concrete scenario.
 _PROMPT_REPORT = """\
 PHASE 6: REPORT GENERATION.
 
-From `reporting.md#report-structure`, write a comprehensive markdown
+From `reporting.md#report-structure`, write a full markdown
 report. Per the SKILL: "Output report only to chat (file required)".
 
 Required sections (per `reporting.md`):

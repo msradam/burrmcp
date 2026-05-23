@@ -83,13 +83,19 @@ class DoctorReport:
         return self.failed == 0
 
 
-def run_checks(application: Any) -> DoctorReport:
+def run_checks(application: Any, *, runtime: bool = False) -> DoctorReport:
     """Validate a Burr Application or a callable that returns one.
 
     A callable is invoked once to obtain the Application. Any
     exception during that call becomes a :class:`CheckStatus.FAIL`
     finding and short-circuits the remaining graph-level checks (we
     can't introspect a graph we couldn't build).
+
+    With ``runtime=True``, also spin up a real ``mount()`` server and
+    probe its wire shape: tool listing, resource listing, ``step``
+    output shape (headline at content[0], ``structured_content``
+    populated). Useful for confirming the polish surfaces are wired
+    end-to-end without a separate client.
     """
     report = DoctorReport()
 
@@ -100,6 +106,9 @@ def run_checks(application: Any) -> DoctorReport:
     report.checks.extend(_check_graph_topology(app))
     report.checks.extend(_check_state_contract(app))
     report.checks.extend(_check_initial_state_usage(app))
+
+    if runtime:
+        report.checks.extend(_check_runtime(application, app))
     return report
 
 
@@ -234,7 +243,7 @@ def _check_state_contract(app: Application) -> list[CheckResult]:
     legitimate.
     """
     initial_keys = set(app.state.get_all().keys()) - _INTERNAL_STATE_KEYS
-    writable: set[str] = set(initial_keys)
+    writable: set[str] = initial_keys.copy()
     for a in app.graph.actions:
         writable.update(a.writes or [])
 
@@ -296,6 +305,192 @@ def _check_initial_state_usage(app: Application) -> list[CheckResult]:
     ]
 
 
+def _check_runtime(application: Any, app: Application) -> list[CheckResult]:
+    """Mount the server in-process and probe its wire shape.
+
+    Verifies the four-tool surface, the ResourcesAsTools transform tools,
+    the resource catalog, and the ``step`` result shape (headline at
+    content[0], JSON at content[1], ``structured_content`` populated).
+    The step probe calls the entrypoint action with empty inputs and
+    accepts any outcome (success or refusal); the test is the wire
+    shape, not the FSM semantics.
+    """
+    import asyncio
+
+    async def _probe() -> list[CheckResult]:
+        from fastmcp import Client
+
+        from burrmcp.adapter import ServingMode, mount
+
+        results: list[CheckResult] = []
+        try:
+            server = mount(application, mode=ServingMode.STEP, name="doctor-probe")
+        except Exception as exc:
+            return [
+                CheckResult(
+                    "Runtime: mount",
+                    CheckStatus.FAIL,
+                    f"mount() raised {type(exc).__name__}: {exc}",
+                )
+            ]
+        results.append(CheckResult("Runtime: mount", CheckStatus.PASS, "server built"))
+
+        async with Client(server) as client:
+            tools = {t.name for t in await client.list_tools()}
+            expected_native = {"step", "reset_session", "fork_at"}
+            missing = expected_native - tools
+            if missing:
+                results.append(
+                    CheckResult(
+                        "Runtime: native tools",
+                        CheckStatus.FAIL,
+                        f"missing tools: {sorted(missing)}",
+                    )
+                )
+            else:
+                results.append(
+                    CheckResult(
+                        "Runtime: native tools",
+                        CheckStatus.PASS,
+                        f"step + reset_session + fork_at present ({len(tools)} total)",
+                    )
+                )
+
+            ras_missing = {"list_resources", "read_resource"} - tools
+            if ras_missing:
+                results.append(
+                    CheckResult(
+                        "Runtime: ResourcesAsTools",
+                        CheckStatus.FAIL,
+                        f"transform tools missing: {sorted(ras_missing)}",
+                    )
+                )
+            else:
+                results.append(
+                    CheckResult(
+                        "Runtime: ResourcesAsTools",
+                        CheckStatus.PASS,
+                        "list_resources + read_resource exposed",
+                    )
+                )
+
+            # fork_from_past visibility is conditional; report which path applies.
+            try:
+                from burr.tracking.client import LocalTrackingClient
+
+                has_tracker = isinstance(getattr(app, "_tracker", None), LocalTrackingClient)
+            except ImportError:
+                has_tracker = False
+            ffp_visible = "fork_from_past" in tools
+            if has_tracker and ffp_visible:
+                results.append(
+                    CheckResult(
+                        "Runtime: fork_from_past visibility",
+                        CheckStatus.PASS,
+                        "tracker attached and fork_from_past visible",
+                    )
+                )
+            elif not has_tracker and not ffp_visible:
+                results.append(
+                    CheckResult(
+                        "Runtime: fork_from_past visibility",
+                        CheckStatus.PASS,
+                        "no tracker; fork_from_past hidden by Visibility transform",
+                    )
+                )
+            else:
+                results.append(
+                    CheckResult(
+                        "Runtime: fork_from_past visibility",
+                        CheckStatus.WARN,
+                        (f"visibility mismatch (has_tracker={has_tracker}, visible={ffp_visible})"),
+                    )
+                )
+
+            resources = await client.list_resources()
+            resource_uris = {str(r.uri) for r in resources}
+            expected_resources = {
+                "burr://graph",
+                "burr://state",
+                "burr://next",
+                "burr://history",
+                "burr://trace",
+                "burr://session",
+                "burr://subruns",
+            }
+            r_missing = expected_resources - resource_uris
+            if r_missing:
+                results.append(
+                    CheckResult(
+                        "Runtime: resources",
+                        CheckStatus.FAIL,
+                        f"missing resources: {sorted(r_missing)}",
+                    )
+                )
+            else:
+                results.append(
+                    CheckResult(
+                        "Runtime: resources",
+                        CheckStatus.PASS,
+                        f"{len(expected_resources)} burr:// resources registered",
+                    )
+                )
+
+            # Probe step with a deliberately unknown action. We're
+            # checking the wire shape (headline + json + structured),
+            # not the FSM body. Unknown_action gives a clean refusal
+            # without exercising Burr's action runner.
+            r = await client.call_tool(
+                "step",
+                {"action": "__doctor_probe__", "inputs": {}},
+            )
+            problems: list[str] = []
+            if len(r.content) < 2:
+                problems.append(
+                    f"expected >=2 content blocks (headline + json), got {len(r.content)}"
+                )
+            elif not r.content[0].text.startswith("Step "):
+                problems.append(
+                    f"content[0] doesn't look like a headline: {r.content[0].text[:60]!r}"
+                )
+            if r.structured_content is None:
+                problems.append("structured_content is None (expected populated dict)")
+            elif not isinstance(r.structured_content, dict):
+                problems.append(
+                    f"structured_content has wrong shape: {type(r.structured_content).__name__}"
+                )
+            if problems:
+                results.append(
+                    CheckResult(
+                        "Runtime: step result shape",
+                        CheckStatus.FAIL,
+                        f"{len(problems)} shape issue(s)",
+                        details=problems,
+                    )
+                )
+            else:
+                results.append(
+                    CheckResult(
+                        "Runtime: step result shape",
+                        CheckStatus.PASS,
+                        "content[0]=headline, content[1]=json, structured_content=dict",
+                    )
+                )
+
+        return results
+
+    try:
+        return asyncio.run(_probe())
+    except Exception as exc:
+        return [
+            CheckResult(
+                "Runtime: probe",
+                CheckStatus.FAIL,
+                f"probe raised {type(exc).__name__}: {exc}",
+            )
+        ]
+
+
 # ── formatting ──────────────────────────────────────────────────────
 
 
@@ -339,8 +534,7 @@ def format_report(report: DoctorReport, verbose: bool = False) -> str:
         parts.append(f"{report.warnings} warnings")
     if report.info:
         parts.append(f"{report.info} info")
-    lines.append("")
-    lines.append("Doctor: " + (", ".join(parts) if parts else "no checks ran"))
+    lines.extend(("", "Doctor: " + (", ".join(parts) if parts else "no checks ran")))
     return "\n".join(lines)
 
 
