@@ -15,7 +15,7 @@ The action namespace lives in the `step` tool's argument schema, discoverable vi
 
 You can also go the other direction: lift an existing flat FastMCP server into a Burr Application with `burr_app_from_fastmcp(...)`, gaining transition enforcement and per-session isolation without rewriting your tools. See [Lifting an existing FastMCP server](#lifting-an-existing-fastmcp-server).
 
-Status: v1.12.0.
+Status: v0.1.0.
 
 ## Sessions
 
@@ -457,6 +457,60 @@ Exit code is `0` when there are no failures (warnings and info notes
 don't block) and `1` otherwise, so a `burrmcp doctor` invocation
 slots into CI. Importable from Python too: `from burrmcp.doctor
 import run_checks`.
+
+### Observability from the terminal
+
+Every mounted server with a `LocalTrackingClient` writes a per-session
+JSONL log under `~/.burr`. The CLI reads it, so you can inspect any
+session, including one running right now in another process, without
+opening the web UI.
+
+```bash
+burrmcp sessions ls                 # recent sessions, most recent first
+burrmcp sessions show <app-id>      # full timeline: per-step state diff + timing
+burrmcp sessions tail [app-id]      # live-tail a running session
+burrmcp watch [app-id]              # alias for `sessions tail`
+burrmcp logs [app-id]               # compact one-line-per-step, greppable
+burrmcp logs --refusals --plain     # only the steps that errored, pipe-friendly
+```
+
+`app-id` defaults to the most-recently-touched session and accepts a
+uuid prefix. `show` and `watch` render a table with a per-step state
+diff, latency, and a status glyph (a refused step shows red with its
+error message). `logs --plain` drops color and glyphs for `grep`.
+
+![watch](demos/watch.gif)
+
+## Driving other MCP servers (upstream)
+
+A Burr action can call tools on *other* MCP servers, through burrmcp.
+Pass `mount(application, upstream={...})` a map of server name to a
+`fastmcp.Client` transport (a URL, an mcp-config dict, or a
+`{"command": ..., "args": [...]}` stdio spec). Inside an action body,
+`call_upstream(server, tool, args)` forwards to that server and returns
+the result.
+
+```python
+from burrmcp import call_upstream, mount
+
+@action(reads=[], writes=["pods"])
+async def survey(state):
+    pods = await call_upstream("k8s", "list_pods", {"namespace": "prod"})
+    return state.update(pods=pods)
+
+server = mount(
+    build_application,
+    upstream={"k8s": {"command": "npx", "args": ["-y", "kubernetes-mcp-server"]}},
+)
+```
+
+The agent connects to one server (this one) and sees one tool surface
+(`step`). The upstream servers are not exposed to it; the graph reaches
+them from inside actions. Because each upstream call happens inside an
+action, it advances state, and because burrmcp speaks MCP as a client
+(`fastmcp.Client`, every transport), it works with any compliant
+server. `examples/upstream_filesystem.py` is a code-audit FSM that
+drives the official filesystem MCP server this way.
 
 ## Tests
 

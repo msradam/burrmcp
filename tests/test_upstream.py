@@ -17,7 +17,6 @@ from fastmcp import Client, FastMCP
 from burrmcp import ServingMode, UpstreamManager, call_upstream, mount
 from burrmcp.upstream import UpstreamError, bind_upstream, reset_upstream
 
-
 # == a fake upstream MCP server (in-process) =========================
 
 

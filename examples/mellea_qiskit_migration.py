@@ -8,7 +8,7 @@ we inline a small set of the same deprecation patterns drawn from
 Qiskit's own 1.0 migration guide so this demo runs without any
 extra plugin.
 
-The pitch: hand the FSM a chunk of pre-Qiskit-1.0 code that uses
+The shape: hand the FSM a chunk of pre-Qiskit-1.0 code that uses
 removed APIs (``IBMQ.load_account()``, ``execute(circuit, backend)``,
 ``Aer.get_backend(...)``, ``QasmSimulator()``); a single Burr
 action calls Mellea, which internally runs its
