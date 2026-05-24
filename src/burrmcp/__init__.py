@@ -23,12 +23,22 @@ from burrmcp.adapter import (
     spawn_subapp,
 )
 from burrmcp.importing import ToolSpec, burr_app_from_fastmcp
+from burrmcp.upstream import (
+    UpstreamError,
+    UpstreamManager,
+    bind_upstream,
+    call_upstream,
+)
 
 __all__ = [
     "ServingMode",
     "ToolSpec",
+    "UpstreamError",
+    "UpstreamManager",
     "ValidationFailed",
+    "bind_upstream",
     "burr_app_from_fastmcp",
+    "call_upstream",
     "current_mcp_context",
     "mount",
     "mount_multi",
