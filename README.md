@@ -536,3 +536,7 @@ on next call" behavior.
 ## License
 
 Apache 2.0.
+
+## Notice
+
+BurrMCP is independent open-source work by Adam Munawar Rahman and does not represent the views, positions, or technology roadmap of IBM Corporation or any other employer. See [NOTICE.md](NOTICE.md).
