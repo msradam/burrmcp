@@ -1162,6 +1162,117 @@ def _refusal_payload(
     raise exc  # not one of ours; let it propagate
 
 
+# ── Reactive hinting (auto-hint layer) ─────────────────────────────────────
+#
+# After every step (success or refusal), BurrMCP appends a single ``next_hint``
+# string to the response. The hint is generated in two layers:
+#
+#   1. Auto-hint (this module): derived from graph introspection alone -- what
+#      transitions are reachable, what kind of refusal just happened, whether
+#      the session is terminal. No domain knowledge required; works for any
+#      Burr graph mounted via mount().
+#
+#   2. Domain hint (caller-supplied next_hint callback): receives the same
+#      structural signals plus the refusal payload, and can return a
+#      domain-specific override. When provided and non-None, it replaces the
+#      auto-hint; otherwise the auto-hint is used.
+#
+# The split mirrors POSIX: errno (structural taxonomy) lives at the kernel
+# layer; strerror (semantic translation) lives at the libc layer.
+
+
+def _auto_hint_success(action: str, valid_next: list[str]) -> str | None:
+    """Structural hint after a successful step.
+
+    Terminal nodes get a "session terminal" signal. Otherwise an enumeration
+    of reachable actions. Both are derivable from the Burr graph alone -- no
+    domain knowledge is consumed.
+    """
+    if not valid_next:
+        return "Session is at a terminal state. No further actions are reachable."
+    head = ", ".join(valid_next[:6])
+    more = f" (+{len(valid_next) - 6} more)" if len(valid_next) > 6 else ""
+    return f"Reachable actions from current state: {head}{more}."
+
+
+def _auto_hint_refusal(refusal: dict[str, Any]) -> str | None:
+    """Structural hint after a refusal.
+
+    Maps the BurrMCP refusal taxonomy (invalid_transition / validation_failed
+    / action_timeout / action_error) to short, model-readable strings that
+    cite the structural reason without claiming to know the domain.
+    """
+    kind = refusal.get("error")
+    requested = refusal.get("requested") or "?"
+    valid = refusal.get("valid_next_actions") or []
+    head = ", ".join(valid[:6]) if valid else "(none)"
+    more = f" (+{len(valid) - 6} more)" if len(valid) > 6 else ""
+
+    if kind == "invalid_transition":
+        return (
+            f"Action {requested!r} is not reachable from the current state. "
+            f"Reachable now: {head}{more}."
+        )
+    if kind == "validation_failed":
+        reason = refusal.get("reason") or "(unspecified)"
+        return (
+            f"Action {requested!r} failed input validation: {reason}. "
+            f"Check the action's required inputs, then retry -- or pick a "
+            f"different reachable action: {head}{more}."
+        )
+    if kind == "action_timeout":
+        timeout_s = refusal.get("timeout_seconds")
+        return (
+            f"Action {requested!r} timed out after {timeout_s}s without "
+            f"advancing state. Try a narrower-scoped probe, or a different "
+            f"reachable action: {head}{more}."
+        )
+    if kind == "action_error":
+        err_type = refusal.get("error_type") or "Exception"
+        err_msg = refusal.get("error_message") or ""
+        return (
+            f"Action {requested!r} raised {err_type}: {err_msg[:160]}. "
+            f"Vary the inputs, or pick a different reachable action: "
+            f"{head}{more}."
+        )
+    return None
+
+
+def _compose_next_hint(
+    *,
+    state: dict[str, Any],
+    valid_next: list[str],
+    last_action: str,
+    refusal: dict[str, Any] | None,
+    domain_callback: Callable[..., str | None] | None,
+) -> str | None:
+    """Run the domain callback first; fall back to the auto-hint.
+
+    ``domain_callback`` is the user-supplied ``next_hint`` from ``mount()``.
+    Callable accepts ``(state, valid_next, last_action, refusal=None)``;
+    for backwards compatibility with three-arg callbacks, the refusal arg
+    is omitted when the inspected signature can't accept it. Domain hint
+    wins iff it returns a non-empty string; otherwise the structural
+    auto-hint is used.
+    """
+    if domain_callback is not None:
+        domain_hint: str | None = None
+        try:
+            try:
+                # Try the four-arg form first.
+                domain_hint = domain_callback(state, valid_next, last_action, refusal)
+            except TypeError:
+                # Older callbacks predate the refusal arg.
+                domain_hint = domain_callback(state, valid_next, last_action)
+        except Exception:
+            domain_hint = None
+        if domain_hint:
+            return domain_hint
+    if refusal is None:
+        return _auto_hint_success(last_action, valid_next)
+    return _auto_hint_refusal(refusal)
+
+
 def _expects_object_or_array(prop_schema: dict[str, Any]) -> bool:
     """Return True if the given JSON Schema fragment allows object/array.
 
@@ -1484,6 +1595,7 @@ def mount(
     action_timeout_seconds: float | None = None,
     input_validators: dict[str, Callable] | None = None,
     state_loader: Any | None = None,
+    next_hint: Callable[..., str | None] | None = None,
 ) -> FastMCP:
     """Return a FastMCP server that exposes ``application`` per ``mode``.
 
@@ -1525,6 +1637,17 @@ def mount(
             Postgres, etc.) used by ``fork_from_past``. Resolution order:
             this loader wins; else the current Application's
             ``LocalTrackingClient``; else refuse.
+        next_hint: Optional callback for domain-specific reactive
+            guidance. Receives ``(state, valid_next_actions, last_action,
+            refusal=None)`` and returns a single-line natural-language
+            hint, or ``None`` to defer to the structural auto-hint.
+            Called after every step success and every refusal. The
+            returned string (or the auto-hint when this returns None)
+            is appended to the step response as ``next_hint``. Closes
+            the gap weaker agent models hit when enumeration of valid
+            actions isn't enough -- they need direction, not just a list.
+            Backwards-compatible: three-arg callbacks (without the
+            ``refusal`` parameter) still work.
     """
     shared_app, factory = _resolve(application)
     # Per-session store keyed by ctx.session_id; populated lazily on
@@ -1871,6 +1994,18 @@ def mount(
                 ActionExecutionError,
             ) as exc:
                 response, hist_kwargs = _refusal_payload(exc=exc, action_name=action, app=app)
+                # Reactive hint on refusal -- the FSM teaches the agent
+                # why the call was blocked plus what's reachable now.
+                state_for_hint, _ = _serializable_state(_public_state(app.state.get_all()))
+                hint = _compose_next_hint(
+                    state=state_for_hint,
+                    valid_next=response.get("valid_next_actions") or [],
+                    last_action=action,
+                    refusal=response,
+                    domain_callback=next_hint,
+                )
+                if hint:
+                    response = {**response, "next_hint": hint}
                 _record_history(
                     store,
                     ctx,
@@ -1894,6 +2029,18 @@ def mount(
             new_subruns: list[str] = []
             if entry is not None:
                 new_subruns = [s for s in entry.subruns if s not in subruns_before]
+            # Reactive hint on success -- FSM-derived guidance for the
+            # next move. Auto-hint enumerates reachable actions; the
+            # domain callback can override with semantic-rich guidance.
+            hint = _compose_next_hint(
+                state=out["state"],
+                valid_next=out["valid_next_actions"],
+                last_action=action,
+                refusal=None,
+                domain_callback=next_hint,
+            )
+            if hint:
+                out = {**out, "next_hint": hint}
             _record_history(
                 store,
                 ctx,
