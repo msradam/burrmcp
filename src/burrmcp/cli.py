@@ -9,6 +9,7 @@ Subcommands:
   burrmcp sessions show <id>     Full post-mortem timeline of one session.
   burrmcp sessions tail [id]     Live-tail a running session (rich render).
   burrmcp watch [id]             Alias for `sessions tail`.
+  burrmcp logs [id]              Compact one-line-per-step log, greppable.
 
 Every observability command reads ``~/.burr`` (Burr's
 ``LocalTrackingClient`` storage), so it works against any session a
@@ -33,11 +34,40 @@ from rich.console import Console
 from rich.live import Live
 from rich.table import Table
 from rich.text import Text
+from rich.theme import Theme
 
 from burrmcp.adapter import ServingMode, mount
 
-console = Console()
-err_console = Console(stderr=True)
+# Rose Pine palette (https://rosepinetheme.com). Semantic style names map
+# onto the palette so the rendering code reads intent, not hex.
+_ROSE_PINE = {
+    "love": "#eb6f92",  # red    -> errors / refusals
+    "gold": "#f6c177",  # yellow -> running / pending
+    "rose": "#ebbcba",  # accent
+    "pine": "#31748f",  # teal
+    "foam": "#9ccfd8",  # cyan   -> success
+    "iris": "#c4a7e7",  # purple -> headers / actions
+    "muted": "#6e6a86",  # dim
+    "subtle": "#908caa",  # secondary text
+    "text": "#e0def4",
+}
+_THEME = Theme(
+    {
+        "ok": f"bold {_ROSE_PINE['foam']}",
+        "err": f"bold {_ROSE_PINE['love']}",
+        "running": f"bold {_ROSE_PINE['gold']}",
+        "action": f"bold {_ROSE_PINE['iris']}",
+        "accent": _ROSE_PINE["rose"],
+        "muted": _ROSE_PINE["muted"],
+        "subtle": _ROSE_PINE["subtle"],
+        "header": f"bold {_ROSE_PINE['iris']}",
+        "link": _ROSE_PINE["foam"],
+        "repr.str": _ROSE_PINE["text"],
+    }
+)
+
+console = Console(theme=_THEME)
+err_console = Console(stderr=True, theme=_THEME)
 
 app = typer.Typer(
     name="burrmcp",
@@ -200,7 +230,7 @@ def ui(
                 "current env (try [bold]uv pip install 'burrmcp[ui]'[/]) or "
                 "[bold]uvx[/] on PATH (https://docs.astral.sh/uv/) for one-shot bootstrap."
             )
-            raise typer.Exit(code=1)
+            raise typer.Exit(code=1) from None
         cmd = ["uvx", "--from", "apache-burr[start]", "burr", *forwarded]
 
     console.print(f"Launching Burr UI on [link]http://{host}:{port}[/link]")
@@ -271,7 +301,7 @@ def _read_steps(log_path: Path) -> list[StepRow]:
         state = e.get("state") or {}
         state_view = {k: v for k, v in state.items() if not k.startswith("__")}
         if exc:
-            err_first_line = str(exc).strip().splitlines()[-1] if exc else "exception"
+            err_first_line = _exception_summary(str(exc))
             rows.append(
                 StepRow(
                     seq=seq,
@@ -296,6 +326,24 @@ def _read_steps(log_path: Path) -> list[StepRow]:
                 )
             )
     return rows
+
+
+def _exception_summary(exc: str) -> str:
+    """Pull the human-meaningful message out of a stored exception.
+
+    Tracker exceptions are full tracebacks; the bare last line is often a
+    stray `)` from a multi-line call. Prefer the last line that looks like
+    `SomeError: message`, else the last non-empty line.
+    """
+    import re
+
+    lines = [ln.rstrip() for ln in exc.strip().splitlines() if ln.strip()]
+    if not lines:
+        return "exception"
+    for ln in reversed(lines):
+        if re.match(r"^[A-Za-z_][\w.]*(Error|Exception|Failed|Warning):", ln.strip()):
+            return ln.strip()[:160]
+    return lines[-1].strip()[:160]
 
 
 def _duration_ms(start: str, end: str) -> float | None:
@@ -354,16 +402,16 @@ def _short_ts(ts: str) -> str:
 
 def _status_text(status: str) -> Text:
     if status == "ok":
-        return Text("✓", style="bold green")
+        return Text("✓", style="ok")
     if status == "error":
-        return Text("✗", style="bold red")
-    return Text("•", style="bold yellow")
+        return Text("✗", style="err")
+    return Text("•", style="running")
 
 
 def _build_steps_table(
     rows: list[StepRow], *, project: str, app_id: str, title_suffix: str = ""
 ) -> Table:
-    title = f"[bold]{project}[/] / [dim]{app_id}[/]"
+    title = f"[header]{project}[/] / [muted]{app_id}[/]"
     if title_suffix:
         title += f"  {title_suffix}"
     table = Table(
@@ -371,22 +419,22 @@ def _build_steps_table(
         title_justify="left",
         expand=True,
         show_lines=False,
-        border_style="dim",
+        border_style="muted",
     )
-    table.add_column("seq", justify="right", width=4, no_wrap=True)
-    table.add_column("time", width=8, no_wrap=True, style="dim")
+    table.add_column("seq", justify="right", width=4, no_wrap=True, style="muted")
+    table.add_column("time", width=8, no_wrap=True, style="subtle")
     table.add_column("", width=1, no_wrap=True)  # status glyph
-    table.add_column("action", style="bold", no_wrap=True)
-    table.add_column("ms", justify="right", width=7, no_wrap=True, style="dim")
+    table.add_column("action", style="action", no_wrap=True)
+    table.add_column("ms", justify="right", width=7, no_wrap=True, style="muted")
     table.add_column("state / error")
     prev_state: dict[str, Any] | None = None
     for r in rows:
         if r.status == "error":
-            state_cell = Text(r.error_summary or "error", style="red")
+            state_cell = Text(r.error_summary or "error", style="err")
         elif r.status == "running":
-            state_cell = Text("(running...)", style="yellow")
+            state_cell = Text("(running...)", style="running")
         else:
-            state_cell = Text(_state_diff_text(r.state_summary, prev_state), style="dim")
+            state_cell = Text(_state_diff_text(r.state_summary, prev_state), style="subtle")
         ms = "" if r.duration_ms is None else f"{r.duration_ms:.0f}"
         table.add_row(
             str(r.seq),
@@ -425,7 +473,7 @@ def sessions_ls(
     """Table of recent tracked sessions, most recent first."""
     home = (burr_home or Path.home() / ".burr").expanduser()
     if not home.exists():
-        err_console.print(f"[red]No Burr tracker storage at[/] {home}")
+        err_console.print(f"[err]No Burr tracker storage at[/] {home}")
         raise typer.Exit(code=1)
 
     project_dirs = sorted(
@@ -436,7 +484,7 @@ def sessions_ls(
     if project:
         project_dirs = [p for p in project_dirs if p.name == project]
         if not project_dirs:
-            err_console.print(f"[red]No such project under[/] {home}: {project!r}")
+            err_console.print(f"[err]No such project under[/] {home}: {project!r}")
             raise typer.Exit(code=1)
 
     payload: list[dict] = []
@@ -477,18 +525,18 @@ def sessions_ls(
 
     for proj_entry in payload:
         table = Table(
-            title=f"[bold cyan]{proj_entry['project']}/[/]",
+            title=f"[header]{proj_entry['project']}/[/]",
             title_justify="left",
             expand=True,
             show_lines=False,
-            border_style="dim",
+            border_style="muted",
         )
-        table.add_column("app_id", no_wrap=True, style="dim")
-        table.add_column("last touched", no_wrap=True, style="dim")
+        table.add_column("app_id", no_wrap=True, style="muted")
+        table.add_column("last touched", no_wrap=True, style="subtle")
         table.add_column("steps", justify="right", width=6, no_wrap=True)
         table.add_column("", width=1, no_wrap=True)
-        table.add_column("last action", no_wrap=True)
-        table.add_column("bytes", justify="right", style="dim")
+        table.add_column("last action", no_wrap=True, style="action")
+        table.add_column("bytes", justify="right", style="muted")
         for app_entry in proj_entry["apps"]:
             table.add_row(
                 app_entry["app_id"],
@@ -513,30 +561,30 @@ def _resolve_app(home: Path, project: str | None, app_id: str | None) -> tuple[P
     if project is None:
         candidates = [p for p in home.iterdir() if p.is_dir() and not p.name.startswith(".")]
         if not candidates:
-            err_console.print(f"[red]No tracked projects under[/] {home}")
+            err_console.print(f"[err]No tracked projects under[/] {home}")
             raise typer.Exit(code=1)
         project = max(candidates, key=lambda p: p.stat().st_mtime).name
 
     proj_path = home / project
     if not proj_path.is_dir():
-        err_console.print(f"[red]No such project directory:[/] {proj_path}")
+        err_console.print(f"[err]No such project directory:[/] {proj_path}")
         raise typer.Exit(code=1)
 
     if app_id is None:
         app_candidates = [p for p in proj_path.iterdir() if p.is_dir()]
         if not app_candidates:
-            err_console.print(f"[red]No apps under project[/] {project}")
+            err_console.print(f"[err]No apps under project[/] {project}")
             raise typer.Exit(code=1)
         app_id = max(app_candidates, key=lambda p: p.stat().st_mtime).name
 
     if not (proj_path / app_id).is_dir():
-        # Allow prefix match for ergonomics: `sessions show abc123` matches a uuid that starts with that
+        # Prefix match: `sessions show abc123` matches a uuid starting with it.
         matches = [p.name for p in proj_path.iterdir() if p.is_dir() and p.name.startswith(app_id)]
         if len(matches) == 1:
             app_id = matches[0]
         else:
             err_console.print(
-                f"[red]No app[/] {app_id!r} [red]in project[/] {project!r}"
+                f"[err]No app[/] {app_id!r} [err]in project[/] {project!r}"
                 + (f" (ambiguous prefix matches: {matches})" if len(matches) > 1 else "")
             )
             raise typer.Exit(code=1)
@@ -665,12 +713,80 @@ def watch(
     """Alias for `sessions tail`. Lives at the top level for muscle memory."""
     home = (burr_home or Path.home() / ".burr").expanduser()
     if list_projects:
-        return sessions_ls(burr_home=home, project=None, limit=8, as_json=False)
+        sessions_ls(burr_home=home, project=None, limit=8, as_json=False)
+        return
     if not home.exists():
-        err_console.print(f"[red]No Burr tracker storage at[/] {home}")
+        err_console.print(f"[err]No Burr tracker storage at[/] {home}")
         raise typer.Exit(code=1)
     log_path, proj, aid = _resolve_app(home, project, app_id)
     _tail(log_path, project=proj, app_id=aid, poll_interval=poll_interval)
+
+
+@app.command()
+def logs(
+    app_id: Annotated[
+        str | None,
+        typer.Argument(help="App id (full uuid or prefix). Defaults to most recent."),
+    ] = None,
+    project: Annotated[
+        str | None,
+        typer.Option("--project", "-p", help="Project name. Defaults to most recent."),
+    ] = None,
+    burr_home: Annotated[
+        Path | None,
+        typer.Option("--burr-home", help="Tracker storage root. Defaults to ~/.burr."),
+    ] = None,
+    refusals_only: Annotated[
+        bool,
+        typer.Option("--refusals", help="Show only the steps that errored (refusals)."),
+    ] = False,
+    plain: Annotated[
+        bool,
+        typer.Option("--plain", help="No color, no glyphs; pipe-friendly for grep."),
+    ] = False,
+) -> None:
+    """Compact one-line-per-step log of a session, greppable.
+
+    The terse sibling of `sessions show` (rich table) and `sessions tail`
+    (live). One line per step: seq, time, status, action, duration, and the
+    state change. Pipe it: `burrmcp logs --plain | grep error`.
+    """
+    home = (burr_home or Path.home() / ".burr").expanduser()
+    log_path, _proj, _aid = _resolve_app(home, project, app_id)
+    rows = _read_steps(log_path)
+    if refusals_only:
+        rows = [r for r in rows if r.status == "error"]
+    if not rows:
+        console.print("[muted](no steps)[/]" if not plain else "(no steps)")
+        return
+    prev: dict[str, Any] | None = None
+    for r in rows:
+        ms = "" if r.duration_ms is None else f"{r.duration_ms:.0f}ms"
+        detail = (
+            r.error_summary or "error"
+            if r.status == "error"
+            else _state_diff_text(r.state_summary, prev)
+        )
+        if r.status != "error":
+            prev = r.state_summary
+        if plain:
+            mark = {"ok": "OK", "error": "ERR", "running": "...."}[r.status]
+            console.print(
+                f"{r.seq:>3}  {_short_ts(r.started)}  {mark:<4} {r.action:<22} {ms:>7}  {detail}",
+                highlight=False,
+                markup=False,
+            )
+        else:
+            glyph = _status_text(r.status)
+            line = Text.assemble(
+                (f"{r.seq:>3} ", "muted"),
+                (f"{_short_ts(r.started)} ", "subtle"),
+                glyph,
+                (f" {r.action:<22} ", "action"),
+                (f"{ms:>7}  ", "muted"),
+                (detail, "err" if r.status == "error" else "subtle"),
+            )
+            console.print(line)
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -29,6 +29,7 @@ with an async ``call(server, tool, args)`` method.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 from contextvars import ContextVar
 from typing import Any
@@ -152,8 +153,6 @@ class UpstreamManager:
     async def aclose(self) -> None:
         async with self._lock:
             for client in self._clients.values():
-                try:
+                with contextlib.suppress(Exception):
                     await client.__aexit__(None, None, None)
-                except Exception:
-                    pass
             self._clients.clear()

@@ -1702,24 +1702,19 @@ def mount(
             actions isn't enough -- they need direction, not just a list.
             Backwards-compatible: three-arg callbacks (without the
             ``refusal`` parameter) still work.
-        external_tools: Optional mapping of action name to a list of
-            tool names that live on OTHER MCP servers the agent is
-            connected to (e.g. a Kubernetes MCP, a Grafana MCP). The
-            Burr graph becomes a cross-server playbook: it declares,
-            per action, which external tools are relevant when that
-            action is a reachable next move. BurrMCP surfaces them in
-            two places: per-action in ``burr://graph`` (as
-            ``external_tools``), and contextually in each ``step``
-            response as ``next_external_tools`` (a dict mapping each
-            currently-reachable action to its external tools). The
-            agent reads ``next_external_tools``, calls those tools on
-            the other servers, then ``step()``s to record findings and
-            advance. This is declarative federation: no proxy code in
-            the FSM, works with any connected MCP server, and scopes the
-            agent's tool-choice space to what's relevant for the current
-            phase. BurrMCP does not execute these tools (they live on
-            other servers); it sequences them. Unknown action names are
-            ignored with a warning at mount time.
+        external_tools: Experimental, advisory. Prefer ``upstream`` for
+            driving other MCP servers. This is the fallback for the case
+            where BurrMCP cannot be in the call path (the agent reaches a
+            server BurrMCP can't, e.g. a separate auth or network
+            boundary). Maps an action name to tool names on OTHER MCP
+            servers the agent is connected to. Surfaced per-action in
+            ``burr://graph`` and contextually as ``next_external_tools``
+            in each ``step`` response, as advisory guidance only: the
+            agent calls those tools on its own connected servers, then
+            ``step()``s. BurrMCP neither executes nor validates them.
+            Being a two-surface design, it relies on the model's
+            discipline and works best with capable models. Unknown action
+            names are ignored with a warning at mount time.
         upstream: Optional mapping of server name to a ``fastmcp.Client``
             transport spec (a URL string, an mcp-config dict, or a
             transport object). burrmcp opens an MCP *client* session to
@@ -2097,13 +2092,13 @@ def mount(
                     domain_callback=next_hint,
                 )
                 if hint:
-                    response = {**response, "next_hint": hint}
+                    response = response | {"next_hint": hint}
                 if external_tools_map:
                     net = _next_external_tools(
                         external_tools_map, response.get("valid_next_actions") or []
                     )
                     if net:
-                        response = {**response, "next_external_tools": net}
+                        response = response | {"next_external_tools": net}
                 _record_history(
                     store,
                     ctx,
@@ -2140,11 +2135,11 @@ def mount(
                 domain_callback=next_hint,
             )
             if hint:
-                out = {**out, "next_hint": hint}
+                out = out | {"next_hint": hint}
             if external_tools_map:
                 net = _next_external_tools(external_tools_map, out["valid_next_actions"])
                 if net:
-                    out = {**out, "next_external_tools": net}
+                    out = out | {"next_external_tools": net}
             _record_history(
                 store,
                 ctx,

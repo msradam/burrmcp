@@ -1,6 +1,6 @@
 """Combinatoric differential testing: Hamilton + Burr + BurrMCP together.
 
-The pitch: each library does what it is best at. Hamilton declares the
+Each library does what it is best at. Hamilton declares the
 test DAG (param nodes, derivation nodes, assertion nodes). Burr wraps
 the search loop (``propose_and_run -> propose_and_run -> finalize``)
 with gated transitions and a session-tracked audit trail. BurrMCP

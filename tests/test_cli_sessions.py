@@ -222,3 +222,58 @@ def test_watch_alias_lives_at_top_level():
     result = runner.invoke(app, ["watch", "--help"])
     assert result.exit_code == 0
     assert "Alias" in result.output or "sessions tail" in result.output
+
+
+# == logs ============================================================
+
+
+def test_logs_plain_one_line_per_step(tmp_path):
+    _write_log(
+        tmp_path / "demo" / "u1" / "log.jsonl",
+        [
+            _begin(0, "step_a"),
+            _end(0, "step_a", {"k": 1}),
+            _begin(1, "step_b"),
+            _end(1, "step_b", {"k": 2}),
+        ],
+    )
+    result = runner.invoke(
+        app, ["logs", "u1", "--project", "demo", "--burr-home", str(tmp_path), "--plain"]
+    )
+    assert result.exit_code == 0
+    lines = [ln for ln in result.output.splitlines() if ln.strip()]
+    assert len(lines) == 2
+    assert "OK" in lines[0] and "step_a" in lines[0]
+    assert "step_b" in lines[1]
+
+
+def test_logs_refusals_only_filters_errors(tmp_path):
+    _write_log(
+        tmp_path / "demo" / "u1" / "log.jsonl",
+        [
+            _begin(0, "ok_step"),
+            _end(0, "ok_step", {"k": 1}),
+            _begin(1, "bad_step"),
+            _end(1, "bad_step", {}, exception="Traceback...\nValueError: boom"),
+        ],
+    )
+    result = runner.invoke(
+        app,
+        ["logs", "u1", "--project", "demo", "--burr-home", str(tmp_path), "--plain", "--refusals"],
+    )
+    assert result.exit_code == 0
+    assert "bad_step" in result.output
+    assert "ok_step" not in result.output
+
+
+def test_exception_summary_extracts_message_not_traceback_tail():
+    from burrmcp.cli import _exception_summary
+
+    tb = (
+        "Traceback (most recent call last):\n"
+        '  File "x.py", line 10, in f\n'
+        "    raise ValueError(\n"
+        "    )\n"
+        "ValueError: qty must be >= 1; got 0"
+    )
+    assert _exception_summary(tb) == "ValueError: qty must be >= 1; got 0"
