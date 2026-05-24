@@ -52,6 +52,7 @@ import re
 import time
 import typing
 import uuid
+import warnings
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -251,6 +252,16 @@ def _step_response_schema() -> dict[str, Any]:
             "timeout_seconds": {
                 "type": "number",
                 "description": "Configured timeout (action_timeout only).",
+            },
+            "next_external_tools": {
+                "type": "object",
+                "additionalProperties": {"type": "array", "items": {"type": "string"}},
+                "description": (
+                    "Present only when the server was mounted with external_tools. "
+                    "Maps each currently-reachable action to the tools (on other "
+                    "connected MCP servers) relevant before taking it. Call those "
+                    "tools, then step() to record findings and advance."
+                ),
             },
             "error_type": {
                 "type": "string",
@@ -483,7 +494,44 @@ def _render_action_surface(app: Application) -> str:
     return "\n".join(lines)
 
 
-def _compute_graph_summary(app: Application, server_name: str) -> dict[str, Any]:
+def _normalize_external_tools(
+    external_tools: dict[str, list[str]] | None, app: Application
+) -> dict[str, list[str]]:
+    """Keep only entries whose action name exists in the graph. Warn on
+    unknowns rather than failing, so a typo is recoverable."""
+    if not external_tools:
+        return {}
+    known = {a.name for a in app.graph.actions}
+    out: dict[str, list[str]] = {}
+    for action_name, tools in external_tools.items():
+        if action_name not in known:
+            warnings.warn(
+                f"external_tools names unknown action {action_name!r}; "
+                f"known actions: {sorted(known)}. Ignoring this entry.",
+                stacklevel=3,
+            )
+            continue
+        out[action_name] = [str(t) for t in (tools or []) if str(t).strip()]
+    return out
+
+
+def _next_external_tools(
+    external_tools_map: dict[str, list[str]], valid_next_actions: list[str]
+) -> dict[str, list[str]]:
+    """Per-reachable-action external tools, for surfacing in step responses.
+
+    Only includes reachable actions that actually declare external tools,
+    so the response stays empty (omitted by the caller) for FSMs that
+    don't use the feature.
+    """
+    return {a: external_tools_map[a] for a in valid_next_actions if external_tools_map.get(a)}
+
+
+def _compute_graph_summary(
+    app: Application,
+    server_name: str,
+    external_tools_map: dict[str, list[str]] | None = None,
+) -> dict[str, Any]:
     """Build a static description of an Application's graph.
 
     Computed once at mount time and returned as-is by the
@@ -495,21 +543,23 @@ def _compute_graph_summary(app: Application, server_name: str) -> dict[str, Any]
     connecting to the server can read one resource and have the full
     topology without trial-and-error or repeated state probes.
     """
+    ext_map = external_tools_map or {}
     actions_meta: list[dict[str, Any]] = []
     for a in app.graph.actions:
         required, optional = _action_inputs(a)
         fn = getattr(a, "fn", None)
         doc = (fn.__doc__ or "").strip() if fn is not None and fn.__doc__ else ""
-        actions_meta.append(
-            {
-                "name": a.name,
-                "description": doc,
-                "reads": list(a.reads or []),
-                "writes": list(a.writes or []),
-                "required_inputs": required,
-                "optional_inputs": optional,
-            }
-        )
+        meta: dict[str, Any] = {
+            "name": a.name,
+            "description": doc,
+            "reads": list(a.reads or []),
+            "writes": list(a.writes or []),
+            "required_inputs": required,
+            "optional_inputs": optional,
+        }
+        if ext_map.get(a.name):
+            meta["external_tools"] = ext_map[a.name]
+        actions_meta.append(meta)
 
     transitions_meta: list[dict[str, Any]] = []
     for t in app.graph.transitions:
@@ -1596,6 +1646,7 @@ def mount(
     input_validators: dict[str, Callable] | None = None,
     state_loader: Any | None = None,
     next_hint: Callable[..., str | None] | None = None,
+    external_tools: dict[str, list[str]] | None = None,
 ) -> FastMCP:
     """Return a FastMCP server that exposes ``application`` per ``mode``.
 
@@ -1648,6 +1699,24 @@ def mount(
             actions isn't enough -- they need direction, not just a list.
             Backwards-compatible: three-arg callbacks (without the
             ``refusal`` parameter) still work.
+        external_tools: Optional mapping of action name to a list of
+            tool names that live on OTHER MCP servers the agent is
+            connected to (e.g. a Kubernetes MCP, a Grafana MCP). The
+            Burr graph becomes a cross-server playbook: it declares,
+            per action, which external tools are relevant when that
+            action is a reachable next move. BurrMCP surfaces them in
+            two places: per-action in ``burr://graph`` (as
+            ``external_tools``), and contextually in each ``step``
+            response as ``next_external_tools`` (a dict mapping each
+            currently-reachable action to its external tools). The
+            agent reads ``next_external_tools``, calls those tools on
+            the other servers, then ``step()``s to record findings and
+            advance. This is declarative federation: no proxy code in
+            the FSM, works with any connected MCP server, and scopes the
+            agent's tool-choice space to what's relevant for the current
+            phase. BurrMCP does not execute these tools (they live on
+            other servers); it sequences them. Unknown action names are
+            ignored with a warning at mount time.
     """
     shared_app, factory = _resolve(application)
     # Per-session store keyed by ctx.session_id; populated lazily on
@@ -1663,9 +1732,13 @@ def mount(
     shared_lock = asyncio.Lock()
 
     server_name = name or "burrmcp"
+    # Normalize the external-tools map: keep only entries whose action
+    # name exists in the graph; warn (don't fail) on unknowns so a typo
+    # doesn't take the server down.
+    external_tools_map = _normalize_external_tools(external_tools, shared_app)
     # Static graph summary, computed once. Sub-runs may have their own
     # graphs but this resource describes the top-level one.
-    graph_summary = _compute_graph_summary(shared_app, server_name)
+    graph_summary = _compute_graph_summary(shared_app, server_name, external_tools_map)
     graph_summary_json = json.dumps(graph_summary, indent=2)
     # Augment user-supplied instructions with a one-line hint pointing
     # at burr://graph. Cold-start discoverability without forcing users
@@ -2006,6 +2079,12 @@ def mount(
                 )
                 if hint:
                     response = {**response, "next_hint": hint}
+                if external_tools_map:
+                    net = _next_external_tools(
+                        external_tools_map, response.get("valid_next_actions") or []
+                    )
+                    if net:
+                        response = {**response, "next_external_tools": net}
                 _record_history(
                     store,
                     ctx,
@@ -2041,6 +2120,10 @@ def mount(
             )
             if hint:
                 out = {**out, "next_hint": hint}
+            if external_tools_map:
+                net = _next_external_tools(external_tools_map, out["valid_next_actions"])
+                if net:
+                    out = {**out, "next_external_tools": net}
             _record_history(
                 store,
                 ctx,
