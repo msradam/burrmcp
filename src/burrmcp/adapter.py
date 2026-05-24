@@ -67,6 +67,8 @@ from fastmcp import Context, FastMCP
 from fastmcp.tools.base import ToolResult
 from mcp.types import TextContent
 
+from burrmcp.upstream import UpstreamManager, bind_upstream, reset_upstream
+
 ApplicationFactory = Callable[[], Application]
 ApplicationOrFactory = Application | ApplicationFactory
 
@@ -1647,6 +1649,7 @@ def mount(
     state_loader: Any | None = None,
     next_hint: Callable[..., str | None] | None = None,
     external_tools: dict[str, list[str]] | None = None,
+    upstream: dict[str, Any] | None = None,
 ) -> FastMCP:
     """Return a FastMCP server that exposes ``application`` per ``mode``.
 
@@ -1717,6 +1720,20 @@ def mount(
             phase. BurrMCP does not execute these tools (they live on
             other servers); it sequences them. Unknown action names are
             ignored with a warning at mount time.
+        upstream: Optional mapping of server name to a ``fastmcp.Client``
+            transport spec (a URL string, an mcp-config dict, or a
+            transport object). burrmcp opens an MCP *client* session to
+            each and binds them so action bodies can call their tools via
+            ``burrmcp.call_upstream(server, tool, args)``. Unlike
+            ``external_tools`` (advisory; the agent calls tools on its own
+            connected servers), ``upstream`` puts burrmcp in the call path:
+            the agent sees only burrmcp's ``step`` tool, the upstream
+            servers are not exposed to it, and every upstream call happens
+            inside an action so it advances state by construction. This is
+            the single-surface, ledger-honest way to drive any MCP server
+            from a graph, and it works with any compliant server because
+            ``fastmcp.Client`` speaks every transport. Sessions open
+            lazily on first use and stay open for the server's lifetime.
     """
     shared_app, factory = _resolve(application)
     # Per-session store keyed by ctx.session_id; populated lazily on
@@ -1736,6 +1753,7 @@ def mount(
     # name exists in the graph; warn (don't fail) on unknowns so a typo
     # doesn't take the server down.
     external_tools_map = _normalize_external_tools(external_tools, shared_app)
+    upstream_manager = UpstreamManager(upstream) if upstream else None
     # Static graph summary, computed once. Sub-runs may have their own
     # graphs but this resource describes the top-level one.
     graph_summary = _compute_graph_summary(shared_app, server_name, external_tools_map)
@@ -2049,6 +2067,7 @@ def mount(
             effective_validator = _action_validator(action_map[action], input_validators)
             token = _current_session_entry.set(entry)
             ctx_token = _current_fastmcp_context.set(ctx)
+            upstream_token = bind_upstream(upstream_manager) if upstream_manager else None
             subruns_before = set(entry.subruns) if entry is not None else set()
             try:
                 async with lock:
@@ -2105,6 +2124,8 @@ def mount(
             finally:
                 _current_session_entry.reset(token)
                 _current_fastmcp_context.reset(ctx_token)
+                if upstream_token is not None:
+                    reset_upstream(upstream_token)
             new_subruns: list[str] = []
             if entry is not None:
                 new_subruns = [s for s in entry.subruns if s not in subruns_before]
