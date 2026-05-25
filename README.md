@@ -91,6 +91,8 @@ The four-tool surface (`step`, `reset_session`, `fork_at`, `fork_from_past`) is 
 
 This inverts the usual setup. In most frameworks your code drives the workflow and the model runs inside it; here the model is outside the engine and may only advance through the gated `step` call. What that buys is structural: the graph prevents out-of-order calls, skipped gates, and premature termination, and it bounds the action set the agent can choose from. What it does not buy is correctness inside a step. If an action verifies something and the model misreads the result, the transition is still legal. Theodosia enforces the shape of the work, not the quality of the reasoning, and the line between those is worth being honest about.
 
+Those structural failures are exactly the ones IBM Research's [MAST taxonomy and IT-Bench](https://huggingface.co/blog/ibm-research/itbenchandmast) flag as common and damaging in agent systems (skipped or out-of-order steps, premature termination, unauthorized actions), and the same work points to a deterministic state machine as the structural fix. Theodosia addresses that class; the semantic failures (a wrong but legal step, a misread verification) stay with the model and with your action-body checks.
+
 The integration boundary is Burr's `Application`: anything `ApplicationBuilder` supports (parallelism, persistence, typed state, hooks, telemetry, sub-applications) passes through `mount()` without adapter changes. See [What works through mount()](https://msradam.github.io/theodosia/compatibility/).
 
 ## Observability
