@@ -11,6 +11,9 @@
   },
   "dependencies": {
     "@astrojs/starlight": "^0.39.2",
+    "@fontsource/funnel-sans": "^5.2.8",
+    "@fontsource/inria-serif": "^5.2.8",
+    "@fontsource/jetbrains-mono": "^5.2.8",
     "@pasqal-io/starlight-client-mermaid": "^0.1.0",
     "astro": "^6.3.1",
     "sharp": "^0.34.5",

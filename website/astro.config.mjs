@@ -12,6 +12,7 @@ export default defineConfig({
 		starlight({
 			title: 'Theodosia',
 			description: 'Mount Burr state-machine Applications as MCP servers.',
+			customCss: ['./src/styles/theodosia.css', './src/styles/theodosia-overrides.css'],
 			social: [
 				{ icon: 'github', label: 'GitHub', href: 'https://github.com/msradam/theodosia' },
 			],

@@ -1,0 +1,52 @@
+/* Theodosia v14 — Starlight reskin.
+ * Keeps the Rose Pine dark theme (it matches the v14 dark palette and the
+ * demo gifs) and rebrands light mode to the v14 neutral-paper + pine-teal
+ * register (no warm cream), with the v14 typography across both modes.
+ * Loaded after the rose-pine plugin via customCss, so same-specificity
+ * selectors win. Tokens come from theodosia.css. */
+
+@import '@fontsource/inria-serif/400.css';
+@import '@fontsource/inria-serif/700.css';
+@import '@fontsource/inria-serif/400-italic.css';
+@import '@fontsource/funnel-sans/index.css';
+@import '@fontsource/jetbrains-mono/index.css';
+
+/* ── Typography (both modes) ─────────────────────────────────── */
+:root {
+  --sl-font: "Funnel Sans", -apple-system, system-ui, sans-serif;
+  --sl-font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
+}
+
+/* Inria Serif for display: site title, page title, content headings, hero. */
+.site-title,
+.sl-markdown-content :is(h1, h2, h3, h4),
+.hero h1 {
+  font-family: var(--thd-display);
+  letter-spacing: -0.01em;
+}
+.sl-markdown-content :is(h1, h2) { font-weight: 700; }
+.hero h1 { font-weight: 700; letter-spacing: -0.02em; }
+
+/* ── Light mode: v14 neutral paper + pine teal (not Rose Pine dawn) ── */
+:root[data-theme="light"] {
+  --sl-color-bg: var(--thd-paper);
+  --sl-color-bg-nav: var(--thd-paper);
+  --sl-color-bg-sidebar: var(--thd-raised);
+  --sl-color-bg-inline-code: var(--thd-pine-tint);
+  --sl-color-text: var(--thd-subtle);
+  --sl-color-white: var(--thd-ink);
+  --sl-color-text-accent: var(--thd-pine);
+  --sl-color-accent: var(--thd-pine);
+  --sl-color-accent-low: var(--thd-pine-tint);
+  --sl-color-accent-high: #1d4f63;
+  --sl-color-hairline: var(--thd-edge);
+  --sl-color-hairline-light: var(--thd-edge);
+  --sl-color-hairline-shade: var(--thd-rule);
+}
+
+/* ── Dark mode: keep Rose Pine, move the accent to v14 foam ── */
+:root[data-theme="dark"],
+:root:not([data-theme="light"]) {
+  --sl-color-accent: var(--thd-dark-foam);
+  --sl-color-text-accent: var(--thd-dark-foam);
+}
