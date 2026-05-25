@@ -1,0 +1,56 @@
+/* Rose Pine theme for the docs, matching the CLI palette.
+   https://rosepinetheme.com */
+
+[data-md-color-scheme="rose-pine"] {
+  --md-default-bg-color: #191724;       /* base */
+  --md-default-fg-color: #e0def4;       /* text */
+  --md-default-fg-color--light: #908caa; /* subtle */
+  --md-default-fg-color--lighter: #6e6a86; /* muted */
+  --md-default-fg-color--lightest: #403d52;
+
+  --md-primary-fg-color: #232136;       /* header / nav surface */
+  --md-primary-fg-color--light: #2a273f;
+  --md-primary-fg-color--dark: #191724;
+  --md-primary-bg-color: #e0def4;
+  --md-primary-bg-color--light: #908caa;
+
+  --md-accent-fg-color: #c4a7e7;        /* iris */
+  --md-accent-fg-color--transparent: rgba(196, 167, 231, 0.1);
+
+  --md-typeset-a-color: #9ccfd8;        /* foam links */
+
+  --md-code-bg-color: #1f1d2e;          /* surface */
+  --md-code-fg-color: #e0def4;
+  --md-code-hl-keyword-color: #c4a7e7;  /* iris */
+  --md-code-hl-function-color: #ebbcba; /* rose */
+  --md-code-hl-string-color: #f6c177;   /* gold */
+  --md-code-hl-number-color: #eb6f92;   /* love */
+  --md-code-hl-comment-color: #6e6a86;  /* muted */
+  --md-code-hl-name-color: #e0def4;
+  --md-code-hl-operator-color: #908caa;
+
+  --md-typeset-mark-color: rgba(246, 193, 119, 0.25);
+  --md-footer-bg-color: #1f1d2e;
+  --md-footer-bg-color--dark: #191724;
+}
+
+[data-md-color-scheme="rose-pine"] .md-header,
+[data-md-color-scheme="rose-pine"] .md-tabs {
+  border-bottom: 1px solid #2a273f;
+}
+
+/* Slightly tighter, more readable measure and softer code blocks. */
+.md-typeset pre > code {
+  border-radius: 8px;
+}
+
+.md-typeset h1,
+.md-typeset h2 {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* Mermaid diagrams: give them room to breathe. */
+.md-typeset .mermaid {
+  margin: 1.2rem 0;
+}

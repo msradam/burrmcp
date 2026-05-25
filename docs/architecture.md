@@ -3,6 +3,27 @@
 How `mount()` turns a Burr `Application` into an MCP server, and the load-bearing
 internals behind the four-tool surface.
 
+## The graph is the contract
+
+The agent can only move along the graph's edges; the server refuses any step that
+is not a reachable transition. The workflow lives in the state machine, not in a
+prompt the model has to remember. `burrmcp render <target>` prints this graph in
+the terminal (or `--mermaid` / `--dot` for docs):
+
+```mermaid
+stateDiagram-v2
+    [*] --> take_order
+    take_order --> pay
+    take_order --> add_modifier
+    take_order --> cancel
+    add_modifier --> pay
+    add_modifier --> add_modifier
+    add_modifier --> cancel
+    pay --> fulfill
+    fulfill --> [*]
+    cancel --> [*]
+```
+
 ## The four-tool surface
 
 Every server mounted in STEP mode registers the same tools regardless of how

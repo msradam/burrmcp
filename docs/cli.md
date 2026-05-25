@@ -20,6 +20,37 @@ prepends a directory to `sys.path` before importing; it is repeatable.
 block) and `1` otherwise, so it slots into CI. It is importable too:
 `from burrmcp.doctor import run_checks`.
 
+## render
+
+`render` draws the mounted state machine without starting a server or needing
+Graphviz. It reads the graph statically from the same target `serve` takes.
+
+```bash
+burrmcp render module:attr              # terminal view of the graph
+burrmcp render module:attr --conditions # show transition conditions on edges
+burrmcp render module:attr --mermaid    # emit Mermaid stateDiagram source
+burrmcp render module:attr --dot        # emit Graphviz DOT source
+```
+
+The default terminal view marks the entry action (`▶`), terminals (`■`), and
+self-loops (`↺`), and lists each action's reachable next actions:
+
+```
+coffee-order  ·  5 action(s)  ·  entry: take_order
+────────────────────────────────────────────────────
+ ▶ take_order     → pay · add_modifier · cancel
+   add_modifier ↺ → pay · add_modifier · cancel
+   pay            → fulfill
+ ■ fulfill        (terminal)
+ ■ cancel         (terminal)
+```
+
+`--mermaid` emits source that GitHub renders inline, so a project can keep its
+README diagram in sync with the actual graph instead of hand-drawing it. `--dot`
+emits Graphviz DOT for the image-rendering path. Burr's own `Application.visualize()`
+covers the Graphviz image output; `render` adds the lightweight, paste-friendly
+forms it does not.
+
 ## Observability
 
 Every mounted server with a `LocalTrackingClient` writes a per-session JSONL log
@@ -85,3 +116,17 @@ rebranded CLI is a thin shell over burrmcp and Burr, not a fork of them.
 
 `application` is optional. When omitted, the CLI behaves like the default
 `burrmcp` and requires a `module:attr` target on `serve`/`doctor`.
+
+To let the rebranded server drive other MCP servers, pass `upstream`. It is
+forwarded to `mount`, so action bodies can call `call_upstream(server, tool,
+args)`:
+
+```python
+cli = build_cli(
+    "my-fsm-mcp",
+    application=build_application,
+    upstream={"fs": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]}},
+)
+```
+
+See [Driving other MCP servers](upstream.md) for the action-body side.

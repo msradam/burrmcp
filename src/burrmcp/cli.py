@@ -88,6 +88,7 @@ class _Branding:
     server_name: str | None = None
     ui_extra: str = "burrmcp[ui]"
     burr_home: str | Path | None = None  # default tracker storage_dir
+    upstream: dict[str, Any] | None = None  # other MCP servers actions can call
 
 
 _BRANDING = _Branding()
@@ -145,6 +146,96 @@ def _resolve_home(burr_home: Path | None) -> Path:
     return Path(chosen).expanduser()
 
 
+# == render: the mounted graph as text ================================
+
+
+@dataclass
+class _Topology:
+    name: str
+    entry: str | None
+    actions: list[str]
+    edges: list[tuple[str, str, str | None]]  # (from, to, condition)
+
+    def out_edges(self, node: str) -> list[tuple[str, str | None]]:
+        return [(to, cond) for frm, to, cond in self.edges if frm == node]
+
+    def is_terminal(self, node: str) -> bool:
+        return not any(frm == node for frm, _to, _c in self.edges)
+
+    def has_self_loop(self, node: str) -> bool:
+        return any(frm == node and to == node for frm, to, _c in self.edges)
+
+
+def _topology(target: str | None, app_dir: list[str], name: str) -> _Topology:
+    app_or_factory, derived = _resolve_serve_target(target, app_dir)
+    app = app_or_factory() if callable(app_or_factory) else app_or_factory
+    graph = app.graph
+    entry = graph.entrypoint.name if getattr(graph, "entrypoint", None) else None
+    actions = [a.name for a in graph.actions]
+    edges = [(t.from_.name, t.to.name, _condition_label(t.condition)) for t in graph.transitions]
+    return _Topology(name=name or derived, entry=entry, actions=actions, edges=edges)
+
+
+def _condition_label(condition: Any) -> str | None:
+    """Human label for a transition condition, or None for the default (always)."""
+    name = getattr(condition, "name", None)
+    return None if not name or name == "default" else name
+
+
+def _render_mermaid(topo: _Topology, *, conditions: bool) -> str:
+    lines = ["stateDiagram-v2"]
+    if topo.entry:
+        lines.append(f"    [*] --> {topo.entry}")
+    for frm, to, cond in topo.edges:
+        label = f" : {cond}" if conditions and cond else ""
+        lines.append(f"    {frm} --> {to}{label}")
+    lines.extend(f"    {node} --> [*]" for node in topo.actions if topo.is_terminal(node))
+    return "\n".join(lines)
+
+
+def _render_dot(topo: _Topology, *, conditions: bool) -> str:
+    lines = ["digraph G {", "    rankdir=LR;", "    node [shape=box, style=rounded];"]
+    if topo.entry:
+        lines.append("    __start__ [shape=point];")
+        lines.append(f'    __start__ -> "{topo.entry}";')
+    for frm, to, cond in topo.edges:
+        label = f' [label="{cond}"]' if conditions and cond else ""
+        lines.append(f'    "{frm}" -> "{to}"{label};')
+    lines.append("}")
+    return "\n".join(lines)
+
+
+def _print_rich_graph(topo: _Topology, *, conditions: bool) -> None:
+    n = len(topo.actions)
+    header = f"[header]{topo.name}[/]  [muted]·[/]  {n} action(s)"
+    if topo.entry:
+        header += f"  [muted]·[/]  entry: [action]{topo.entry}[/]"
+    console.print(header)
+    console.print("[muted]" + "─" * 52 + "[/]")
+    width = max((len(a) for a in topo.actions), default=0)
+    # Entry first, then declaration order.
+    ordered = ([topo.entry] if topo.entry in topo.actions else []) + [
+        a for a in topo.actions if a != topo.entry
+    ]
+    for node in ordered:
+        terminal = topo.is_terminal(node)
+        loop = topo.has_self_loop(node)
+        marker = "[ok]▶[/]" if node == topo.entry else ("[err]■[/]" if terminal else " ")
+        loop_tag = " [running]↺[/]" if loop else "  "
+        label = f"{node:<{width}}"
+        if terminal:
+            console.print(f" {marker} [action]{label}[/]{loop_tag} [muted](terminal)[/]")
+            continue
+        targets = []
+        for to, cond in topo.out_edges(node):
+            piece = to
+            if conditions and cond:
+                piece += f" [muted]\\[{cond}][/]"
+            targets.append(piece)
+        edge_str = " [muted]·[/] ".join(targets)
+        console.print(f" {marker} [action]{label}[/]{loop_tag} [subtle]→[/] {edge_str}")
+
+
 # == serve / doctor / ui ==============================================
 
 
@@ -183,7 +274,12 @@ def serve(
 ) -> None:
     """Launch an importable Burr Application or factory as an MCP server."""
     application_or_factory, derived_name = _resolve_serve_target(target, app_dir or [])
-    server = mount(application_or_factory, mode=mode, name=name or derived_name)
+    server = mount(
+        application_or_factory,
+        mode=mode,
+        name=name or derived_name,
+        upstream=_BRANDING.upstream,
+    )
     server.run()
 
 
@@ -269,6 +365,41 @@ def ui(
         raise typer.Exit(code=exc.returncode or 1) from exc
     except KeyboardInterrupt:
         pass
+
+
+def render(
+    target: Annotated[
+        str | None,
+        typer.Argument(help="Import target in module:attr form. Same shape as `serve`."),
+    ] = None,
+    app_dir: Annotated[
+        list[str] | None,
+        typer.Option("--app-dir", help="Extra sys.path directory before importing."),
+    ] = None,
+    mermaid: Annotated[
+        bool, typer.Option("--mermaid", help="Emit Mermaid stateDiagram source instead.")
+    ] = False,
+    dot: Annotated[bool, typer.Option("--dot", help="Emit Graphviz DOT source instead.")] = False,
+    conditions: Annotated[
+        bool, typer.Option("--conditions", help="Show transition conditions on edges.")
+    ] = False,
+) -> None:
+    """Render the mounted state machine as a diagram.
+
+    Default is a terminal view of the graph. ``--mermaid`` and ``--dot``
+    emit diagram source for docs (Mermaid renders on GitHub; DOT feeds
+    Graphviz). Reads the graph statically, no server or graphviz needed.
+    """
+    server_name = _BRANDING.server_name or _BRANDING.prog_name
+    topo = _topology(target, app_dir or [], server_name)
+    if mermaid and dot:
+        raise SystemExit("choose one of --mermaid / --dot, not both")
+    if mermaid:
+        print(_render_mermaid(topo, conditions=conditions))
+    elif dot:
+        print(_render_dot(topo, conditions=conditions))
+    else:
+        _print_rich_graph(topo, conditions=conditions)
 
 
 # == sessions: tracker-store inspection ==============================
@@ -824,6 +955,7 @@ def build_cli(
     server_name: str | None = None,
     ui_extra: str = "burrmcp[ui]",
     burr_home: str | Path | None = None,
+    upstream: dict[str, Any] | None = None,
 ) -> typer.Typer:
     """Build a burrmcp CLI, optionally rebranded for a downstream package.
 
@@ -854,6 +986,10 @@ def build_cli(
         ui_extra: pip extra named in the ``ui`` install hint.
         burr_home: default tracker storage root for the observability
             commands. Overridden per-invocation by ``--burr-home``.
+        upstream: map of server name to a ``fastmcp.Client`` transport.
+            Action bodies reach these other MCP servers with
+            ``call_upstream(server, tool, args)``. Passed through to
+            ``mount`` by ``serve``.
     """
     global _BRANDING
     _BRANDING = _Branding(
@@ -862,6 +998,7 @@ def build_cli(
         server_name=server_name,
         ui_extra=ui_extra,
         burr_home=burr_home,
+        upstream=upstream,
     )
 
     cli = typer.Typer(
@@ -882,6 +1019,7 @@ def build_cli(
 
     cli.command()(serve)
     cli.command()(doctor)
+    cli.command()(render)
     cli.command()(ui)
     cli.command()(watch)
     cli.command()(logs)
