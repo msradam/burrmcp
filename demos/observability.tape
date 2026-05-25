@@ -34,8 +34,10 @@ Type "burrmcp sessions ls --project coffee-order-demo --limit 3"
 Sleep 600ms
 Enter
 Sleep 3s
+Hide
 Type "clear"
 Enter
+Show
 
 # Full timeline (rich table; red refusal row + green recovery).
 Type "burrmcp sessions show --project coffee-order-demo"
@@ -44,8 +46,10 @@ Enter
 Sleep 2s
 Screenshot demos/observability_show.png
 Sleep 2s
+Hide
 Type "clear"
 Enter
+Show
 
 # Compact greppable log, refusals highlighted.
 Type "burrmcp logs --project coffee-order-demo"
