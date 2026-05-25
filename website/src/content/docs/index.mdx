@@ -7,6 +7,9 @@ hero:
     Define a workflow once as a Burr state machine. Theodosia serves it over MCP
     so the agent can only take the next allowed step, with every step recorded and
     replayable. The model can be wrong; the model cannot lie about state.
+  image:
+    html: |
+      <img src="/theodosia/hero.gif" alt="A real Kimi K2.6 run driven through a gated SRE incident investigation by Theodosia" style="border-radius:12px;border:1px solid var(--sl-color-gray-5);width:100%;" />
   actions:
     - text: Get started
       link: /theodosia/authoring/
@@ -22,17 +25,21 @@ hero:
 ---
 
 import { Card, CardGrid, LinkButton } from '@astrojs/starlight/components';
-import heroGif from '../../assets/hero.gif';
+import MechanismDiagram from '../../components/MechanismDiagram.astro';
 
-<img
-  src={heroGif.src}
-  alt="A real Kimi K2.6 run driven through a gated SRE incident investigation by Theodosia"
-  style="width:100%;border-radius:10px;border:1px solid var(--sl-color-gray-5);margin:1.5rem 0;"
-/>
+The hero above is a real run: a 1T-parameter open model (Kimi K2.6) investigating
+a live incident on rails. Each query is recorded as evidence, out-of-budget and
+out-of-phase calls are refused, and the conclusion stays gated until the evidence
+cross-references.
 
-A 1T-parameter open model (Kimi K2.6) investigating a live incident on rails:
-each query is recorded as evidence, out-of-budget and out-of-phase calls are
-refused, and the conclusion stays gated until the evidence cross-references.
+## A state machine you can see, and a log you can read
+
+An incident-response workflow: four states, the allowed transitions between them,
+and one refusal. The agent attempted `close_incident` from `engaged`; that action
+is not reachable there, so Theodosia refused it, recorded the attempt, and did not
+advance the state.
+
+<MechanismDiagram />
 
 <CardGrid>
   <Card title="Stays on the rails" icon="seti:lock">
