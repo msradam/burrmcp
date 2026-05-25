@@ -26,7 +26,10 @@ export default defineConfig({
 			sidebar: [
 				{
 					label: 'Start',
-					items: [{ label: 'Authoring a graph', slug: 'authoring' }],
+					items: [
+						{ label: 'Authoring a graph', slug: 'authoring' },
+						{ label: 'Examples', slug: 'examples' },
+					],
 				},
 				{
 					label: 'Concepts',
