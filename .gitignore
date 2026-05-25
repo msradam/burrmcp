@@ -33,3 +33,6 @@ research/
 
 # Local secrets (never commit)
 .env
+
+# design handoff artifact (not tracked)
+Theodosia.zip
