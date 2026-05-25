@@ -213,3 +213,43 @@ def test_render_dot_emits_digraph(capsys):
 def test_render_rejects_both_mermaid_and_dot():
     with pytest.raises(SystemExit, match="not both"):
         cli.render("coffee_order:build_application", app_dir=["examples"], mermaid=True, dot=True)
+
+
+def _seed_session(tmp_path, actions_stages):
+    """Write a synthetic tracker log under tmp_path and return (home, app_id)."""
+    import json
+
+    app_dir = tmp_path / "coffee-order-demo" / "app-1"
+    app_dir.mkdir(parents=True)
+    rows = []
+    for seq, (action, stage) in enumerate(actions_stages):
+        rows.append({"type": "begin_entry", "start_time": "2026-05-25T12:00:00.0",
+                     "action": action, "inputs": {}, "sequence_id": seq})
+        rows.append({"type": "end_entry", "end_time": "2026-05-25T12:00:00.5",
+                     "action": action, "result": None, "exception": None,
+                     "state": {"stage": stage, "__SEQUENCE_ID": seq}, "sequence_id": seq})
+    (app_dir / "log.jsonl").write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+    return tmp_path, "app-1"
+
+
+def test_session_progress_reports_current_and_visited(tmp_path):
+    home, _ = _seed_session(tmp_path, [("take_order", "ordered"), ("pay", "paid")])
+    aid, current, visited = cli._session_progress(home, "coffee-order-demo", None)
+    assert aid == "app-1"
+    assert current == "pay"
+    assert visited == {"take_order", "pay"}
+
+
+def test_render_annotation_highlights_current_node(tmp_path):
+    from rich.console import Console
+
+    topo = cli._topology("coffee_order:build_application", ["examples"], "coffee-order")
+    group = cli._graph_renderable(
+        topo, conditions=False, current="pay", visited={"take_order", "pay"}, session="app-1"
+    )
+    plain = Console(width=120, no_color=True)
+    with plain.capture() as cap:
+        plain.print(group)
+    out = cap.get()
+    assert "at: pay" in out
+    assert "● pay" in out  # current node marker
