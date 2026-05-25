@@ -172,9 +172,9 @@ async def judge_one(
     try:
         async for msg in query(prompt=prompt, options=options):
             if isinstance(msg, AssistantMessage):
-                for block in msg.content:
-                    if isinstance(block, TextBlock):
-                        text_parts.append(block.text)
+                text_parts.extend(
+                    block.text for block in msg.content if isinstance(block, TextBlock)
+                )
             elif isinstance(msg, ResultMessage):
                 cost = getattr(msg, "total_cost_usd", None)
         raw = "\n".join(text_parts)
@@ -239,7 +239,10 @@ async def judge_file(
     async def _scored(t: dict, idx: int) -> dict:
         async with sem:
             v = await judge_one(t, judge_model=judge_model)
-        label = f"{t['arm']:5} {t['model']:7} {t['workflow']:18} {t['prompt_track']:12} seed={t['seed']}"
+        label = (
+            f"{t['arm']:5} {t['model']:7} {t['workflow']:18} "
+            f"{t['prompt_track']:12} seed={t['seed']}"
+        )
         if v.get("judge_error"):
             print(
                 f"  [{idx + 1}/{len(todo)}]  FAIL  {label}  err={v['judge_error'][:80]}",
@@ -250,7 +253,8 @@ async def judge_file(
             artq = v.get("artifact_quality", "?")
             jcost = v.get("judge_cost_usd")
             print(
-                f"  [{idx + 1}/{len(todo)}]  OK    {label}  cov={cov}%  artq={artq}  judge_cost=${jcost or 0:.3f}",
+                f"  [{idx + 1}/{len(todo)}]  OK    {label}  "
+                f"cov={cov}%  artq={artq}  judge_cost=${jcost or 0:.3f}",
                 flush=True,
             )
         return v
@@ -260,7 +264,9 @@ async def judge_file(
     with out_path.open("w", encoding="utf-8") as f:
         for v in verdicts:
             f.write(json.dumps(v) + "\n")
-    print(f"\nwrote {len(verdicts)} verdicts ({len(keep)} resumed + {len(fresh)} fresh) → {out_path}")
+    print(
+        f"\nwrote {len(verdicts)} verdicts ({len(keep)} resumed + {len(fresh)} fresh) → {out_path}"
+    )
     return out_path
 
 

@@ -223,11 +223,26 @@ def _seed_session(tmp_path, actions_stages):
     app_dir.mkdir(parents=True)
     rows = []
     for seq, (action, stage) in enumerate(actions_stages):
-        rows.append({"type": "begin_entry", "start_time": "2026-05-25T12:00:00.0",
-                     "action": action, "inputs": {}, "sequence_id": seq})
-        rows.append({"type": "end_entry", "end_time": "2026-05-25T12:00:00.5",
-                     "action": action, "result": None, "exception": None,
-                     "state": {"stage": stage, "__SEQUENCE_ID": seq}, "sequence_id": seq})
+        rows.append(
+            {
+                "type": "begin_entry",
+                "start_time": "2026-05-25T12:00:00.0",
+                "action": action,
+                "inputs": {},
+                "sequence_id": seq,
+            }
+        )
+        rows.append(
+            {
+                "type": "end_entry",
+                "end_time": "2026-05-25T12:00:00.5",
+                "action": action,
+                "result": None,
+                "exception": None,
+                "state": {"stage": stage, "__SEQUENCE_ID": seq},
+                "sequence_id": seq,
+            }
+        )
     (app_dir / "log.jsonl").write_text("\n".join(json.dumps(r) for r in rows) + "\n")
     return tmp_path, "app-1"
 

@@ -208,27 +208,30 @@ async def main() -> None:
     args = ap.parse_args()
 
     presets = {
-        "smoke": dict(
-            workflows=["doc-coauthoring"], models=["sonnet"], tracks=["adversarial"], seeds=1
-        ),
-        "default": dict(
-            workflows=["doc-coauthoring"],
-            models=["sonnet", "haiku"],
-            tracks=["cooperative", "adversarial"],
-            seeds=1,
-        ),
-        "launch": dict(
-            workflows=["doc-coauthoring", "security-audit"],
-            models=["sonnet", "haiku"],
-            tracks=["cooperative", "adversarial"],
-            seeds=3,
-        ),
-        "broad": dict(
-            workflows=list(WORKFLOWS),
-            models=list(MODELS),
-            tracks=list(TRACKS),
-            seeds=2,
-        ),
+        "smoke": {
+            "workflows": ["doc-coauthoring"],
+            "models": ["sonnet"],
+            "tracks": ["adversarial"],
+            "seeds": 1,
+        },
+        "default": {
+            "workflows": ["doc-coauthoring"],
+            "models": ["sonnet", "haiku"],
+            "tracks": ["cooperative", "adversarial"],
+            "seeds": 1,
+        },
+        "launch": {
+            "workflows": ["doc-coauthoring", "security-audit"],
+            "models": ["sonnet", "haiku"],
+            "tracks": ["cooperative", "adversarial"],
+            "seeds": 3,
+        },
+        "broad": {
+            "workflows": list(WORKFLOWS),
+            "models": list(MODELS),
+            "tracks": list(TRACKS),
+            "seeds": 2,
+        },
     }
     preset = presets[args.slice]
     workflows = args.workflows or preset["workflows"]
@@ -244,14 +247,14 @@ async def main() -> None:
     )
 
     cells = [
-        dict(
-            workflow_name=wf,
-            arm=arm,
-            model=m,
-            track=t,
-            seed=s,
-            out_jsonl=out_jsonl,
-        )
+        {
+            "workflow_name": wf,
+            "arm": arm,
+            "model": m,
+            "track": t,
+            "seed": s,
+            "out_jsonl": out_jsonl,
+        }
         for wf in workflows
         for m in models
         for t in tracks
