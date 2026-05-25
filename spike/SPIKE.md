@@ -25,13 +25,26 @@ version of the "tamper-evident audit log" the brand mockup claimed.
 
 ## 2. `.app` single-file format (`appfile.py`, `incident.app`)
 
-A `.app` is YAML frontmatter (name, description, optional `upstream`) + a Python
-body defining `build_application`. `load_app` splits and execs it; `serve_appfile`
-mounts it with the frontmatter as mount config. The smoke test loads
-`incident.app`, builds the FSM, and mounts it as MCP server `incident`.
+A `.app` is YAML frontmatter (the MCP-server config) + a Python body defining
+`build_application`. The point: Burr is pure Python and needs no file format,
+but Theodosia adds the *serving* layer, and a `.app` bundles the graph with how
+to serve it in one portable artifact.
 
-**Verdict: works, nice authoring story.** One portable artifact carries the
-workflow and how to serve it, matching the landing page's `incident.app` panel.
+**Frontmatter (data, maps to `mount()` kwargs):** `name`, `instructions`,
+`session_ttl_seconds`, `max_sessions`, `action_timeout_seconds`, `upstream`
+(other MCP servers the actions reach via `call_upstream`), `external_tools`.
+**Body (callables, picked up by name):** `input_validators`, `next_hint`,
+`state_loader` (a callable cannot live in YAML, so the parts of the config that
+*are* code stay in the body). `mount_kwargs(meta, ns)` assembles both.
+
+`load_app` splits and execs the file; `serve_appfile` mounts it with the full
+config. `playground.py` loads `incident.app`, prints the resolved MCP config,
+mounts it, drives it over the `step` tool (with a refusal), and chains every
+attempt into the ledger.
+
+**Verdict: works, and the bundling is the value.** One artifact carries the
+workflow and the entire MCP-server definition, which is exactly what Burr alone
+has no reason to provide.
 
 **To productionize:**
 - CLI: detect a `.app` target in `theodosia serve` / `doctor` and route to the

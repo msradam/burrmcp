@@ -46,8 +46,24 @@ def parse_appfile(text: str) -> tuple[dict[str, Any], str]:
     return {}, text
 
 
-def load_app(path: str | Path) -> tuple[Any, dict[str, Any]]:
-    """Return (build_application callable or Application, frontmatter meta)."""
+# Frontmatter keys that map straight to mount() kwargs (all data, YAML-safe).
+_MOUNT_KEYS = (
+    "name",
+    "instructions",
+    "session_ttl_seconds",
+    "max_sessions",
+    "action_timeout_seconds",
+    "upstream",
+    "external_tools",
+)
+# mount() kwargs that are callables/objects, so they live in the Python body and
+# are picked up by name if defined there.
+_BODY_KEYS = ("input_validators", "next_hint", "state_loader")
+
+
+def load_app(path: str | Path) -> tuple[Any, dict[str, Any], dict[str, Any]]:
+    """Return (build_application callable or Application, frontmatter meta,
+    the exec'd namespace so the caller can pick up body-defined callables)."""
     p = Path(path)
     meta, code = parse_appfile(p.read_text(encoding="utf-8"))
     ns: dict[str, Any] = {"__file__": str(p), "__name__": p.stem}
@@ -55,18 +71,25 @@ def load_app(path: str | Path) -> tuple[Any, dict[str, Any]]:
     target = ns.get("build_application") or ns.get("application")
     if target is None:
         raise ValueError(f"{p}: no build_application or application defined")
-    return target, meta
+    return target, meta, ns
+
+
+def mount_kwargs(meta: dict[str, Any], ns: dict[str, Any]) -> dict[str, Any]:
+    """Assemble mount() kwargs: data from the frontmatter, callables from the
+    Python body. `description` is accepted as an alias for `instructions`."""
+    kwargs = {k: meta[k] for k in _MOUNT_KEYS if k in meta}
+    if "instructions" not in kwargs and "description" in meta:
+        kwargs["instructions"] = meta["description"]
+    for k in _BODY_KEYS:
+        if k in ns:
+            kwargs[k] = ns[k]
+    return kwargs
 
 
 def serve_appfile(path: str | Path):
-    """Load a .app and mount it with Theodosia, using the frontmatter for
-    name / instructions / upstream."""
+    """Load a .app and mount it with Theodosia, carrying the full MCP-server
+    config from the frontmatter (and any callables from the body)."""
     from theodosia import mount
 
-    target, meta = load_app(path)
-    return mount(
-        target,
-        name=meta.get("name"),
-        instructions=meta.get("description") or meta.get("instructions"),
-        upstream=meta.get("upstream"),
-    )
+    target, meta, ns = load_app(path)
+    return mount(target, **mount_kwargs(meta, ns))

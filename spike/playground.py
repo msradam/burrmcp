@@ -17,14 +17,21 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from appfile import serve_appfile  # noqa: E402
+from appfile import load_app, mount_kwargs  # noqa: E402
 from ledger import HashChainedLedger, verify_ledger  # noqa: E402
 from fastmcp import Client  # noqa: E402
+from theodosia import mount  # noqa: E402
 
 
 async def main() -> None:
-    server = serve_appfile(Path(__file__).parent / "incident.app")
-    print(f"mounted incident.app  ->  MCP server '{server.name}'\n")
+    target, meta, ns = load_app(Path(__file__).parent / "incident.app")
+    kwargs = mount_kwargs(meta, ns)
+    print("incident.app carried this MCP-server config (the part Burr has no need for):")
+    for k, v in kwargs.items():
+        shown = v if not isinstance(v, dict) else {kk: "..." for kk in v}
+        print(f"  {k} = {shown}")
+    server = mount(target, **kwargs)
+    print(f"\nmounted  ->  MCP server '{server.name}'\n")
 
     tmp = Path(tempfile.mkdtemp()) / "audit.jsonl"
     led = HashChainedLedger(tmp)
