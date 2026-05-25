@@ -40,48 +40,18 @@ from this table has not been exercised yet.
 | Hamilton driver inside an action body | Yes (no special integration) | `hamilton_features` |
 | `app.run(halt_after=...)` auto-routing | Burr-level only | MCP path always uses agent-chosen actions via `step` |
 
-## Lifting an existing FastMCP server
+## Experimental: lifting a flat FastMCP server
 
-If the starting point is a flat FastMCP server rather than a Burr graph,
-`burr_app_from_fastmcp(...)` lifts the tools into an Application so they gain
-transition enforcement and an audit trail. This path is less exercised than
-building a graph directly; treat it as advanced.
+:::caution
+Experimental, not yet validated end to end through a live agent. The unit tests
+in `tests/test_importing.py` exercise the mechanism, but it has not been driven
+through a real MCP client the way the `step` surface has. Build a Burr graph
+directly for anything you depend on.
+:::
 
-```python
-from fastmcp import FastMCP
-from theodosia import ServingMode, ToolSpec, burr_app_from_fastmcp, mount
-
-flat = FastMCP("legacy")
-
-@flat.tool
-async def create_order(item: str) -> dict:
-    return {"order_id": "ORD-1", "item": item}
-
-@flat.tool
-async def pay(order_id: str, amount: float) -> dict:
-    return {"paid": True, "receipt": "R-99"}
-
-@flat.tool
-async def fulfill(order_id: str) -> dict:
-    return {"status": "fulfilled"}
-
-app = await burr_app_from_fastmcp(
-    flat,
-    entrypoint="create_order",
-    initial_state={"order_id": None, "paid": False},
-    tool_specs={
-        "create_order": ToolSpec(writes=["order_id"], merge_result=True),
-        "pay":          ToolSpec(reads=["order_id"], writes=["paid"], merge_result=True),
-        "fulfill":      ToolSpec(reads=["order_id", "paid"]),
-    },
-    transitions=[("create_order", "pay"), ("pay", "fulfill")],
-)
-
-server = mount(app, mode=ServingMode.STEP, name="lifted")
-```
-
-You declare the state machine explicitly because parameter names do not tell you
-which tools mutate shared state. What carries over without declaration: parameter
-names, types, defaults, docstrings, and async/sync nature. `ToolSpec` also accepts
-`state_update` (a callable from result to state mutations) and `rename` (change
-the action's name in the graph). `tests/test_importing.py` exercises every knob.
+`burr_app_from_fastmcp(...)` takes a flat FastMCP server and lifts its tools into
+a Burr `Application`: you supply the transitions and a `ToolSpec` per tool
+declaring what state it reads and writes, and the lifted tools then gain the
+transition enforcement and the audit trail. It is intended as a migration path
+for an existing flat server. Until it is validated through an agent, treat
+building a graph directly as the supported path.

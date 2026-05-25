@@ -17,24 +17,39 @@
   --sl-font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
 }
 
-/* Inria Serif for display: site title, page title, content headings, hero. */
+/* Inria Serif for display: site title, the per-page title (h1#_top, rendered
+   outside .sl-markdown-content), content headings, and the splash hero. */
 .site-title,
+h1#_top,
 .sl-markdown-content :is(h1, h2, h3, h4),
 .hero h1 {
   font-family: var(--thd-display);
   letter-spacing: -0.01em;
 }
+h1#_top,
 .sl-markdown-content :is(h1, h2) { font-weight: 700; }
 .hero h1 { font-weight: 700; letter-spacing: -0.02em; }
 
-/* ── Light mode: v14 neutral paper + pine teal (not Rose Pine dawn) ── */
+/* ── Light mode: v14 neutral paper + pine teal (not Rose Pine dawn) ──
+   A full neutral gray ramp (Starlight: white = darkest text, black = lightest
+   surface; gray-1 dark → gray-7 near-bg). This both kills the warm-cream cast
+   and restores legible sidebar contrast (links use --sl-color-gray-2). */
 :root[data-theme="light"] {
+  --sl-color-white: var(--thd-ink);       /* #0a0a0a — page title, strong text */
+  --sl-color-gray-1: #1c1c1a;
+  --sl-color-gray-2: #343432;              /* sidebar links — dark, readable */
+  --sl-color-gray-3: #565654;              /* secondary text */
+  --sl-color-gray-4: var(--thd-muted);     /* #7a7a76 — captions/meta */
+  --sl-color-gray-5: #c9c9c4;              /* borders, dim */
+  --sl-color-gray-6: #ededea;              /* faint panel bg */
+  --sl-color-gray-7: var(--thd-raised);    /* #f5f5f3 */
+  --sl-color-black: var(--thd-paper);      /* #fafafa — page bg */
+
   --sl-color-bg: var(--thd-paper);
   --sl-color-bg-nav: var(--thd-paper);
   --sl-color-bg-sidebar: var(--thd-raised);
   --sl-color-bg-inline-code: var(--thd-pine-tint);
   --sl-color-text: var(--thd-subtle);
-  --sl-color-white: var(--thd-ink);
   --sl-color-text-accent: var(--thd-pine);
   --sl-color-accent: var(--thd-pine);
   --sl-color-accent-low: var(--thd-pine-tint);
@@ -50,3 +65,27 @@
   --sl-color-accent: var(--thd-dark-foam);
   --sl-color-text-accent: var(--thd-dark-foam);
 }
+
+/* Active sidebar entry, both modes: pine/foam and bold so "you are here" reads. */
+:root[data-theme="light"] a[aria-current="page"] { color: var(--thd-pine); font-weight: 600; }
+:root:not([data-theme="light"]) a[aria-current="page"] { color: var(--thd-dark-foam); font-weight: 600; }
+
+/* ── Stage accents on callouts ───────────────────────────────────
+   Echo the investigation stages from the hero gif: foam (blue, triage),
+   iris (lavender, diagnose), gold (orange, verify), love (refused). Mapped
+   onto Starlight's four aside variants. */
+:root[data-theme="light"] {
+  --sl-color-asides-text-accent: var(--thd-foam);
+}
+.starlight-aside--note   { --sl-color-asides-text-accent: var(--thd-foam); --sl-color-asides-border: var(--thd-foam); }
+.starlight-aside--tip    { --sl-color-asides-text-accent: var(--thd-seal); --sl-color-asides-border: var(--thd-seal-soft); }
+.starlight-aside--caution { --sl-color-asides-text-accent: var(--thd-gold); --sl-color-asides-border: var(--thd-gold); }
+.starlight-aside--danger { --sl-color-asides-text-accent: var(--thd-love); --sl-color-asides-border: var(--thd-love); }
+
+:root:not([data-theme="light"]) {
+  --sl-color-asides-text-accent: var(--thd-dark-foam);
+}
+:root:not([data-theme="light"]) .starlight-aside--note   { --sl-color-asides-text-accent: var(--thd-dark-foam); --sl-color-asides-border: var(--thd-dark-foam); }
+:root:not([data-theme="light"]) .starlight-aside--tip    { --sl-color-asides-text-accent: var(--thd-dark-iris); --sl-color-asides-border: var(--thd-dark-iris); }
+:root:not([data-theme="light"]) .starlight-aside--caution { --sl-color-asides-text-accent: var(--thd-dark-gold); --sl-color-asides-border: var(--thd-dark-gold); }
+:root:not([data-theme="light"]) .starlight-aside--danger { --sl-color-asides-text-accent: var(--thd-dark-love); --sl-color-asides-border: var(--thd-dark-love); }
