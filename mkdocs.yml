@@ -8,11 +8,15 @@ docs_dir: docs
 theme:
   name: material
   palette:
-    - scheme: rose-pine
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: deep purple
       toggle:
         icon: material/weather-night
         name: Switch to light mode
-    - scheme: default
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
       primary: deep purple
       accent: deep purple
       toggle:
