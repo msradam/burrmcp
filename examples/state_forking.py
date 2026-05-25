@@ -8,7 +8,7 @@ the persister and returns a fresh Application that starts from the
 loaded state with its own ``uid``. The two Applications then walk
 independently.
 
-This is the Burr-level surface that BurrMCP's ``fork_from_past``
+This is the Burr-level surface that Theodosia's ``fork_from_past``
 meta-tool wraps. ``sqlite_persister`` shows it driven through MCP;
 this demo shows it directly at the builder. Tests build a baseline,
 then construct alternate Applications via ``build_fork(...)`` that
@@ -17,7 +17,7 @@ divergently.
 
 Domain: a tiny budget planner. Each ``commit`` action subtracts an
 amount from a running budget. The MCP surface lets clients drive a
-single budget session; the ``burr://forks`` resource exposes every
+single budget session; the ``theodosia://forks`` resource exposes every
 persister row across that session (and any forks built in-process)
 so the agent can see the full ledger.
 
@@ -37,7 +37,7 @@ from burr.core import ApplicationBuilder, State, action
 from burr.core.persistence import BaseStatePersister, PersistedStateData
 from burr.core.state import State as BurrState
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 # == persister =======================================================
 
@@ -127,7 +127,7 @@ class InMemoryPersister(BaseStatePersister):
 async def commit(state: State, amount: float, note: str = "") -> State:
     """Subtract ``amount`` from the running budget.
 
-    Declared ``async`` so Burr's ``astep`` path (used by BurrMCP)
+    Declared ``async`` so Burr's ``astep`` path (used by Theodosia)
     captures the post-action state in its ``post_run_step`` hook.
     With a sync action body, Burr's ``astep`` delegates to ``_step``
     and the persister sees the pre-action state at each sequence_id.
@@ -207,12 +207,12 @@ def build_server():
             "Budget planner FSM. Each commit(amount, note) subtracts "
             "from the running budget. The session uses an in-memory "
             "BaseStatePersister, so every step is recorded under the "
-            "current app_id. Read burr://forks for the persister "
+            "current app_id. Read theodosia://forks for the persister "
             "ledger (every saved row across all forks)."
         ),
     )
 
-    @server.resource("burr://forks")
+    @server.resource("theodosia://forks")
     async def _forks_resource() -> str:
         return json.dumps(
             {

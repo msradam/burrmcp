@@ -1,6 +1,6 @@
 """Function-call safety check + repair loop via Granite Guardian.
 
-A caller LLM (Claude, Sonnet, Granite, whatever drives BurrMCP)
+A caller LLM (Claude, Sonnet, Granite, whatever drives Theodosia)
 proposes a tool / function call. Granite Guardian classifies the
 call as safe or unsafe; on unsafe, the FSM loops back so the caller
 can revise the call. After ``max_attempts`` unsafe verdicts in a row
@@ -48,7 +48,7 @@ from burr.core import ApplicationBuilder, State, action
 from burr.core.action import Condition
 from burr.tracking.client import LocalTrackingClient
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 _TRACKER_PROJECT = "granite-guardian-demo"
 _DEFAULT_MODEL = os.environ.get("BURR_MCP_GUARDIAN_MODEL", "granite3-guardian:2b")
@@ -145,7 +145,7 @@ def start(
     Args:
         operation_description: free-text description of what the agent
             is trying to do; shows up in state so an auditor reading
-            burr://history knows the intent.
+            theodosia://history knows the intent.
         max_attempts: how many unsafe verdicts to accept before
             refusing. Defaults to 3.
     """
@@ -347,7 +347,7 @@ def build_server():
             f"captured in state.verdicts; max attempts defaults to "
             f"{_DEFAULT_MAX_ATTEMPTS}. The retry loop is encoded as "
             "transitions so every revision is a separate step in "
-            "burr://history and the audit trail records what Guardian "
+            "theodosia://history and the audit trail records what Guardian "
             "said about each proposal. Requires Ollama + a Granite "
             f"Guardian model ({_DEFAULT_MODEL}); see the module "
             "docstring for setup. Hermetic via the monkey-patchable "

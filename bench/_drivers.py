@@ -5,7 +5,7 @@ Two arms:
 * ``run_skill_arm``: agent gets the SKILL.md prose injected as the
   initial message + raw built-in tools (Read / Write / Bash / etc.),
   no MCP servers. This is the "Anthropic Skills" comparison condition.
-* ``run_fsm_arm``: agent gets the BurrMCP FSM mounted via the
+* ``run_fsm_arm``: agent gets the Theodosia FSM mounted via the
   shared demo bench `.mcp.json`, no SKILL.md in prompt.
 
 Both arms return the same trace shape so the analyzer treats them
@@ -31,7 +31,7 @@ from claude_agent_sdk import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-MCP_CONFIG = Path("~/burrmcp-demo/.mcp.json").expanduser()
+MCP_CONFIG = Path("~/theodosia-demo/.mcp.json").expanduser()
 
 
 @dataclass

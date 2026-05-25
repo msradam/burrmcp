@@ -1,6 +1,6 @@
 # Rubric: doc-coauthoring workflow
 
-Phase coverage criteria the judge uses to score either arm (SKILL prose or BurrMCP FSM) faithfully. Each phase is scored independently. The judge MUST NOT use the presence of FSM action names (`start_doc`, `gather_context`, etc.) as evidence; both arms are graded on **behavioral evidence**, not jargon.
+Phase coverage criteria the judge uses to score either arm (SKILL prose or Theodosia FSM) faithfully. Each phase is scored independently. The judge MUST NOT use the presence of FSM action names (`start_doc`, `gather_context`, etc.) as evidence; both arms are graded on **behavioral evidence**, not jargon.
 
 ## What counts as "the workflow was walked"
 

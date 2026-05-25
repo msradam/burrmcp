@@ -29,7 +29,7 @@ from burr.core import ApplicationBuilder, State, action
 from burr.core.action import Condition
 from burr.tracking.client import LocalTrackingClient
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 _TRACKER_PROJECT = "chargen-demo"
 
@@ -143,7 +143,7 @@ def assign_stats(
 def pick_skills(state: State, skills: list[str]) -> State:
     """Pick exactly two skills from your class list.
 
-    The class list is in ``burr://state`` under ``available_skills``
+    The class list is in ``theodosia://state`` under ``available_skills``
     after class selection. Different classes have different options.
     """
     class_ = state["class_"]
@@ -231,8 +231,8 @@ def build_server():
             "in strict order: begin, choose_race, choose_class, "
             "assign_stats, pick_skills, equip, finalize. Each stage "
             "writes one part of the character sheet, and the FSM "
-            "refuses out-of-order calls. Read burr://state for the "
-            "in-progress sheet; read burr://next to see which step is "
+            "refuses out-of-order calls. Read theodosia://state for the "
+            "in-progress sheet; read theodosia://next to see which step is "
             "valid right now. Useful reference tables (races, classes, "
             "class skill lists, starter packs) live in the action "
             "docstrings."

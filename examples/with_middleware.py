@@ -1,4 +1,4 @@
-"""FastMCP middleware wired around a mounted BurrMCP server.
+"""FastMCP middleware wired around a mounted Theodosia server.
 
 FastMCP ships drop-in middleware for the common cross-cutting concerns:
 ``TimingMiddleware`` (per-request wall-clock), ``LoggingMiddleware``
@@ -8,14 +8,14 @@ plus auth, caching, and response limiting. They attach to any FastMCP
 server via ``mcp.add_middleware(...)`` and fire around every request
 the server handles.
 
-A BurrMCP-mounted server is just a FastMCP server, so anything FastMCP
+A Theodosia-mounted server is just a FastMCP server, so anything FastMCP
 ships works through it. This demo:
 
 * Mounts a tiny counter FSM via ``mount(...)``.
 * Attaches ``TimingMiddleware``, a custom ``StructuredLoggingMiddleware``
   with JSON output, and a permissive ``RateLimitingMiddleware``.
 * Adds a small custom middleware that records per-tool counts into an
-  in-memory dict, exposed via a custom ``burr://tool-counts`` resource
+  in-memory dict, exposed via a custom ``theodosia://tool-counts`` resource
   so you can read the middleware's view of the world from the agent
   side.
 
@@ -43,7 +43,7 @@ from fastmcp.server.middleware.logging import StructuredLoggingMiddleware
 from fastmcp.server.middleware.rate_limiting import RateLimitingMiddleware
 from fastmcp.server.middleware.timing import TimingMiddleware
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 _TRACKER_PROJECT = "with-middleware-demo"
 
@@ -67,7 +67,7 @@ async def reset(state: State) -> State:
 
 
 class _ToolCallCounter(Middleware):
-    """Records per-tool-name call counts. Exposed via burr://tool-counts.
+    """Records per-tool-name call counts. Exposed via theodosia://tool-counts.
 
     Demonstrates the ``on_call_tool`` hook; FastMCP also provides
     ``on_request`` (around every request), ``on_message`` (around
@@ -123,7 +123,7 @@ def build_server(*, rate_limit_per_second: float = 100.0):
             "Counter FSM (tick / reset) instrumented with FastMCP "
             "middleware: timing, structured JSON logging, rate "
             "limiting, plus a per-tool counter. Read "
-            "burr://tool-counts to see the custom middleware's "
+            "theodosia://tool-counts to see the custom middleware's "
             "tally; check stderr for the timing + logging output."
         ),
     )
@@ -141,7 +141,7 @@ def build_server(*, rate_limit_per_second: float = 100.0):
         )
     )
 
-    @server.resource("burr://tool-counts")
+    @server.resource("theodosia://tool-counts")
     async def _tool_counts_resource() -> str:
         return json.dumps(counter.snapshot(), indent=2)
 

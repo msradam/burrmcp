@@ -2,7 +2,7 @@
 
 A real Anthropic SKILL decomposed into a Burr FSM whose actions emit
 prompts for the *caller* LLM (Opus, Sonnet, Haiku, GPT-5, whoever is
-driving BurrMCP through an MCP client). The FSM does not call any LLM
+driving Theodosia through an MCP client). The FSM does not call any LLM
 itself; it stores the caller's structured artifacts in state and gates
 which prompt-phase is reachable next.
 
@@ -27,8 +27,8 @@ Shape:
 
 What the FSM gives the SKILL:
 
-* Each phase becomes a separate visible step in ``burr://history``
-  and ``burr://trace``. The doc-writing trail is the artifact: every
+* Each phase becomes a separate visible step in ``theodosia://history``
+  and ``theodosia://trace``. The doc-writing trail is the artifact: every
   prompt the caller LLM was given + every artifact it returned.
 * Stage 1 (context gathering) is enforced: the agent cannot jump
   straight to drafting. The SKILL says "Don't let gaps accumulate".
@@ -58,7 +58,7 @@ from typing import Any
 from burr.core import ApplicationBuilder, Condition, State, action
 from burr.tracking.client import LocalTrackingClient
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 _TRACKER_PROJECT = "skill-doc-coauthoring-demo"
 
@@ -735,8 +735,8 @@ def build_server():
             "(reader_test -> finalize_doc). Skipping a stage, "
             "drafting a section not in the agreed structure, or "
             "finalizing with blocking reader-test issues all surface "
-            "as structured refusals. Read burr://state after every "
-            "step for state.current_prompt; burr://history for the "
+            "as structured refusals. Read theodosia://state after every "
+            "step for state.current_prompt; theodosia://history for the "
             "full trail. Source SKILL at examples/skills/doc-coauthoring/."
         ),
     )

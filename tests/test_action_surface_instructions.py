@@ -1,6 +1,6 @@
 """mount() appends a synthesized action listing to the server's
 ``instructions`` so caller LLMs see the action surface at connect time
-without first reading ``burr://graph``.
+without first reading ``theodosia://graph``.
 
 The synthesis covers:
 * every action by name + first-line docstring
@@ -15,7 +15,7 @@ from __future__ import annotations
 from burr.core import ApplicationBuilder, State, action
 from burr.core.action import Condition
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 
 @action(reads=[], writes=["status"])
@@ -106,7 +106,7 @@ def test_instructions_without_user_string_still_emit_action_surface():
     instr = _server_instructions(server)
     assert "Actions (entry: start):" in instr
     # Discovery hint also present.
-    assert "burr://graph" in instr
+    assert "theodosia://graph" in instr
 
 
 def test_unconditional_transitions_omit_when_clause():

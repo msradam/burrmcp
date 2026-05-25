@@ -36,7 +36,7 @@ from collections.abc import Callable
 from burr.core import Action, ApplicationBuilder, State, action
 from burr.tracking.client import LocalTrackingClient
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 _TRACKER_PROJECT = "class-action-demo"
 

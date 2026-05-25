@@ -1,6 +1,6 @@
 # Rubric: security-audit workflow
 
-Phase coverage criteria the judge uses to score either arm (SKILL prose or BurrMCP FSM) faithfully. Each phase is scored independently. The judge MUST NOT use the presence of FSM action names (`start_audit`, `source_review`, etc.) as evidence; both arms are graded on **behavioral evidence**.
+Phase coverage criteria the judge uses to score either arm (SKILL prose or Theodosia FSM) faithfully. Each phase is scored independently. The judge MUST NOT use the presence of FSM action names (`start_audit`, `source_review`, etc.) as evidence; both arms are graded on **behavioral evidence**.
 
 ## What counts as "the workflow was walked"
 

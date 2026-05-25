@@ -77,7 +77,7 @@ async def test_trace_spans_via_mcp():
         out = r.structured_content
         assert out.get("error") is None, out
         assert out["state"]["analysis"]["unique_count"] == 3
-        text = (await client.read_resource("burr://trace-spans"))[0].text
+        text = (await client.read_resource("theodosia://trace-spans"))[0].text
         spans = json.loads(text)
         names = {entry["name"] for entry in spans["analyze"]}
         assert {"tokenize", "count_words"}.issubset(names)

@@ -1,14 +1,14 @@
 """upstream: a code-audit FSM that drives a filesystem MCP server THROUGH
-burrmcp (single surface).
+theodosia (single surface).
 
 Unlike ``external_tools_filesystem`` (advisory: the agent calls the
-filesystem server itself), here burrmcp is an MCP *client* to the
-filesystem server. The agent connects to ONLY this burrmcp server and
+filesystem server itself), here theodosia is an MCP *client* to the
+filesystem server. The agent connects to ONLY this theodosia server and
 sees ONLY the ``step`` tool. The audit actions call the filesystem
 server's tools from inside their bodies via ``call_upstream(...)``. The
 filesystem tools are never exposed to the agent.
 
-This is the honest "works with any MCP server" path: burrmcp is in the
+This is the honest "works with any MCP server" path: theodosia is in the
 call path, every upstream read happens inside an action (so it advances
 state), and it works with any compliant MCP server because fastmcp.Client
 speaks every transport.
@@ -18,7 +18,7 @@ Audit target dir: ``$AUDIT_TARGET`` (defaults to the shipped vuln_demo).
 Run:
 
     AUDIT_TARGET=/path/to/code \\
-      burrmcp serve upstream_filesystem:build_server --name code-audit
+      theodosia serve upstream_filesystem:build_server --name code-audit
 
 Then connect an agent to ONLY this server. It audits real files without
 ever being given filesystem tools.
@@ -32,7 +32,7 @@ from pathlib import Path
 from burr.core import ApplicationBuilder, Condition, State, action
 from burr.tracking.client import LocalTrackingClient
 
-from burrmcp import ServingMode, call_upstream, mount
+from theodosia import ServingMode, call_upstream, mount
 
 _TRACKER_PROJECT = "upstream-code-audit-demo"
 _MIN_FINDINGS = 2

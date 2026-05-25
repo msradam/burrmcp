@@ -44,7 +44,7 @@ What this exercises:
 * Conditional branching: verify -> mitigate (loop on
   ``verified == False``) or verify -> resolve.
 * Sub-graph: ``investigate`` spawns a four-step sub-Application via
-  ``spawn_subapp``; its timeline lives at ``burr://subruns/{id}``.
+  ``spawn_subapp``; its timeline lives at ``theodosia://subruns/{id}``.
 * Input validator: severity from the alert must be P1/P2/P3 (validates
   the payload, not the caller's input).
 
@@ -54,7 +54,7 @@ Run as stdio:
 
 Or via the CLI:
 
-    uv run burrmcp serve incident_response:build_application --app-dir examples
+    uv run theodosia serve incident_response:build_application --app-dir examples
 """
 
 from __future__ import annotations
@@ -69,7 +69,7 @@ from burr.core import ApplicationBuilder, State, action
 from burr.core.action import Condition
 from burr.tracking.client import LocalTrackingClient
 
-from burrmcp import ServingMode, ValidationFailed, mount, spawn_subapp
+from theodosia import ServingMode, ValidationFailed, mount, spawn_subapp
 
 _TRACKER_PROJECT = "incident-response-demo"
 _DATA_DIR = Path(__file__).parent / "data" / "incident_response"
@@ -340,7 +340,7 @@ async def investigate(state: State) -> State:
     ``api-gateway.log`` and ``deploys.json``, slices the log to the
     alert window, cross-references with recent deploys, forms a
     hypothesis, and produces a findings report. The sub-run's full
-    timeline is available at ``burr://subruns/{id}``.
+    timeline is available at ``theodosia://subruns/{id}``.
     """
     sub = _build_investigation_subgraph(
         service=state["service"],
@@ -523,7 +523,7 @@ def build_server():
             "timeline) -> verify (reads forward log; agent supplies "
             "verified verdict from evidence) -> resolve -> "
             "write_postmortem. verify(verified=False) loops back to "
-            "mitigate. Investigation sub-run at burr://subruns/{id}."
+            "mitigate. Investigation sub-run at theodosia://subruns/{id}."
         ),
         input_validators={"report": _alert_payload_validator},
     )

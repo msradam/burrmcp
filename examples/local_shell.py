@@ -5,11 +5,11 @@ The user asks for shell operations in plain English ("list the files",
 The agent translates intent to a shell command and calls
 ``execute(command=...)``; the server runs it against a **per-session
 temp sandbox** (a fresh copy of ``examples/data/local_shell/``), captures
-stdout / stderr / exit_code, and records the call in ``burr://history``.
+stdout / stderr / exit_code, and records the call in ``theodosia://history``.
 
 Why this server exists when the agent already has a built-in shell:
 
-* Every command is auditable in ``burr://history`` with full output.
+* Every command is auditable in ``theodosia://history`` with full output.
 * The sandbox is a temp dir; the shipped sample data is never mutated.
 * Multiple MCP sessions get independent sandboxes; no cross-contamination.
 * The agent CANNOT escape the sandbox (commands run with cwd set; we
@@ -41,7 +41,7 @@ from burr.core import ApplicationBuilder, State, action
 from burr.core.action import Condition
 from burr.tracking.client import LocalTrackingClient
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 _TRACKER_PROJECT = "burr-shell-demo"
 _DATA_DIR = Path(__file__).parent / "data" / "local_shell"
@@ -189,7 +189,7 @@ def build_server():
             "inputs={'command': '<command>'}). The command runs via "
             "/bin/sh -c with cwd set to the sandbox. Output (stdout, "
             "stderr, exit_code) appears in state.history and "
-            "burr://history. Absolute paths, .. traversal, and obvious "
+            "theodosia://history. Absolute paths, .. traversal, and obvious "
             "sub-shells are refused. Call step(action='done') to close "
             "with a summary."
         ),

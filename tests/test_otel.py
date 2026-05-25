@@ -1,6 +1,6 @@
 """OpenTelemetry span emission for actions, via Burr's bridge.
 
-burrmcp doesn't write its own OTel adapter; Burr already has
+theodosia doesn't write its own OTel adapter; Burr already has
 ``OpenTelemetryBridge``. The contribution here is that the bridge
 works transparently through the MCP wire when wired into the
 Application factory via ``.with_hooks(...)``.
@@ -24,7 +24,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
     InMemorySpanExporter,
 )
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 _MODULE_EXPORTER = InMemorySpanExporter()
 
@@ -70,7 +70,7 @@ def _factory_with_otel():
         ApplicationBuilder()
         .with_actions(first=first, second=second)
         .with_transitions(("first", "second"))
-        .with_hooks(OpenTelemetryBridge(tracer_name="burrmcp.test"))
+        .with_hooks(OpenTelemetryBridge(tracer_name="theodosia.test"))
         .with_state(a=None, b=None)
         .with_entrypoint("first")
         .build()
@@ -107,7 +107,7 @@ async def test_each_action_run_emits_a_span(otel_exporter):
 @pytest.mark.asyncio
 async def test_no_spans_without_bridge(otel_exporter):
     """An Application without the OpenTelemetryBridge hook emits no
-    burrmcp-attributable spans. The in-memory exporter stays empty
+    theodosia-attributable spans. The in-memory exporter stays empty
     (modulo any framing spans the runtime itself emits)."""
     server = mount(_factory_without_otel, mode=ServingMode.STEP, name="no-otel")
     async with Client(server) as client:
@@ -151,7 +151,7 @@ async def test_streaming_action_still_emits_span(otel_exporter):
         return (
             ApplicationBuilder()
             .with_actions(narrate=narrate)
-            .with_hooks(OpenTelemetryBridge(tracer_name="burrmcp.streaming"))
+            .with_hooks(OpenTelemetryBridge(tracer_name="theodosia.streaming"))
             .with_state(story=None)
             .with_entrypoint("narrate")
             .build()

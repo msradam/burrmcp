@@ -3,7 +3,7 @@
 Trail of Bits' ``differential-review`` SKILL decomposed into a Burr
 FSM. Each phase becomes one action that emits a structured prompt
 for the *caller* LLM (Opus, Sonnet, Granite, whichever is driving
-BurrMCP) and stores the caller's structured response in state. The
+Theodosia) and stores the caller's structured response in state. The
 FSM does not call any LLM; it just gates which phase is reachable
 next.
 
@@ -31,7 +31,7 @@ Why this is a clean FSM:
   phase's slot; the action body refuses if any required slot is
   empty (for non-HIGH paths, the deep-context + adversarial slots
   are intentionally allowed to be empty).
-* Every prompt + every response lands in ``burr://history``; the
+* Every prompt + every response lands in ``theodosia://history``; the
   audit trail is the artefact, same as the security-audit demo.
 
 Pure FSM. No server-side LLM calls, no shellouts. Complementary to
@@ -53,7 +53,7 @@ from burr.core import ApplicationBuilder, State, action
 from burr.core.action import Condition
 from burr.tracking.client import LocalTrackingClient
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 _TRACKER_PROJECT = "differential-review-demo"
 

@@ -16,7 +16,7 @@ import pytest
 from burr.core import ApplicationBuilder, State, action
 from fastmcp import Client
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "examples"))
@@ -49,7 +49,7 @@ async def test_reset_from_terminal_restores_entrypoint():
         ]:
             await client.call_tool("step", {"action": a, "inputs": {}})
         # Terminal: valid_next is empty.
-        valid_at_terminal = json.loads((await client.read_resource("burr://next"))[0].text)
+        valid_at_terminal = json.loads((await client.read_resource("theodosia://next"))[0].text)
         assert valid_at_terminal == []
 
         # Reset.
@@ -72,7 +72,7 @@ async def test_reset_session_preserves_prior_history():
         await client.call_tool("reset_session", {})
         await client.call_tool("step", {"action": "enter_foyer", "inputs": {}})
 
-        history = json.loads((await client.read_resource("burr://history"))[0].text)
+        history = json.loads((await client.read_resource("theodosia://history"))[0].text)
         actions_in_order = [h["action"] for h in history]
         assert actions_in_order == [
             "enter_foyer",
@@ -95,11 +95,11 @@ async def test_reset_session_clears_subruns():
     server = mount(sub_factory, mode=ServingMode.STEP, name="sub-reset")
     async with Client(server) as client:
         await client.call_tool("step", {"action": "investigate", "inputs": {"source": "x"}})
-        idx_before = json.loads((await client.read_resource("burr://subruns"))[0].text)
+        idx_before = json.loads((await client.read_resource("theodosia://subruns"))[0].text)
         assert len(idx_before) == 1
 
         await client.call_tool("reset_session", {})
-        idx_after = json.loads((await client.read_resource("burr://subruns"))[0].text)
+        idx_after = json.loads((await client.read_resource("theodosia://subruns"))[0].text)
         assert idx_after == []
 
 
@@ -125,7 +125,7 @@ async def test_reset_session_mid_workflow_works():
         await client.call_tool("step", {"action": "go_to_library", "inputs": {}})
         await client.call_tool("step", {"action": "take_key", "inputs": {}})
         # In the library with key, mid-workflow.
-        state_before = json.loads((await client.read_resource("burr://state"))[0].text)
+        state_before = json.loads((await client.read_resource("theodosia://state"))[0].text)
         assert state_before["has_key"] is True
 
         r = await client.call_tool("reset_session", {})
@@ -136,11 +136,11 @@ async def test_reset_session_mid_workflow_works():
 
 @pytest.mark.asyncio
 async def test_graph_resource_advertises_meta_tools():
-    """A client reading burr://graph at cold start should learn about
+    """A client reading theodosia://graph at cold start should learn about
     reset_session as a meta tool, not just the FSM actions."""
     server = mount(adventure_factory, mode=ServingMode.STEP, name="meta-tools-test")
     async with Client(server) as client:
-        graph = json.loads((await client.read_resource("burr://graph"))[0].text)
+        graph = json.loads((await client.read_resource("theodosia://graph"))[0].text)
         assert "meta_tools" in graph
         meta_names = [m["name"] for m in graph["meta_tools"]]
         assert "reset_session" in meta_names
@@ -161,11 +161,11 @@ async def test_two_sessions_reset_independently():
 
             # B resets its own session.
             await client_b.call_tool("reset_session", {})
-            state_b = json.loads((await client_b.read_resource("burr://state"))[0].text)
+            state_b = json.loads((await client_b.read_resource("theodosia://state"))[0].text)
             assert state_b.get("room") is None  # back to initial
 
         # A is untouched.
-        state_a = json.loads((await client_a.read_resource("burr://state"))[0].text)
+        state_a = json.loads((await client_a.read_resource("theodosia://state"))[0].text)
         assert state_a["room"] == "library"
         assert state_a["has_key"] is True
 
@@ -193,9 +193,9 @@ async def test_simple_hand_built_factory_works():
     async with Client(server) as client:
         await client.call_tool("step", {"action": "increment", "inputs": {}})
         await client.call_tool("step", {"action": "increment", "inputs": {}})
-        state = json.loads((await client.read_resource("burr://state"))[0].text)
+        state = json.loads((await client.read_resource("theodosia://state"))[0].text)
         assert state["counter"] == 2
 
         await client.call_tool("reset_session", {})
-        state = json.loads((await client.read_resource("burr://state"))[0].text)
+        state = json.loads((await client.read_resource("theodosia://state"))[0].text)
         assert state["counter"] == 0

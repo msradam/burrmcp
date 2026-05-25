@@ -12,7 +12,7 @@ Coverage:
   shows up in ``state["samples"]``.
 * MapStates sub-runs land on the parent tracker's project dir (the
   burr-side audit trail), even though they do not surface under
-  ``burr://subruns``.
+  ``theodosia://subruns``.
 """
 
 from __future__ import annotations
@@ -208,7 +208,7 @@ async def test_full_walk_to_finalize_records_every_sample():
 
 @pytest.mark.asyncio
 async def test_fanout_plan_records_intended_parallel_tasks(tmp_path):
-    """prepare_inputs writes the per-task plan into burr://history so
+    """prepare_inputs writes the per-task plan into theodosia://history so
     a client can see what was about to be fanned out before
     map_and_reduce runs."""
     server = build_server()
@@ -234,7 +234,7 @@ async def test_map_states_subruns_land_on_parent_tracker_project(tmp_path, monke
     not see those sub-runs, but the tracker writes one child app
     directory per task under the same project. This test asserts
     the audit trail is on disk so anyone debugging the demo can find
-    the per-task data even though ``burr://subruns`` is empty."""
+    the per-task data even though ``theodosia://subruns`` is empty."""
     server = build_server()
     async with Client(server) as client:
         await _step(client, "configure", prompt="audit trail", temperatures=[0.2, 0.8])
@@ -243,7 +243,7 @@ async def test_map_states_subruns_land_on_parent_tracker_project(tmp_path, monke
         # MapStates does not register sub-runs under spawn_subapp's
         # resource, so this should be empty even though three apps
         # ran (parent + 2 children).
-        subruns = json.loads((await client.read_resource("burr://subruns"))[0].text)
+        subruns = json.loads((await client.read_resource("theodosia://subruns"))[0].text)
         assert subruns == []
     # The conftest autouse fixture redirected HOME to tmp_path, so
     # the tracker project landed under tmp_path/.burr/<project>/.
@@ -268,7 +268,7 @@ async def test_parent_history_records_map_and_reduce_as_single_entry():
         await _step(client, "prepare_inputs")
         await _step(client, "map_and_reduce")
         await _step(client, "finalize")
-        history = json.loads((await client.read_resource("burr://history"))[0].text)
+        history = json.loads((await client.read_resource("theodosia://history"))[0].text)
         actions = [h["action"] for h in history]
         assert actions == [
             "configure",

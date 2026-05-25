@@ -98,6 +98,6 @@ async def test_revise_refuses_when_no_draft():
 @pytest.mark.asyncio
 async def test_sample_helper_returns_none_outside_action(monkeypatch):
     """current_mcp_context returns None outside an action body."""
-    from burrmcp import current_mcp_context
+    from theodosia import current_mcp_context
 
     assert current_mcp_context() is None

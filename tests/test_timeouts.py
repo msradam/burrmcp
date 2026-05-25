@@ -15,7 +15,7 @@ import pytest
 from burr.core import ApplicationBuilder, State, action
 from fastmcp import Client
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 
 @action(reads=[], writes=["done"])
@@ -79,7 +79,7 @@ async def test_timeout_is_recorded_in_history():
     )
     async with Client(server) as client:
         await client.call_tool("step", {"action": "slow_step", "inputs": {}})
-        history = json.loads((await client.read_resource("burr://history"))[0].text)
+        history = json.loads((await client.read_resource("theodosia://history"))[0].text)
         assert len(history) == 1
         entry = history[0]
         assert entry["refused"] is True
@@ -99,10 +99,10 @@ async def test_timeout_does_not_advance_state():
     )
     async with Client(server) as client:
         await client.call_tool("step", {"action": "slow_step", "inputs": {}})
-        state = json.loads((await client.read_resource("burr://state"))[0].text)
+        state = json.loads((await client.read_resource("theodosia://state"))[0].text)
         # done should still be False, FSM still at entry.
         assert state.get("done") is False
-        next_actions = json.loads((await client.read_resource("burr://next"))[0].text)
+        next_actions = json.loads((await client.read_resource("theodosia://next"))[0].text)
         assert next_actions == ["slow_step"]
 
 

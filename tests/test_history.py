@@ -1,4 +1,4 @@
-"""burr://history captures every action attempt in a session.
+"""theodosia://history captures every action attempt in a session.
 
 The history resource records successful steps and refusals alike,
 keyed by ``ctx.session_id``. In factory mode each session sees only
@@ -15,7 +15,7 @@ import pytest
 from coffee_order import build_application, build_server
 from fastmcp import Client
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 
 @pytest.mark.asyncio
@@ -28,7 +28,7 @@ async def test_history_records_three_successful_steps():
         await client.call_tool("step", {"action": "pay", "inputs": {"amount": 9.0}})
         await client.call_tool("step", {"action": "fulfill", "inputs": {}})
 
-        history = json.loads((await client.read_resource("burr://history"))[0].text)
+        history = json.loads((await client.read_resource("theodosia://history"))[0].text)
         assert len(history) == 3
         assert [h["action"] for h in history] == ["take_order", "pay", "fulfill"]
         assert [h["seq"] for h in history] == [0, 1, 2]
@@ -48,7 +48,7 @@ async def test_history_records_refusals_with_reason():
         # Successful step.
         await client.call_tool("step", {"action": "take_order", "inputs": {"item": "mocha"}})
 
-        history = json.loads((await client.read_resource("burr://history"))[0].text)
+        history = json.loads((await client.read_resource("theodosia://history"))[0].text)
         assert len(history) == 3
         assert history[0]["refused"] is True
         assert history[0]["refusal_reason"] == "invalid_transition"
@@ -72,11 +72,11 @@ async def test_history_per_session_in_factory_mode():
             await client_b.call_tool(
                 "step", {"action": "take_order", "inputs": {"item": "americano"}}
             )
-            history_b = json.loads((await client_b.read_resource("burr://history"))[0].text)
+            history_b = json.loads((await client_b.read_resource("theodosia://history"))[0].text)
             assert len(history_b) == 1
             assert history_b[0]["inputs"]["item"] == "americano"
 
-        history_a = json.loads((await client_a.read_resource("burr://history"))[0].text)
+        history_a = json.loads((await client_a.read_resource("theodosia://history"))[0].text)
         assert len(history_a) == 1
         assert history_a[0]["inputs"]["item"] == "latte"
 
@@ -87,7 +87,7 @@ async def test_history_entry_shape_is_complete():
     server = build_server(ServingMode.STEP)
     async with Client(server) as client:
         await client.call_tool("step", {"action": "take_order", "inputs": {"item": "latte"}})
-        history = json.loads((await client.read_resource("burr://history"))[0].text)
+        history = json.loads((await client.read_resource("theodosia://history"))[0].text)
         entry = history[0]
         assert set(entry.keys()) >= {
             "seq",

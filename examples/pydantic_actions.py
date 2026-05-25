@@ -37,7 +37,7 @@ from burr.integrations.pydantic import PydanticTypingSystem, pydantic_action
 from burr.tracking.client import LocalTrackingClient
 from pydantic import BaseModel, EmailStr, Field
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 _TRACKER_PROJECT = "pydantic-actions-demo"
 
@@ -248,7 +248,7 @@ def build_server():
             "Walk: place(customer_email, item_sku, qty, unit_price, "
             "address_line1, address_city, address_region, "
             "address_postal) -> validate_address -> compute_shipping "
-            "-> compute_total -> finalize. burr://graph carries the "
+            "-> compute_total -> finalize. theodosia://graph carries the "
             "full Order JSON schema under state_schema."
         ),
     )

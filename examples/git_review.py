@@ -25,7 +25,7 @@ from pathlib import Path
 from burr.core import ApplicationBuilder, State, action
 from burr.core.action import Condition
 
-from burrmcp import ServingMode, ValidationFailed, mount
+from theodosia import ServingMode, ValidationFailed, mount
 
 REPO_DIR = Path(os.environ.get("GIT_REPO", os.getcwd())).resolve()
 

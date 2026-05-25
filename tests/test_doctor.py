@@ -1,6 +1,6 @@
-"""``burrmcp doctor`` static validation.
+"""``theodosia doctor`` static validation.
 
-Covers the library entrypoint :func:`burrmcp.doctor.run_checks`, the
+Covers the library entrypoint :func:`theodosia.doctor.run_checks`, the
 CLI subcommand, and the individual check functions for unreachable
 actions, dead-end terminals, undefined state reads, and unused initial
 state seeds.
@@ -13,8 +13,8 @@ from contextlib import redirect_stdout
 
 from burr.core import ApplicationBuilder, State, action
 
-from burrmcp import cli
-from burrmcp.doctor import (
+from theodosia import cli
+from theodosia.doctor import (
     CheckStatus,
     DoctorReport,
     format_report,
@@ -232,7 +232,7 @@ def test_orphan_initial_state_key_reported_as_info():
 def test_seeded_write_only_key_is_not_flagged():
     """Seeded keys that get written by an action (but never read by
     another action) are part of the public state contract surfaced
-    through ``burr://state``, not orphan."""
+    through ``theodosia://state``, not orphan."""
 
     @action(reads=[], writes=["status"])
     def set_status(state: State) -> State:
@@ -352,7 +352,7 @@ def test_cli_doctor_verbose_flag_surfaces_in_help():
     """The Typer command surface advertises --verbose."""
     from typer.testing import CliRunner
 
-    from burrmcp.cli import app
+    from theodosia.cli import app
 
     runner = CliRunner()
     result = runner.invoke(app, ["doctor", "--help"])
@@ -364,7 +364,7 @@ def test_cli_doctor_app_dir_surfaces_in_help():
     """The Typer command surface advertises --app-dir."""
     from typer.testing import CliRunner
 
-    from burrmcp.cli import app
+    from theodosia.cli import app
 
     runner = CliRunner()
     result = runner.invoke(app, ["doctor", "--help"])

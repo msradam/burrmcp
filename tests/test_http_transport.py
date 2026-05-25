@@ -88,17 +88,17 @@ async def test_two_http_clients_have_independent_state(http_server):
         )
 
         async with Client(http_server) as client_b:
-            state_b = json.loads((await client_b.read_resource("burr://state"))[0].text)
+            state_b = json.loads((await client_b.read_resource("theodosia://state"))[0].text)
             assert state_b.get("stage") == "new", f"HTTP session B saw session A's state: {state_b}"
 
             await client_b.call_tool(
                 "step",
                 {"action": "take_order", "inputs": {"item": "americano", "qty": 3}},
             )
-            state_b_after = json.loads((await client_b.read_resource("burr://state"))[0].text)
+            state_b_after = json.loads((await client_b.read_resource("theodosia://state"))[0].text)
             assert state_b_after["item"] == "americano"
 
-        state_a = json.loads((await client_a.read_resource("burr://state"))[0].text)
+        state_a = json.loads((await client_a.read_resource("theodosia://state"))[0].text)
         assert state_a["item"] == "latte", (
             f"HTTP session A's state was mutated by session B: {state_a}"
         )
@@ -114,10 +114,10 @@ async def test_http_history_is_per_session(http_server):
             await client_b.call_tool(
                 "step", {"action": "take_order", "inputs": {"item": "espresso"}}
             )
-            history_b = json.loads((await client_b.read_resource("burr://history"))[0].text)
+            history_b = json.loads((await client_b.read_resource("theodosia://history"))[0].text)
             assert len(history_b) == 1
             assert history_b[0]["inputs"]["item"] == "espresso"
 
-        history_a = json.loads((await client_a.read_resource("burr://history"))[0].text)
+        history_a = json.loads((await client_a.read_resource("theodosia://history"))[0].text)
         assert len(history_a) == 1
         assert history_a[0]["inputs"]["item"] == "latte"

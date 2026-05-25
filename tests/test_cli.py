@@ -11,8 +11,8 @@ from __future__ import annotations
 import pytest
 from typer.testing import CliRunner
 
-from burrmcp import cli
-from burrmcp.cli import _import_target, app, build_cli
+from theodosia import cli
+from theodosia.cli import _import_target, app, build_cli
 
 runner = CliRunner()
 
@@ -65,7 +65,7 @@ def test_root_help_lists_subcommands():
 
 
 def test_no_args_prints_help():
-    """`burrmcp` with no args should show help (no_args_is_help=True)
+    """`theodosia` with no args should show help (no_args_is_help=True)
     rather than dropping the user into an unhelpful error."""
     result = runner.invoke(app, [])
     # Typer convention: no-args + no_args_is_help -> exit 2 with help printed.
@@ -151,13 +151,13 @@ def test_build_cli_target_overrides_baked_in(restore_branding):
 
 
 def test_serve_without_target_or_baked_in_raises(restore_branding):
-    build_cli("burrmcp")  # no baked-in application
+    build_cli("theodosia")  # no baked-in application
     with pytest.raises(SystemExit, match="serve needs a target"):
         cli._resolve_serve_target(None, [])
 
 
-def test_build_cli_default_burr_home_used_when_flag_absent(restore_branding, tmp_path):
-    build_cli("mygraph", burr_home=tmp_path)
+def test_build_cli_default_home_used_when_flag_absent(restore_branding, tmp_path):
+    build_cli("mygraph", home=tmp_path)
     assert cli._resolve_home(None) == tmp_path
     # an explicit flag still wins
     other = tmp_path / "other"

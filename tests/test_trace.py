@@ -1,7 +1,7 @@
-"""burr://trace: passthrough of Burr's on-disk LocalTrackingClient log.
+"""theodosia://trace: passthrough of Burr's on-disk LocalTrackingClient log.
 
 The trace is Burr's structured per-step record, complementary to our
-in-memory burr://history. Reads the JSONL file the tracker writes to
+in-memory theodosia://history. Reads the JSONL file the tracker writes to
 ``~/.burr/<project>/<app_uid>/log.jsonl``.
 
 Tests verify: no_tracker error when the Application has no tracker;
@@ -18,8 +18,8 @@ from burr.core import ApplicationBuilder, State, action
 from burr.tracking.client import LocalTrackingClient
 from fastmcp import Client
 
-from burrmcp import ServingMode, mount
-from burrmcp.adapter import _tracker_log_path
+from theodosia import ServingMode, mount
+from theodosia.adapter import _tracker_log_path
 
 
 @action(reads=[], writes=["counter"])
@@ -57,7 +57,7 @@ def _untracked_app():
 async def test_trace_returns_no_tracker_when_application_has_no_tracker():
     server = mount(_untracked_app, mode=ServingMode.STEP, name="no-tracker")
     async with Client(server) as client:
-        trace_text = (await client.read_resource("burr://trace"))[0].text
+        trace_text = (await client.read_resource("theodosia://trace"))[0].text
         trace = json.loads(trace_text)
         assert (
             trace
@@ -72,20 +72,20 @@ async def test_trace_returns_no_tracker_when_application_has_no_tracker():
 
 @pytest.mark.asyncio
 async def test_trace_returns_entries_after_step(tmp_path, monkeypatch):
-    """A tracked Application populates burr://trace after running steps."""
+    """A tracked Application populates theodosia://trace after running steps."""
     monkeypatch.setenv("HOME", str(tmp_path))  # isolate from real ~/.burr/
 
     project = f"trace-test-{tmp_path.name}"
     server = mount(_tracked_app_factory(project), mode=ServingMode.STEP, name="tracked")
     async with Client(server) as client:
         # Empty before any step.
-        trace_text = (await client.read_resource("burr://trace"))[0].text
+        trace_text = (await client.read_resource("theodosia://trace"))[0].text
         assert json.loads(trace_text) == []
 
         await client.call_tool("step", {"action": "tick", "inputs": {}})
         await client.call_tool("step", {"action": "tick", "inputs": {}})
 
-        trace_text = (await client.read_resource("burr://trace"))[0].text
+        trace_text = (await client.read_resource("theodosia://trace"))[0].text
         trace = json.loads(trace_text)
         assert isinstance(trace, list)
         assert len(trace) > 0

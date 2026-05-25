@@ -32,7 +32,7 @@ execute(). No special integration, no shared abstractions: the
 Hamilton module declares features with no Burr-specific anything,
 and the Burr Application uses no Hamilton-specific anything except
 that one call. ``mount()`` picks the Application up as-is; this
-demo deliberately uses zero BurrMCP-specific glue beyond the same
+demo deliberately uses zero Theodosia-specific glue beyond the same
 ``mount(build_application, mode=ServingMode.STEP)`` every other
 example uses.
 
@@ -61,7 +61,7 @@ from typing import Any
 from burr.core import ApplicationBuilder, State, action
 from burr.tracking.client import LocalTrackingClient
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 _TRACKER_PROJECT = "hamilton-features-demo"
 _FEATURES_PATH = Path(__file__).parent / "data" / "hamilton_features" / "features.py"

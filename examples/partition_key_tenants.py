@@ -17,7 +17,7 @@ This demo:
 * ``tenant_id`` defaults to ``"default"``; override via the
   ``BURRMCP_TENANT_ID`` env var when launching the server so the
   same code serves multiple tenants from separate processes.
-* Adds a custom ``burr://tenant`` resource that exposes the current
+* Adds a custom ``theodosia://tenant`` resource that exposes the current
   partition_key so an MCP client can see which tenant's data this
   session is operating in.
 
@@ -47,7 +47,7 @@ from burr.core import ApplicationBuilder, State, action
 from burr.core.action import Condition
 from burr.tracking.client import LocalTrackingClient
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 _TRACKER_PROJECT = "partition-key-tenants-demo"
 _DEFAULT_TENANT = "default"
@@ -126,12 +126,12 @@ def build_server():
             "comes from the BURRMCP_TENANT_ID env var (default: "
             f"{_DEFAULT_TENANT!r}). Walk: open_record(customer_id) -> "
             "update_note(note) [loop] -> close_record. Read "
-            "burr://tenant to see the current partition_key; "
-            "burr://session for the full tracker coordinates."
+            "theodosia://tenant to see the current partition_key; "
+            "theodosia://session for the full tracker coordinates."
         ),
     )
 
-    @server.resource("burr://tenant")
+    @server.resource("theodosia://tenant")
     async def _tenant_resource() -> str:
         """The tenant identifier baked into this server's factory."""
         return json.dumps(

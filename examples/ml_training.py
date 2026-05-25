@@ -13,20 +13,20 @@ into discrete FSM actions instead of a monolithic ``train()`` call:
 
 What the FSM gives the training:
 
-* Every epoch is a separate visible step in ``burr://history`` and
-  ``burr://trace``. The training curve is reconstructable from the
+* Every epoch is a separate visible step in ``theodosia://history`` and
+  ``theodosia://trace``. The training curve is reconstructable from the
   trace without bolting a separate metrics-logger on.
 * Stopping criteria are encoded as transition conditions, not as
   ``if epoch >= max_epochs: break`` inside a loop. Reaching the
   target accuracy or max epochs *makes the continue-training
   transition invalid*; the agent (or human) reading
-  ``burr://next`` sees only checkpoint / pause / stop as legal
+  ``theodosia://next`` sees only checkpoint / pause / stop as legal
   forward moves and has to choose.
 * The pause/resume primitive lets an operator interrupt training,
   inspect state, and decide whether to resume or stop, all without
   killing the session. Maps cleanly to MCP elicitation when that
   becomes ubiquitous.
-* Non-LLM. Every other burrmcp demo wraps an LLM workflow; this
+* Non-LLM. Every other theodosia demo wraps an LLM workflow; this
   one shows the FSM gating pattern works just as well for
   classical iterative computations like training loops.
 
@@ -52,7 +52,7 @@ from burr.core import ApplicationBuilder, State, action
 from burr.core.action import Condition
 from burr.tracking.client import LocalTrackingClient
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 _TRACKER_PROJECT = "ml-training-demo"
 
@@ -446,7 +446,7 @@ def build_server():
             "n_train, n_val, seed) (all optional). Walk: "
             "configure -> init_model -> train_epoch -> evaluate, then "
             "pick from {train_epoch, checkpoint, pause_training, "
-            "stop_training} based on burr://next. The continue-training "
+            "stop_training} based on theodosia://next. The continue-training "
             "transition becomes invalid once epoch >= max_epochs OR "
             "best_val_acc >= target_accuracy, so reaching either end "
             "condition forces an explicit stop or pause. Pure-Python "

@@ -7,7 +7,7 @@ coffee-order FSM.
 
 from __future__ import annotations
 
-from burrmcp.adapter import (
+from theodosia.adapter import (
     _action_inputs,
     _action_signature_params,
     _public_state,

@@ -11,7 +11,7 @@ Shape:
     spam    -> drop
 
 ``classify`` writes ``severity`` into state. The transitions out of
-``classify`` are gated on that value, so ``burr://next`` returns a
+``classify`` are gated on that value, so ``theodosia://next`` returns a
 single-element list after ``classify`` runs, but a client trying to
 call the wrong branch gets ``invalid_transition``.
 
@@ -26,7 +26,7 @@ from burr.core import ApplicationBuilder, State, action
 from burr.core.action import Condition
 from burr.tracking.client import LocalTrackingClient
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 _TRACKER_PROJECT = "triage-demo"
 
@@ -74,8 +74,8 @@ def build_application():
 
     Transitions out of ``classify`` are gated by ``severity``. Burr
     evaluates the conditions against current state to pick the next
-    action; burrmcp surfaces those same conditions to clients via
-    ``burr://next``.
+    action; theodosia surfaces those same conditions to clients via
+    ``theodosia://next``.
     """
     return (
         ApplicationBuilder()
@@ -114,7 +114,7 @@ def build_server(mode: ServingMode = ServingMode.STEP):
             "classify with severity (urgent/routine/spam). The next "
             "valid action depends on classification: urgent routes to "
             "escalate(oncall), routine to queue, spam to drop. Read "
-            "burr://state and burr://next at any time."
+            "theodosia://state and theodosia://next at any time."
         ),
     )
 

@@ -23,7 +23,7 @@ other parent):
 
     uv run python examples/subgraph_composition.py
 
-Inspect ``burr://graph`` and you'll see the full composed graph:
+Inspect ``theodosia://graph`` and you'll see the full composed graph:
 the parent's actions and the embedded fragment's actions live in
 the same namespace, and transitions wire them together.
 """
@@ -36,7 +36,7 @@ from burr.core import ApplicationBuilder, State, action
 from burr.core.graph import Graph, GraphBuilder
 from burr.tracking.client import LocalTrackingClient
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 _TRACKER_PROJECT = "subgraph-composition-demo"
 
@@ -194,7 +194,7 @@ def build_server():
             "DEMO=deployment in the server's env to switch. Walk: "
             "[intake | stage_deploy] -> submit_for_review(reviewer) -> "
             "decide_review(decision={'approve'|'reject'}, notes='...') "
-            "-> [finalize_loan | complete_deploy]. Read burr://graph "
+            "-> [finalize_loan | complete_deploy]. Read theodosia://graph "
             "for the composed action list."
         ),
     )

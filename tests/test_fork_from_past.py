@@ -14,7 +14,7 @@ from burr.core import ApplicationBuilder, State, action
 from burr.tracking.client import LocalTrackingClient
 from fastmcp import Client
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 
 @action(reads=[], writes=["counter"])
@@ -50,10 +50,10 @@ def _untracked_factory():
 
 @pytest.mark.asyncio
 async def test_fork_from_past_in_meta_tools():
-    """fork_from_past is advertised in burr://graph alongside fork_at."""
+    """fork_from_past is advertised in theodosia://graph alongside fork_at."""
     server = mount(_untracked_factory, mode=ServingMode.STEP, name="ffp-meta")
     async with Client(server) as client:
-        graph = json.loads((await client.read_resource("burr://graph"))[0].text)
+        graph = json.loads((await client.read_resource("theodosia://graph"))[0].text)
         meta_names = [m["name"] for m in graph["meta_tools"]]
         assert "fork_from_past" in meta_names
 
@@ -90,7 +90,7 @@ async def test_fork_from_past_resumes_state_from_disk(tmp_path, monkeypatch):
 
         # Continue from there.
         await client.call_tool("step", {"action": "tick", "inputs": {}})
-        state = json.loads((await client.read_resource("burr://state"))[0].text)
+        state = json.loads((await client.read_resource("theodosia://state"))[0].text)
         assert state["counter"] == 4
 
 
@@ -168,7 +168,7 @@ async def test_fork_from_past_records_in_history(tmp_path, monkeypatch):
             "fork_from_past",
             {"app_id": past_app_id, "sequence_id": -1},
         )
-        history = json.loads((await client.read_resource("burr://history"))[0].text)
+        history = json.loads((await client.read_resource("theodosia://history"))[0].text)
         actions = [h["action"] for h in history]
         assert actions == ["tick", "fork_from_past"]
         fork_entry = history[1]

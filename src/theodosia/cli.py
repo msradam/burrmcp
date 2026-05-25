@@ -1,17 +1,17 @@
-"""``burrmcp`` CLI: serve, validate, and observe Burr Applications mounted as MCP servers.
+"""``theodosia`` CLI: serve, validate, and observe Burr Applications mounted as MCP servers.
 
 Subcommands:
 
-  burrmcp serve <target>         Mount an importable Burr Application or factory.
-  burrmcp doctor <target>        Statically validate (and optionally probe at runtime).
-  burrmcp ui                     Launch Burr's web UI.
-  burrmcp sessions ls            Table of recent tracked sessions.
-  burrmcp sessions show <id>     Full post-mortem timeline of one session.
-  burrmcp sessions tail [id]     Live-tail a running session (rich render).
-  burrmcp watch [id]             Alias for `sessions tail`.
-  burrmcp logs [id]              Compact one-line-per-step log, greppable.
+  theodosia serve <target>         Mount an importable Burr Application or factory.
+  theodosia doctor <target>        Statically validate (and optionally probe at runtime).
+  theodosia ui                     Launch Burr's web UI.
+  theodosia sessions ls            Table of recent tracked sessions.
+  theodosia sessions show <id>     Full post-mortem timeline of one session.
+  theodosia sessions tail [id]     Live-tail a running session (rich render).
+  theodosia watch [id]             Alias for `sessions tail`.
+  theodosia logs [id]              Compact one-line-per-step log, greppable.
 
-Every observability command reads ``~/.burr`` (Burr's
+Every observability command reads ``~/.theodosia`` (Burr's
 ``LocalTrackingClient`` storage), so it works against any session a
 mounted server has written, including those running right now in
 another process.
@@ -36,7 +36,7 @@ from rich.table import Table
 from rich.text import Text
 from rich.theme import Theme
 
-from burrmcp.adapter import ServingMode, mount
+from theodosia.adapter import ServingMode, mount
 
 # Rose Pine palette (https://rosepinetheme.com). Semantic style names map
 # onto the palette so the rendering code reads intent, not hex.
@@ -83,11 +83,11 @@ class _Branding:
     module-level singleton is the right scope.
     """
 
-    prog_name: str = "burrmcp"
+    prog_name: str = "theodosia"
     application: Any | None = None  # Application, factory, or "module:attr"
     server_name: str | None = None
-    ui_extra: str = "burrmcp[ui]"
-    burr_home: str | Path | None = None  # default tracker storage_dir
+    ui_extra: str = "theodosia[ui]"
+    home: str | Path | None = None  # default tracker storage_dir
     upstream: dict[str, Any] | None = None  # other MCP servers actions can call
 
 
@@ -140,10 +140,27 @@ def _resolve_serve_target(target: str | None, app_dir: list[str]) -> tuple[Any, 
     return src, _BRANDING.server_name or _BRANDING.prog_name
 
 
-def _resolve_home(burr_home: Path | None) -> Path:
-    """Tracker storage root: explicit flag, then the build_cli default, then ~/.burr."""
-    chosen = burr_home or _BRANDING.burr_home or (Path.home() / ".burr")
-    return Path(chosen).expanduser()
+def _resolve_home(home: Path | None) -> Path:
+    """Tracker storage root: explicit flag, then the build_cli default, then ~/.theodosia.
+
+    Theodosia keeps its LLM-driven session traces in ~/.theodosia by default, so
+    they stay separate from code-driven Burr runs in ~/.burr. If ~/.theodosia has
+    no sessions yet but ~/.burr does, fall back to ~/.burr and print a hint, so a
+    user whose tracker still writes to Burr's default does not see an empty store.
+    """
+    if home is not None:
+        return Path(home).expanduser()
+    if _BRANDING.home is not None:
+        return Path(_BRANDING.home).expanduser()
+    theodosia_home = Path("~/.theodosia").expanduser()
+    burr_home = Path("~/.burr").expanduser()
+    if not theodosia_home.exists() and burr_home.exists() and any(burr_home.iterdir()):
+        err_console.print(
+            "[muted]no sessions in ~/.theodosia; reading ~/.burr "
+            "(pass [bold]--home[/] to choose explicitly)[/]"
+        )
+        return burr_home
+    return theodosia_home
 
 
 # == render: the mounted graph as text ================================
@@ -354,7 +371,7 @@ def doctor(
     ] = False,
 ) -> None:
     """Statically validate a Burr Application or factory before mounting."""
-    from burrmcp.doctor import format_report, run_checks
+    from theodosia.doctor import format_report, run_checks
 
     application_or_factory, _ = _resolve_serve_target(target, app_dir or [])
     report = run_checks(application_or_factory, runtime=runtime)
@@ -442,8 +459,8 @@ def render(
     project: Annotated[
         str | None, typer.Option("--project", "-p", help="Project of the session to annotate.")
     ] = None,
-    burr_home: Annotated[
-        Path | None, typer.Option("--burr-home", help="Tracker storage root. Defaults to ~/.burr.")
+    home: Annotated[
+        Path | None, typer.Option("--home", help="Tracker storage root. Defaults to ~/.theodosia.")
     ] = None,
 ) -> None:
     """Render the mounted state machine as a diagram.
@@ -470,7 +487,7 @@ def render(
         console.print(_graph_renderable(topo, conditions=conditions))
         return
 
-    home = _resolve_home(burr_home)
+    home = _resolve_home(home)
 
     def frame() -> Group:
         aid, current, visited = _session_progress(home, project, app_id)
@@ -701,9 +718,9 @@ def _build_steps_table(
 
 
 def sessions_ls(
-    burr_home: Annotated[
+    home: Annotated[
         Path | None,
-        typer.Option("--burr-home", help="Tracker storage root. Defaults to ~/.burr."),
+        typer.Option("--home", help="Tracker storage root. Defaults to ~/.theodosia."),
     ] = None,
     project: Annotated[
         str | None,
@@ -718,7 +735,7 @@ def sessions_ls(
     ] = False,
 ) -> None:
     """Table of recent tracked sessions, most recent first."""
-    home = _resolve_home(burr_home)
+    home = _resolve_home(home)
     if not home.exists():
         err_console.print(f"[err]No Burr tracker storage at[/] {home}")
         raise typer.Exit(code=1)
@@ -848,16 +865,16 @@ def sessions_show(
         str | None,
         typer.Option("--project", "-p", help="Project name. Defaults to most recent."),
     ] = None,
-    burr_home: Annotated[
+    home: Annotated[
         Path | None,
-        typer.Option("--burr-home", help="Tracker storage root. Defaults to ~/.burr."),
+        typer.Option("--home", help="Tracker storage root. Defaults to ~/.theodosia."),
     ] = None,
     as_json: Annotated[
         bool, typer.Option("--json", help="Emit JSON instead of a rich table.")
     ] = False,
 ) -> None:
     """Full post-mortem timeline of one session."""
-    home = _resolve_home(burr_home)
+    home = _resolve_home(home)
     log_path, proj, aid = _resolve_app(home, project, app_id)
     rows = _read_steps(log_path)
 
@@ -916,16 +933,16 @@ def sessions_tail(
         str | None,
         typer.Option("--project", "-p", help="Project name. Defaults to most recent."),
     ] = None,
-    burr_home: Annotated[
+    home: Annotated[
         Path | None,
-        typer.Option("--burr-home", help="Tracker storage root. Defaults to ~/.burr."),
+        typer.Option("--home", help="Tracker storage root. Defaults to ~/.theodosia."),
     ] = None,
     poll_interval: Annotated[
         float, typer.Option("--poll", help="Polling interval in seconds.")
     ] = 0.5,
 ) -> None:
     """Live-tail a running (or completed) session as a rich-rendered table."""
-    home = _resolve_home(burr_home)
+    home = _resolve_home(home)
     log_path, proj, aid = _resolve_app(home, project, app_id)
     _tail(log_path, project=proj, app_id=aid, poll_interval=poll_interval)
 
@@ -939,9 +956,9 @@ def watch(
         str | None,
         typer.Option("--project", "-p", help="Project name. Defaults to most recent."),
     ] = None,
-    burr_home: Annotated[
+    home: Annotated[
         Path | None,
-        typer.Option("--burr-home", help="Tracker storage root. Defaults to ~/.burr."),
+        typer.Option("--home", help="Tracker storage root. Defaults to ~/.theodosia."),
     ] = None,
     list_projects: Annotated[
         bool,
@@ -955,9 +972,9 @@ def watch(
     ] = 0.5,
 ) -> None:
     """Alias for `sessions tail`. Lives at the top level for muscle memory."""
-    home = _resolve_home(burr_home)
+    home = _resolve_home(home)
     if list_projects:
-        sessions_ls(burr_home=home, project=None, limit=8, as_json=False)
+        sessions_ls(home=home, project=None, limit=8, as_json=False)
         return
     if not home.exists():
         err_console.print(f"[err]No Burr tracker storage at[/] {home}")
@@ -975,9 +992,9 @@ def logs(
         str | None,
         typer.Option("--project", "-p", help="Project name. Defaults to most recent."),
     ] = None,
-    burr_home: Annotated[
+    home: Annotated[
         Path | None,
-        typer.Option("--burr-home", help="Tracker storage root. Defaults to ~/.burr."),
+        typer.Option("--home", help="Tracker storage root. Defaults to ~/.theodosia."),
     ] = None,
     refusals_only: Annotated[
         bool,
@@ -992,9 +1009,9 @@ def logs(
 
     The terse sibling of `sessions show` (rich table) and `sessions tail`
     (live). One line per step: seq, time, status, action, duration, and the
-    state change. Pipe it: `burrmcp logs --plain | grep error`.
+    state change. Pipe it: `theodosia logs --plain | grep error`.
     """
-    home = _resolve_home(burr_home)
+    home = _resolve_home(home)
     log_path, _proj, _aid = _resolve_app(home, project, app_id)
     rows = _read_steps(log_path)
     if refusals_only:
@@ -1036,21 +1053,21 @@ def logs(
 
 
 def build_cli(
-    prog_name: str = "burrmcp",
+    prog_name: str = "theodosia",
     *,
     application: Any | None = None,
     help: str | None = None,
     server_name: str | None = None,
-    ui_extra: str = "burrmcp[ui]",
-    burr_home: str | Path | None = None,
+    ui_extra: str = "theodosia[ui]",
+    home: str | Path | None = None,
     upstream: dict[str, Any] | None = None,
 ) -> typer.Typer:
-    """Build a burrmcp CLI, optionally rebranded for a downstream package.
+    """Build a theodosia CLI, optionally rebranded for a downstream package.
 
     A package that ships its own MCP graph can expose its own command::
 
         # my_fsm_mcp/cli.py
-        from burrmcp.cli import build_cli, run
+        from theodosia.cli import build_cli, run
         from my_fsm_mcp import build_application
 
         cli = build_cli("my-fsm-mcp", application=build_application,
@@ -1061,7 +1078,7 @@ def build_cli(
 
     Then ``my-fsm-mcp serve`` (no target needed), ``my-fsm-mcp doctor``, and
     ``my-fsm-mcp sessions ls`` all carry the downstream's name. Sessions are
-    still stored in Burr's tracker format; set ``burr_home`` to match the
+    still stored in Burr's tracker format; set ``home`` to match the
     ``storage_dir`` the downstream's ``LocalTrackingClient`` writes to.
 
     Args:
@@ -1069,11 +1086,11 @@ def build_cli(
             server name when a baked-in Application has no other name.
         application: an ``Application``, a factory, or a ``module:attr``
             string. When set, ``serve``/``doctor`` accept no target.
-        help: root help text. Defaults to the burrmcp description.
+        help: root help text. Defaults to the theodosia description.
         server_name: default MCP server name surfaced to clients.
         ui_extra: pip extra named in the ``ui`` install hint.
-        burr_home: default tracker storage root for the observability
-            commands. Overridden per-invocation by ``--burr-home``.
+        home: default tracker storage root for the observability
+            commands. Overridden per-invocation by ``--home``.
         upstream: map of server name to a ``fastmcp.Client`` transport.
             Action bodies reach these other MCP servers with
             ``call_upstream(server, tool, args)``. Passed through to
@@ -1085,7 +1102,7 @@ def build_cli(
         application=application,
         server_name=server_name,
         ui_extra=ui_extra,
-        burr_home=burr_home,
+        home=home,
         upstream=upstream,
     )
 
@@ -1134,7 +1151,7 @@ def run(cli: typer.Typer, argv: list[str] | None = None) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Default ``burrmcp`` entry point."""
+    """Default ``theodosia`` entry point."""
     return run(app, argv)
 
 

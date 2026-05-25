@@ -1,7 +1,7 @@
-"""Typed state via Pydantic surfaces in burr://graph.
+"""Typed state via Pydantic surfaces in theodosia://graph.
 
 When the user wires up Burr's ``PydanticTypingSystem``, the typing
-system carries the full Pydantic model. ``burr://graph`` exports the
+system carries the full Pydantic model. ``theodosia://graph`` exports the
 model's JSON schema under ``state_schema`` so an MCP client gets
 typed shape information without having to introspect each action's
 writes.
@@ -17,7 +17,7 @@ from burr.integrations.pydantic import PydanticTypingSystem
 from fastmcp import Client
 from pydantic import BaseModel
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 
 class OrderState(BaseModel):
@@ -64,7 +64,7 @@ def untyped_factory():
 async def test_typed_state_schema_surfaces_in_graph():
     server = mount(typed_factory, mode=ServingMode.STEP, name="typed-test")
     async with Client(server) as client:
-        graph = json.loads((await client.read_resource("burr://graph"))[0].text)
+        graph = json.loads((await client.read_resource("theodosia://graph"))[0].text)
         schema = graph["state_schema"]
         assert schema is not None
         assert schema["title"] == "OrderState"
@@ -82,13 +82,13 @@ async def test_typed_state_schema_surfaces_in_graph():
 async def test_untyped_state_schema_is_null():
     server = mount(untyped_factory, mode=ServingMode.STEP, name="untyped-test")
     async with Client(server) as client:
-        graph = json.loads((await client.read_resource("burr://graph"))[0].text)
+        graph = json.loads((await client.read_resource("theodosia://graph"))[0].text)
         assert graph["state_schema"] is None
 
 
 @pytest.mark.asyncio
 async def test_typed_application_runs_normally():
-    """A typed Application served via burrmcp.mount works the same
+    """A typed Application served via theodosia.mount works the same
     as an untyped one. State stays Pydantic-validated internally;
     the wire-level shape is the same JSON dict."""
     server = mount(typed_factory, mode=ServingMode.STEP, name="typed-run")

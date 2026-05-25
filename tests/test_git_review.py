@@ -1,6 +1,6 @@
 """Smoke tests for the CLI-wrapping git_review example.
 
-Verifies the FSM walks correctly against the burrmcp repo itself
+Verifies the FSM walks correctly against the theodosia repo itself
 (which has commits and a clean working tree most of the time), and
 that the SHA validator catches a fabricated commit hash.
 """

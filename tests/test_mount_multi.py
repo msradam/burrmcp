@@ -3,7 +3,7 @@
 FastMCP's native server-composition does the namespacing; mount_multi
 is the thin glue that wraps each Burr Application via mount() and
 attaches it to a parent FastMCP with namespace=<app_name>. Tools and
-resources land at <app>_<tool> and burr://<app>/<path>.
+resources land at <app>_<tool> and theodosia://<app>/<path>.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ import pytest
 from burr.core import ApplicationBuilder, State, action
 from fastmcp import Client
 
-from burrmcp import ServingMode, mount_multi
+from theodosia import ServingMode, mount_multi
 
 
 @action(reads=[], writes=["status", "value"])
@@ -74,7 +74,7 @@ async def test_apps_resource_lists_mounted_apps():
         name="multi-test",
     )
     async with Client(server) as client:
-        r = await client.read_resource("burr://apps")
+        r = await client.read_resource("theodosia://apps")
         out = json.loads(r[0].text)
         assert out["apps"] == ["order", "review"]
 
@@ -98,8 +98,8 @@ async def test_namespaced_step_tool_exists_per_app():
 async def test_namespaced_graph_resource_per_app():
     server = mount_multi({"order": _factory_a, "review": _factory_b})
     async with Client(server) as client:
-        order_graph = json.loads((await client.read_resource("burr://order/graph"))[0].text)
-        review_graph = json.loads((await client.read_resource("burr://review/graph"))[0].text)
+        order_graph = json.loads((await client.read_resource("theodosia://order/graph"))[0].text)
+        review_graph = json.loads((await client.read_resource("theodosia://review/graph"))[0].text)
         assert order_graph["name"] == "order"
         assert review_graph["name"] == "review"
 
@@ -121,7 +121,7 @@ async def test_apps_have_independent_state():
         assert order_after["state"]["value"] == 7
 
         # `review` should still be at its initial state.
-        review_state = json.loads((await client.read_resource("burr://review/state"))[0].text)
+        review_state = json.loads((await client.read_resource("theodosia://review/state"))[0].text)
         assert review_state["value"] == 100
         assert review_state["status"] == "initial"
 
@@ -152,4 +152,4 @@ def test_parent_instructions_mention_each_app():
     assert "Greeter line." in instr
     assert "order" in instr
     assert "review" in instr
-    assert "burr://apps" in instr
+    assert "theodosia://apps" in instr

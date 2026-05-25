@@ -3,7 +3,7 @@
 Validates that user-defined Burr lifecycle hooks (PreRunStepHook +
 PostRunStepHook) fire correctly through ``mount()`` without any
 adapter awareness, and that the data they capture round-trips
-through a custom ``burr://timings`` resource added on top of the
+through a custom ``theodosia://timings`` resource added on top of the
 mounted FastMCP server.
 """
 
@@ -120,7 +120,7 @@ async def test_hook_fires_through_mcp_step():
             out = r.structured_content
             assert out.get("error") is None, f"step {action_name} failed: {out}"
 
-        text = (await client.read_resource("burr://timings"))[0].text
+        text = (await client.read_resource("theodosia://timings"))[0].text
         timings = json.loads(text)
         assert timings["errors"] == 0
         assert timings["total_steps"] >= 4

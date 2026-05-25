@@ -8,7 +8,7 @@ the same as any user-defined hook, so it plugs through
 ``mount()`` unchanged.
 
 This demo wires it against a temp JSONL file per-session and
-exposes the file contents at ``burr://full-log``. Useful as a
+exposes the file contents at ``theodosia://full-log``. Useful as a
 zero-config audit trail when you don't want a real tracker but do
 want every action recorded.
 
@@ -30,7 +30,7 @@ from burr.core import ApplicationBuilder, State, action
 from burr.core.action import Condition
 from burr.lifecycle import StateAndResultsFullLogger
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 # == actions =========================================================
 
@@ -73,7 +73,7 @@ def build_application(*, jsonl_path: str):
 
 
 def build_server():
-    tmp_dir = Path(tempfile.mkdtemp(prefix="burrmcp-full-logger-"))
+    tmp_dir = Path(tempfile.mkdtemp(prefix="theodosia-full-logger-"))
     jsonl_path = tmp_dir / "full.jsonl"
     holder: dict[str, StateAndResultsFullLogger] = {}
 
@@ -92,11 +92,11 @@ def build_server():
             "Counter FSM (tick / reset) instrumented with Burr's "
             "prebuilt StateAndResultsFullLogger, writing one JSONL "
             "row per action to a per-session temp file. Read "
-            "burr://full-log to see the captured rows."
+            "theodosia://full-log to see the captured rows."
         ),
     )
 
-    @server.resource("burr://full-log")
+    @server.resource("theodosia://full-log")
     async def _full_log_resource() -> str:
         if "logger" in holder:
             holder["logger"].f.flush()

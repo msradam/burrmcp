@@ -18,7 +18,7 @@ The audit-trail-of-attempts is the demo's payoff.
 
 What the FSM owns: the workflow around the Mellea call (input,
 routing on success/failure, terminal report) plus the audit trail
-visible in ``burr://history`` and ``burr://state``.
+visible in ``theodosia://history`` and ``theodosia://state``.
 
 What Mellea owns: the instruct-validate-repair loop inside the
 single ``mellea_repair_loop`` action.
@@ -53,7 +53,7 @@ from burr.core import ApplicationBuilder, State, action
 from burr.core.action import Condition
 from burr.tracking.client import LocalTrackingClient
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 _TRACKER_PROJECT = "mellea-qiskit-migration-demo"
 _DEFAULT_LOOP_BUDGET = 3
@@ -434,7 +434,7 @@ def build_server():
             "finalize_success or finalize_giveup based on whether every "
             "deprecated pattern was resolved. The migrated code, the "
             "per-attempt audit trace, and any remaining issues all live "
-            "in burr://state and burr://history. Pre-req: pip install "
+            "in theodosia://state and theodosia://history. Pre-req: pip install "
             "mellea, ollama serve, ollama pull granite4:micro."
         ),
     )

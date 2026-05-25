@@ -206,6 +206,6 @@ async def test_burr_next_advertises_retry_not_human_after_one_bad_response(monke
     async with Client(server) as client:
         await _step(client, "report_alert", text="x")
         await _step(client, "classify_severity")
-        nxt = json.loads((await client.read_resource("burr://next"))[0].text)
+        nxt = json.loads((await client.read_resource("theodosia://next"))[0].text)
         assert "classify_severity" in nxt
         assert "route_to_human" not in nxt

@@ -11,7 +11,7 @@ subclasses; this one wires the async + application-level variants:
 * ``PreRunExecuteCallHookAsync`` / ``PostRunExecuteCallHookAsync``:
   fire on every Application execute boundary (``step`` / ``astep``
   / ``iterate`` / ``aiterate`` / ``run`` / ``arun`` / stream
-  variants). BurrMCP's adapter calls ``app.astep`` per MCP step,
+  variants). Theodosia's adapter calls ``app.astep`` per MCP step,
   so the ``executes_started`` counter increments once per MCP step
   call. Useful for whole-execute-call accounting at a level above
   per-action timing.
@@ -43,7 +43,7 @@ from burr.lifecycle import (
 )
 from burr.tracking.client import LocalTrackingClient
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 _TRACKER_PROJECT = "async-hooks-demo"
 
@@ -103,7 +103,7 @@ class AsyncExecuteCallHook(PreApplicationExecuteCallHookAsync, PostApplicationEx
 
     Burr wraps every Application execute method (``step``, ``astep``,
     ``iterate``, ``aiterate``, ``run``, ``arun``, and the stream
-    variants) with these hooks. BurrMCP's adapter calls ``app.astep``
+    variants) with these hooks. Theodosia's adapter calls ``app.astep``
     once per MCP step, so each MCP step increments the counter by 1.
     Multi-action invocations like ``app.run`` increment the counter
     once for the whole call.
@@ -191,11 +191,11 @@ def build_server():
             "(awaitable pre/post per step), AppCreatedHook (counts "
             "Application builds per session), AsyncExecuteCallHook "
             "(counters around every execute-call boundary, including "
-            "each MCP step). Read burr://hooks for the snapshot."
+            "each MCP step). Read theodosia://hooks for the snapshot."
         ),
     )
 
-    @server.resource("burr://hooks")
+    @server.resource("theodosia://hooks")
     async def _hooks_resource() -> str:
         return json.dumps(
             {

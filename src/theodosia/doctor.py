@@ -1,6 +1,6 @@
 """Static validation for Burr Applications before mounting them.
 
-``burrmcp doctor module:attr`` runs a set of checks against an
+``theodosia doctor module:attr`` runs a set of checks against an
 Application (or a factory returning one) and reports findings without
 ever calling ``astep``. Catches the classes of bug that only surface at
 runtime against the real MCP client:
@@ -15,7 +15,7 @@ runtime against the real MCP client:
 * initial state defines keys no action ever reads (loose noise, not an
   error but worth surfacing)
 
-Importable as a library too: ``from burrmcp.doctor import run_checks``
+Importable as a library too: ``from theodosia.doctor import run_checks``
 returns a :class:`DoctorReport` you can fold into your own test suite.
 """
 
@@ -275,7 +275,7 @@ def _check_initial_state_usage(app: Application) -> list[CheckResult]:
     """Flag initial-state keys nothing reads AND nothing writes.
 
     A key that's seeded then written-but-never-read is part of the
-    public state contract the MCP client sees via ``burr://state``,
+    public state contract the MCP client sees via ``theodosia://state``,
     not orphan. Only keys that nobody reads *and* nobody writes are
     dead weight worth surfacing.
     """
@@ -320,7 +320,7 @@ def _check_runtime(application: Any, app: Application) -> list[CheckResult]:
     async def _probe() -> list[CheckResult]:
         from fastmcp import Client
 
-        from burrmcp.adapter import ServingMode, mount
+        from theodosia.adapter import ServingMode, mount
 
         results: list[CheckResult] = []
         try:
@@ -410,13 +410,13 @@ def _check_runtime(application: Any, app: Application) -> list[CheckResult]:
             resources = await client.list_resources()
             resource_uris = {str(r.uri) for r in resources}
             expected_resources = {
-                "burr://graph",
-                "burr://state",
-                "burr://next",
-                "burr://history",
-                "burr://trace",
-                "burr://session",
-                "burr://subruns",
+                "theodosia://graph",
+                "theodosia://state",
+                "theodosia://next",
+                "theodosia://history",
+                "theodosia://trace",
+                "theodosia://session",
+                "theodosia://subruns",
             }
             r_missing = expected_resources - resource_uris
             if r_missing:
@@ -432,7 +432,7 @@ def _check_runtime(application: Any, app: Application) -> list[CheckResult]:
                     CheckResult(
                         "Runtime: resources",
                         CheckStatus.PASS,
-                        f"{len(expected_resources)} burr:// resources registered",
+                        f"{len(expected_resources)} theodosia:// resources registered",
                     )
                 )
 

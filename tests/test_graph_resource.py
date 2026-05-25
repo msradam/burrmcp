@@ -1,4 +1,4 @@
-"""burr://graph: static topology description for cold-start discovery.
+"""theodosia://graph: static topology description for cold-start discovery.
 
 The graph resource lets a connecting client (typically an LLM) learn
 the full FSM shape in one read, without trial-and-error or repeated
@@ -15,7 +15,7 @@ from burr.core import ApplicationBuilder, State, action
 from burr.core.action import Condition
 from fastmcp import Client
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 
 @action(reads=[], writes=["stage"])
@@ -54,7 +54,7 @@ def _branchy_app():
 async def test_graph_resource_describes_actions():
     server = mount(_branchy_app, mode=ServingMode.STEP, name="graph-test")
     async with Client(server) as client:
-        graph = json.loads((await client.read_resource("burr://graph"))[0].text)
+        graph = json.loads((await client.read_resource("theodosia://graph"))[0].text)
 
         assert graph["name"] == "graph-test"
         assert graph["entrypoint"] == "start"
@@ -75,7 +75,7 @@ async def test_graph_resource_describes_actions():
 async def test_graph_resource_describes_transitions_with_conditions():
     server = mount(_branchy_app, mode=ServingMode.STEP, name="t-test")
     async with Client(server) as client:
-        graph = json.loads((await client.read_resource("burr://graph"))[0].text)
+        graph = json.loads((await client.read_resource("theodosia://graph"))[0].text)
 
         transitions = graph["transitions"]
         unconditional = [t for t in transitions if t["condition"] is None]
@@ -97,21 +97,21 @@ async def test_graph_resource_is_constant_across_reads():
     return identical data even after the FSM advances."""
     server = mount(_branchy_app, mode=ServingMode.STEP, name="constant-test")
     async with Client(server) as client:
-        before = (await client.read_resource("burr://graph"))[0].text
+        before = (await client.read_resource("theodosia://graph"))[0].text
         await client.call_tool("step", {"action": "start", "inputs": {"name": "x"}})
-        after = (await client.read_resource("burr://graph"))[0].text
+        after = (await client.read_resource("theodosia://graph"))[0].text
         assert before == after
 
 
 @pytest.mark.asyncio
 async def test_instructions_include_discovery_hint():
-    """Server instructions point at burr://graph so the model sees it
+    """Server instructions point at theodosia://graph so the model sees it
     before its first tool call."""
     server = mount(_branchy_app, mode=ServingMode.STEP, name="hint-test")
     # FastMCP exposes the server instructions via the initialize response;
     # we read them directly off the server object since the in-process
     # Client doesn't surface them through a separate API.
-    assert "burr://graph" in (server.instructions or "")
+    assert "theodosia://graph" in (server.instructions or "")
 
 
 @pytest.mark.asyncio
@@ -126,4 +126,4 @@ async def test_user_instructions_preserved_alongside_hint():
         instructions=user_text,
     )
     assert user_text in (server.instructions or "")
-    assert "burr://graph" in (server.instructions or "")
+    assert "theodosia://graph" in (server.instructions or "")

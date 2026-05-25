@@ -1,27 +1,27 @@
 ---
 title: 'Observability'
-description: 'The burr:// resources, the terminal CLI, the Burr UI, OpenTelemetry.'
+description: 'The theodosia:// resources, the terminal CLI, the Burr UI, OpenTelemetry.'
 ---
 
 Every narrative demo wires `LocalTrackingClient(project="<demo>-demo")`, so each
 MCP session writes a JSONL log under `~/.burr`. Three surfaces read it: the
-`burr://` MCP resources (for the agent), the `burrmcp` CLI (for the terminal),
+`theodosia://` MCP resources (for the agent), the `theodosia` CLI (for the terminal),
 and the Burr web UI (for replay).
 
-## For the agent: `burr://` resources
+## For the agent: `theodosia://` resources
 
 | URI | Returns |
 |---|---|
-| `burr://graph` | Static FSM topology (actions, transitions, state schema). |
-| `burr://state` | Current state for this session. |
-| `burr://next` | Valid next actions from the current state. |
-| `burr://history` | Per-session attempt timeline, including refusals. |
-| `burr://subruns`, `burr://subruns/{id}` | Sub-app index and full timeline. |
-| `burr://trace` | Burr's LocalTrackingClient JSONL mirrored for the agent. |
-| `burr://session` | Tracker coordinates: project, app_id, app_dir, partition_key. |
+| `theodosia://graph` | Static FSM topology (actions, transitions, state schema). |
+| `theodosia://state` | Current state for this session. |
+| `theodosia://next` | Valid next actions from the current state. |
+| `theodosia://history` | Per-session attempt timeline, including refusals. |
+| `theodosia://subruns`, `theodosia://subruns/{id}` | Sub-app index and full timeline. |
+| `theodosia://trace` | Burr's LocalTrackingClient JSONL mirrored for the agent. |
+| `theodosia://session` | Tracker coordinates: project, app_id, app_dir, partition_key. |
 
-`burr://history` captures what the *agent* attempted (including refused steps);
-`burr://trace` captures what *Burr* executed. A refused attempt carries one of
+`theodosia://history` captures what the *agent* attempted (including refused steps);
+`theodosia://trace` captures what *Burr* executed. A refused attempt carries one of
 five `refusal_reason` values (`invalid_transition`, `unknown_action`,
 `action_error`, `action_timeout`, `validation_failed`) so the agent can tell "the
 FSM said no" from "the action's code raised."
@@ -29,12 +29,12 @@ FSM said no" from "the action's code raised."
 ## For the terminal: the CLI
 
 ```bash
-burrmcp sessions ls                 # recent sessions, most recent first
-burrmcp sessions show <app-id>      # full timeline: per-step state diff + timing
-burrmcp sessions tail [app-id]      # live-tail a running session
-burrmcp watch [app-id]              # alias for `sessions tail`
-burrmcp logs [app-id]               # compact one-line-per-step, greppable
-burrmcp logs --refusals --plain     # only steps that errored, pipe-friendly
+theodosia sessions ls                 # recent sessions, most recent first
+theodosia sessions show <app-id>      # full timeline: per-step state diff + timing
+theodosia sessions tail [app-id]      # live-tail a running session
+theodosia watch [app-id]              # alias for `sessions tail`
+theodosia logs [app-id]               # compact one-line-per-step, greppable
+theodosia logs --refusals --plain     # only steps that errored, pipe-friendly
 ```
 
 `app-id` defaults to the most-recently-touched session and accepts a uuid prefix.
@@ -49,16 +49,16 @@ right now in another process without opening the web UI.
 ## For replay: the Burr UI
 
 ```bash
-burrmcp ui
+theodosia ui
 ```
 
 Opens Burr's web UI, which visualizes every state transition for any tracker
 project on disk: state diffing, graph view, replay. Bootstraps via `uvx` on first
-run; permanent install with `uv pip install 'burrmcp[ui]'`.
+run; permanent install with `uv pip install 'theodosia[ui]'`.
 
 ## OpenTelemetry and custom sinks
 
-For OTel spans, install `burrmcp[observability]` and use Burr's
+For OTel spans, install `theodosia[observability]` and use Burr's
 `OpenTelemetryBridge` as a lifecycle adapter (`examples/with_otel.py`). Custom
 span sinks (Datadog, Honeycomb, in-memory) work through Burr's `PreStartSpanHook`
 / `PostEndSpanHook` / `DoLogAttributeHook` (`examples/custom_telemetry.py`).

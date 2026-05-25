@@ -6,7 +6,7 @@ dict to substitute normalised inputs, return None to accept the
 originals, or raise ``ValidationFailed`` to refuse the call.
 
 The refusal is recorded as ``refusal_reason: "validation_failed"`` in
-``burr://history`` with the reason and details preserved; the FSM
+``theodosia://history`` with the reason and details preserved; the FSM
 does not advance.
 """
 
@@ -18,7 +18,7 @@ import pytest
 from burr.core import ApplicationBuilder, State, action
 from fastmcp import Client, FastMCP
 
-from burrmcp import (
+from theodosia import (
     ServingMode,
     ToolSpec,
     ValidationFailed,
@@ -86,9 +86,9 @@ async def test_validator_refusal_doesnt_advance_state():
             "step",
             {"action": "place_order", "inputs": {"item": "latte", "qty": -1}},
         )
-        state = json.loads((await client.read_resource("burr://state"))[0].text)
+        state = json.loads((await client.read_resource("theodosia://state"))[0].text)
         assert state.get("item") is None
-        next_actions = json.loads((await client.read_resource("burr://next"))[0].text)
+        next_actions = json.loads((await client.read_resource("theodosia://next"))[0].text)
         assert next_actions == ["place_order"]
 
 
@@ -105,7 +105,7 @@ async def test_validator_refusal_recorded_in_history():
             "step",
             {"action": "place_order", "inputs": {"item": "latte", "qty": 0}},
         )
-        history = json.loads((await client.read_resource("burr://history"))[0].text)
+        history = json.loads((await client.read_resource("theodosia://history"))[0].text)
         assert len(history) == 1
         entry = history[0]
         assert entry["refused"] is True
@@ -221,7 +221,7 @@ async def test_tool_spec_validator_wires_through_importer():
 
 @pytest.mark.asyncio
 async def test_hand_tagged_validator_via_function_attribute():
-    """Setting _burrmcp_validator on a decorated function works the
+    """Setting _theodosia_validator on a decorated function works the
     same as ToolSpec.validator or input_validators={}."""
 
     def positive_qty(state, inputs):
@@ -233,7 +233,7 @@ async def test_hand_tagged_validator_via_function_attribute():
     async def tagged(state: State, qty: int) -> State:
         return state.update(qty=qty)
 
-    tagged._burrmcp_validator = positive_qty  # type: ignore[attr-defined]
+    tagged._theodosia_validator = positive_qty  # type: ignore[attr-defined]
 
     def factory():
         return (

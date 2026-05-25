@@ -10,7 +10,7 @@ internals behind the four-tool surface.
 
 The agent can only move along the graph's edges; the server refuses any step that
 is not a reachable transition. The workflow lives in the state machine, not in a
-prompt the model has to remember. `burrmcp render <target>` prints this graph in
+prompt the model has to remember. `theodosia render <target>` prints this graph in
 the terminal (or `--mermaid` / `--dot` for docs):
 
 ```mermaid
@@ -41,10 +41,10 @@ complex the FSM is:
 
 Plus two synthetic tools from FastMCP's `ResourcesAsTools` transform,
 `list_resources()` and `read_resource(uri)`, so tools-only clients can reach the
-`burr://` resources without `resources/read`.
+`theodosia://` resources without `resources/read`.
 
 The action namespace lives in `step`'s `action` argument schema and at
-`burr://graph`, not in the tool listing. The listing stays compact; the agent
+`theodosia://graph`, not in the tool listing. The listing stays compact; the agent
 learns the verbs from the graph resource.
 
 ## The action-selection trick
@@ -94,6 +94,6 @@ before the action body runs).
 
 `TOOLS` (one MCP tool per action, no enforcement) and `DYNAMIC` (per-session
 `tools/list_changed` visibility) were carved out into
-`src/burrmcp/_experimental/modes.py` once STEP became the sole product. The
+`src/theodosia/_experimental/modes.py` once STEP became the sole product. The
 `ServingMode` enum keeps `STEP` as its only member. Reviving either mode is a
 contained change; see that module's docstring.

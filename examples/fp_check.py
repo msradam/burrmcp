@@ -38,7 +38,7 @@ from typing import Any, Literal
 from burr.core import ApplicationBuilder, State, action
 from burr.tracking.client import LocalTrackingClient
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 _TRACKER_PROJECT = "fp-check-demo"
 
@@ -259,7 +259,7 @@ Call `final_verdict(notes="...")` with:
 - For TRUE POSITIVE: a short vulnerability description.
 
 The FSM stores the computed verdict in state.verdict and the
-documentary trail in burr://history.
+documentary trail in theodosia://history.
 """
 
 

@@ -21,7 +21,7 @@ import pytest
 from burr.core import ApplicationBuilder, State, action
 from fastmcp import Client
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 # ── action errors ────────────────────────────────────────────────────
 
@@ -58,7 +58,7 @@ async def test_action_error_returns_structured_response_and_records_history():
         assert out["error_type"] == "RuntimeError"
         assert "intentional failure" in out["error_message"]
 
-        history = json.loads((await client.read_resource("burr://history"))[0].text)
+        history = json.loads((await client.read_resource("theodosia://history"))[0].text)
         assert len(history) == 1
         entry = history[0]
         assert entry["refused"] is True
@@ -75,7 +75,7 @@ async def test_action_error_doesnt_advance_state():
     async with Client(server) as client:
         await client.call_tool("step", {"action": "boom", "inputs": {}})
         # FSM should still be at the entrypoint.
-        next_actions = json.loads((await client.read_resource("burr://next"))[0].text)
+        next_actions = json.loads((await client.read_resource("theodosia://next"))[0].text)
         assert next_actions == ["boom"]
 
 
@@ -110,7 +110,7 @@ async def test_concurrent_steps_in_one_session_are_serialised():
         await asyncio.gather(
             *(client.call_tool("step", {"action": "increment", "inputs": {}}) for _ in range(10))
         )
-        state = json.loads((await client.read_resource("burr://state"))[0].text)
+        state = json.loads((await client.read_resource("theodosia://state"))[0].text)
         assert state["n"] == 10, f"lost increments; saw n={state['n']} expected 10"
 
 
@@ -143,22 +143,22 @@ async def test_non_json_state_is_coerced_and_keys_surfaced():
     server = mount(_odd_state_app, mode=ServingMode.STEP, name="odd")
     async with Client(server) as client:
         await client.call_tool("step", {"action": "stash_object", "inputs": {}})
-        state = json.loads((await client.read_resource("burr://state"))[0].text)
+        state = json.loads((await client.read_resource("theodosia://state"))[0].text)
         # JSON-friendly value passed through unchanged.
         assert state["ok"] == "yes"
         # Non-JSON value was stringified.
         assert state["pipe"] == "<NotJsonable id=42>"
         # And the client was told.
-        assert state["_burrmcp"]["coerced_keys"] == ["pipe"]
+        assert state["_theodosia"]["coerced_keys"] == ["pipe"]
 
 
 @pytest.mark.asyncio
 async def test_clean_state_has_no_coercion_marker():
-    """Without coercion, no _burrmcp marker shows up."""
+    """Without coercion, no _theodosia marker shows up."""
     from coffee_order import build_application
 
     server = mount(build_application, mode=ServingMode.STEP, name="clean")
     async with Client(server) as client:
         await client.call_tool("step", {"action": "take_order", "inputs": {"item": "latte"}})
-        state = json.loads((await client.read_resource("burr://state"))[0].text)
-        assert "_burrmcp" not in state
+        state = json.loads((await client.read_resource("theodosia://state"))[0].text)
+        assert "_theodosia" not in state

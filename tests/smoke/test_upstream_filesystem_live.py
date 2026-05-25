@@ -1,9 +1,9 @@
 """Smoke: the single-surface upstream story, live, with a real agent.
 
-The agent connects to ONLY the burrmcp code-audit server. That server is
+The agent connects to ONLY the theodosia code-audit server. That server is
 an MCP *client* to the official @modelcontextprotocol/server-filesystem,
 configured via mount(upstream=...). The audit actions read files THROUGH
-burrmcp via call_upstream. The agent is never given filesystem tools.
+theodosia via call_upstream. The agent is never given filesystem tools.
 
 This is the "holy grail" proof: one MCP connection from the agent, yet
 the graph drives a second MCP server invisibly, and every file read
@@ -11,7 +11,7 @@ happens inside an action (single surface, ledger-honest).
 
 Asserts:
   - the agent's tool surface does NOT contain filesystem tools (read_file
-    etc. are not exposed -- only burrmcp's meta-tools);
+    etc. are not exposed -- only theodosia's meta-tools);
   - the agent still walked a real audit (start_audit -> read_file ->
     record_finding -> write_advisory) against the shipped vuln_demo.
 
@@ -42,7 +42,7 @@ _AUDIT_TARGET = REPO_ROOT / "examples" / "data" / "codebase_security" / "vuln_de
 
 
 def _mcp_servers() -> dict:
-    # ONE server: the burrmcp code-audit FSM, which itself opens an upstream
+    # ONE server: the theodosia code-audit FSM, which itself opens an upstream
     # client to the filesystem server (configured in build_server()).
     return {
         "code-audit": {
@@ -92,7 +92,7 @@ async def _drive(prompt: str, *, max_turns: int = 40, max_budget_usd: float = 3.
 
 
 @pytest.mark.asyncio
-async def test_agent_audits_through_burrmcp_upstream():
+async def test_agent_audits_through_theodosia_upstream():
     out = await _drive(
         "Use the `code-audit` MCP server to run a source-code security audit. "
         "Call start_audit to survey the tree, then read_file on at least two "
@@ -104,7 +104,7 @@ async def test_agent_audits_through_burrmcp_upstream():
 
     names = [c["name"] for c in out["tool_calls"]]
     step_calls = [n for n in names if n.endswith("__step")]
-    # Single surface: the agent only had burrmcp's tools; the filesystem
+    # Single surface: the agent only had theodosia's tools; the filesystem
     # server's tools were never exposed to it.
     fs_tools = [
         n
@@ -113,7 +113,7 @@ async def test_agent_audits_through_burrmcp_upstream():
         and not n.endswith("__step")
     ]
 
-    assert step_calls, f"agent never called the burrmcp step tool. Tools: {sorted(set(names))}"
+    assert step_calls, f"agent never called the theodosia step tool. Tools: {sorted(set(names))}"
     assert not fs_tools, (
         f"agent called filesystem tools directly -- single surface violated. "
         f"Tools: {sorted(set(names))}"
@@ -121,4 +121,4 @@ async def test_agent_audits_through_burrmcp_upstream():
     # The audit actually walked via the FSM step tool's action arg.
     actions = [c["input"].get("action") for c in out["tool_calls"] if c["name"].endswith("__step")]
     assert "start_audit" in actions, f"audit never started. Actions: {actions}"
-    assert "read_file" in actions, f"no files read through burrmcp. Actions: {actions}"
+    assert "read_file" in actions, f"no files read through theodosia. Actions: {actions}"

@@ -2,7 +2,7 @@
 
 Parent FSM has one action ``investigate`` that spawns a sub-Application
 with three steps (``gather``, ``analyse``, ``report``). The sub-run's
-timeline is recorded under ``burr://subruns/{id}`` and the parent
+timeline is recorded under ``theodosia://subruns/{id}`` and the parent
 history entry for ``investigate`` carries the new subrun id under
 ``subruns: [<id>]`` so a client can correlate parent action with
 child timeline.
@@ -17,7 +17,7 @@ from __future__ import annotations
 from burr.core import ApplicationBuilder, State, action
 from burr.tracking.client import LocalTrackingClient
 
-from burrmcp import ServingMode, mount, spawn_subapp
+from theodosia import ServingMode, mount, spawn_subapp
 
 _TRACKER_PROJECT = "subgraphs-demo"
 
@@ -60,8 +60,8 @@ def build_subgraph(source: str):
 async def investigate(state: State, source: str) -> State:
     """Run the three-step investigation sub-graph against ``source``.
 
-    Uses ``burrmcp.spawn_subapp`` to delegate. The sub-run's per-step
-    timeline appears at ``burr://subruns/{id}`` automatically.
+    Uses ``theodosia.spawn_subapp`` to delegate. The sub-run's per-step
+    timeline appears at ``theodosia://subruns/{id}`` automatically.
     """
     sub = build_subgraph(source)
     result = await spawn_subapp(sub, label=f"investigate({source})", inputs={"source": source})
@@ -86,8 +86,8 @@ def build_server():
         name="subgraphs",
         instructions=(
             "Investigation FSM that delegates to a sub-graph. Read "
-            "burr://subruns to list sub-runs spawned in this session "
-            "and burr://subruns/{id} for the full sub-run timeline."
+            "theodosia://subruns to list sub-runs spawned in this session "
+            "and theodosia://subruns/{id} for the full sub-run timeline."
         ),
     )
 

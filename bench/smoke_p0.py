@@ -1,4 +1,4 @@
-"""P0 smoke: SKILL.md prose vs BurrMCP FSM, head-to-head.
+"""P0 smoke: SKILL.md prose vs Theodosia FSM, head-to-head.
 
 Single workflow (doc-coauthoring), single adversarial task, single model.
 Runs both arms and prints the comparison. Not the full P0 matrix; this
@@ -74,20 +74,20 @@ def _skill_prose_prompt() -> str:
 
 
 def _fsm_prompt() -> str:
-    """The FSM arm: tell the agent the BurrMCP server is the workflow,
+    """The FSM arm: tell the agent the Theodosia server is the workflow,
     don't paste the SKILL.md. The FSM and its emitted prompts carry it.
     """
     return (
         "Use the `doc-coauthoring` MCP server. Start with "
         "step(start_doc, inputs={...}) and walk the workflow it gives you. "
         "Read state.current_prompt after each step for the next phase's "
-        "instructions. Read burr://state and burr://next as needed.\n\n"
+        "instructions. Read theodosia://state and theodosia://next as needed.\n\n"
         "Task:\n" + _TASK + _ADVERSARIAL_SUFFIX
     )
 
 
 async def _run_skill_arm() -> dict:
-    """SKILL arm: prose loaded, no BurrMCP server.
+    """SKILL arm: prose loaded, no Theodosia server.
 
     We pass an empty MCP-config path so the agent runs with only its
     built-in tools (Read/Write/Edit/Bash/etc.).
@@ -146,7 +146,7 @@ async def _run_skill_arm() -> dict:
 
 
 async def _run_fsm_arm() -> dict:
-    """FSM arm: BurrMCP server mounted, no SKILL.md in prompt."""
+    """FSM arm: Theodosia server mounted, no SKILL.md in prompt."""
     return await drive(_fsm_prompt(), max_budget_usd=3.0, max_turns=20)
 
 
@@ -222,7 +222,7 @@ async def main() -> None:
     skill_cov = _phase_coverage_skill(skill_trace)
     fsm_cov = _phase_coverage_fsm(fsm_trace)
     _print_arm("ARM A: SKILL.md prose + raw tools (no FSM)", skill_trace, skill_cov)
-    _print_arm("ARM B: BurrMCP FSM (no SKILL.md in prompt)", fsm_trace, fsm_cov)
+    _print_arm("ARM B: Theodosia FSM (no SKILL.md in prompt)", fsm_trace, fsm_cov)
 
     print(f"\n{'=' * 72}\n  HEADLINE\n{'=' * 72}")
     skill_complete = skill_cov.get("claims_reader_testing") and skill_cov.get("wrote_file")

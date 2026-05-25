@@ -25,7 +25,7 @@ from coffee_order import build_application
 async def test_list_resources_tool_lists_native_resources():
     """``list_resources`` is exposed as a tool and returns the same set
     of Burr resources that native ``resources/list`` would return."""
-    from burrmcp import ServingMode, mount
+    from theodosia import ServingMode, mount
 
     server = mount(build_application, mode=ServingMode.STEP, name="rasr")
     async with Client(server) as client:
@@ -39,28 +39,28 @@ async def test_list_resources_tool_lists_native_resources():
         items = json.loads(r.content[0].text)
         uris_or_templates = {i.get("uri") or i.get("uri_template") for i in items}
         # Every server registers these eight; subruns/{id} is a template.
-        assert "burr://graph" in uris_or_templates
-        assert "burr://state" in uris_or_templates
-        assert "burr://next" in uris_or_templates
-        assert "burr://history" in uris_or_templates
-        assert "burr://trace" in uris_or_templates
-        assert "burr://session" in uris_or_templates
-        assert "burr://subruns" in uris_or_templates
-        assert "burr://subruns/{subrun_id}" in uris_or_templates
+        assert "theodosia://graph" in uris_or_templates
+        assert "theodosia://state" in uris_or_templates
+        assert "theodosia://next" in uris_or_templates
+        assert "theodosia://history" in uris_or_templates
+        assert "theodosia://trace" in uris_or_templates
+        assert "theodosia://session" in uris_or_templates
+        assert "theodosia://subruns" in uris_or_templates
+        assert "theodosia://subruns/{subrun_id}" in uris_or_templates
 
 
 @pytest.mark.asyncio
 async def test_read_resource_tool_matches_native_read():
     """``read_resource`` returns the same payload a native resource read
     would, for the same URI. Lets a tools-only client (e.g. IBM Bob
-    Shell) reach burr:// resources through the tool surface."""
-    from burrmcp import ServingMode, mount
+    Shell) reach theodosia:// resources through the tool surface."""
+    from theodosia import ServingMode, mount
 
     server = mount(build_application, mode=ServingMode.STEP, name="rasr2")
     async with Client(server) as client:
-        native = (await client.read_resource("burr://graph"))[0].text
+        native = (await client.read_resource("theodosia://graph"))[0].text
         via_tool = (
-            (await client.call_tool("read_resource", {"uri": "burr://graph"})).content[0].text
+            (await client.call_tool("read_resource", {"uri": "theodosia://graph"})).content[0].text
         )
         assert via_tool == native
 
@@ -74,7 +74,7 @@ async def test_step_emits_log_notification_per_call():
     the seq, the action, and the outcome. Clients that render log
     notifications inline (Bob, Claude Code streaming) get a visible
     step-by-step trail without the user expanding tool calls."""
-    from burrmcp import ServingMode, mount
+    from theodosia import ServingMode, mount
 
     captured: list[str] = []
 
@@ -97,7 +97,7 @@ async def test_step_emits_log_notification_per_call():
 
 @pytest.mark.asyncio
 async def test_reset_session_emits_log():
-    from burrmcp import ServingMode, mount
+    from theodosia import ServingMode, mount
 
     captured: list[str] = []
 
@@ -125,7 +125,7 @@ async def test_fork_from_past_visible_with_tracker(tmp_path, monkeypatch):
     from burr.core import ApplicationBuilder, State, action
     from burr.tracking.client import LocalTrackingClient
 
-    from burrmcp import ServingMode, mount
+    from theodosia import ServingMode, mount
 
     @action(reads=[], writes=["n"])
     async def bump(state: State) -> State:

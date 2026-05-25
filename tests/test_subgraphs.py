@@ -3,7 +3,7 @@
 A parent action that calls ``spawn_subapp`` from inside its body
 produces a sub-run record under the session's subruns dict. The
 parent history entry carries the new subrun id under ``subruns``, and
-``burr://subruns`` + ``burr://subruns/{id}`` make the nested timeline
+``theodosia://subruns`` + ``theodosia://subruns/{id}`` make the nested timeline
 addressable over MCP.
 """
 
@@ -30,7 +30,7 @@ async def test_parent_history_entry_lists_new_subrun_id():
             "step",
             {"action": "investigate", "inputs": {"source": "log-1"}},
         )
-        history = json.loads((await client.read_resource("burr://history"))[0].text)
+        history = json.loads((await client.read_resource("theodosia://history"))[0].text)
         assert len(history) == 1
         entry = history[0]
         assert entry["action"] == "investigate"
@@ -48,7 +48,7 @@ async def test_subruns_index_lists_started_subrun():
             "step",
             {"action": "investigate", "inputs": {"source": "log-2"}},
         )
-        index = json.loads((await client.read_resource("burr://subruns"))[0].text)
+        index = json.loads((await client.read_resource("theodosia://subruns"))[0].text)
         assert len(index) == 1
         entry = index[0]
         assert entry["label"] == "investigate(log-2)"
@@ -57,22 +57,22 @@ async def test_subruns_index_lists_started_subrun():
         assert entry["ended_ts"] is not None
         assert entry["error"] is None
         # The index entry carries the fully-rendered URI so consumers
-        # don't have to construct burr://subruns/{id} from the template.
-        assert entry["uri"] == f"burr://subruns/{entry['id']}"
+        # don't have to construct theodosia://subruns/{id} from the template.
+        assert entry["uri"] == f"theodosia://subruns/{entry['id']}"
 
 
 @pytest.mark.asyncio
 async def test_parent_history_carries_subrun_uris():
     """History entries that spawned sub-runs also list their URIs
-    alongside the bare ids, so a client reading burr://history can
+    alongside the bare ids, so a client reading theodosia://history can
     follow the cross-references without template inference."""
     server = build_server()
     async with Client(server) as client:
         await client.call_tool("step", {"action": "investigate", "inputs": {"source": "log-3"}})
-        history = json.loads((await client.read_resource("burr://history"))[0].text)
+        history = json.loads((await client.read_resource("theodosia://history"))[0].text)
         entry = history[0]
         assert "subruns" in entry and "subrun_uris" in entry
-        assert entry["subrun_uris"] == [f"burr://subruns/{sid}" for sid in entry["subruns"]]
+        assert entry["subrun_uris"] == [f"theodosia://subruns/{sid}" for sid in entry["subruns"]]
 
 
 @pytest.mark.asyncio
@@ -83,9 +83,9 @@ async def test_subrun_detail_returns_full_record():
             "step",
             {"action": "investigate", "inputs": {"source": "abc"}},
         )
-        index = json.loads((await client.read_resource("burr://subruns"))[0].text)
+        index = json.loads((await client.read_resource("theodosia://subruns"))[0].text)
         sid = index[0]["id"]
-        detail = json.loads((await client.read_resource(f"burr://subruns/{sid}"))[0].text)
+        detail = json.loads((await client.read_resource(f"theodosia://subruns/{sid}"))[0].text)
         assert detail["id"] == sid
         assert detail["final_state"]["report"] is not None
         assert "abc" in detail["final_state"]["gathered"]
@@ -97,7 +97,7 @@ async def test_unknown_subrun_id_returns_error():
     async with Client(server) as client:
         # Step at least once so the session has an entry.
         await client.call_tool("step", {"action": "investigate", "inputs": {"source": "x"}})
-        detail = json.loads((await client.read_resource("burr://subruns/sub-doesnotexist"))[0].text)
+        detail = json.loads((await client.read_resource("theodosia://subruns/sub-doesnotexist"))[0].text)
         assert detail["error"] == "unknown_subrun"
         assert detail["subrun_id"] == "sub-doesnotexist"
 
@@ -107,7 +107,7 @@ async def test_session_without_subapp_spawn_has_empty_subruns():
     """A normal session that never calls spawn_subapp has an empty index."""
     from burr.core import ApplicationBuilder, State, action
 
-    from burrmcp import ServingMode, mount
+    from theodosia import ServingMode, mount
 
     @action(reads=[], writes=["x"])
     def plain(state: State) -> State:
@@ -125,10 +125,10 @@ async def test_session_without_subapp_spawn_has_empty_subruns():
     server = mount(plain_app, mode=ServingMode.STEP, name="plain-server")
     async with Client(server) as client:
         await client.call_tool("step", {"action": "plain", "inputs": {}})
-        index = json.loads((await client.read_resource("burr://subruns"))[0].text)
+        index = json.loads((await client.read_resource("theodosia://subruns"))[0].text)
         assert index == []
         # And the parent entry has no subruns key.
-        history = json.loads((await client.read_resource("burr://history"))[0].text)
+        history = json.loads((await client.read_resource("theodosia://history"))[0].text)
         assert "subruns" not in history[0]
 
 
@@ -143,7 +143,7 @@ async def test_two_subruns_from_one_session_both_recorded():
     from burr.core import ApplicationBuilder, action
     from subgraphs import build_subgraph
 
-    from burrmcp import ServingMode, mount, spawn_subapp
+    from theodosia import ServingMode, mount, spawn_subapp
 
     @action(reads=[], writes=["last"])
     async def investigate_loop(state, source: str):
@@ -169,7 +169,7 @@ async def test_two_subruns_from_one_session_both_recorded():
         await loop_client.call_tool(
             "step", {"action": "investigate_loop", "inputs": {"source": "B"}}
         )
-        index = json.loads((await loop_client.read_resource("burr://subruns"))[0].text)
+        index = json.loads((await loop_client.read_resource("theodosia://subruns"))[0].text)
         assert len(index) == 2
         labels = {e["label"] for e in index}
         assert labels == {"i(A)", "i(B)"}

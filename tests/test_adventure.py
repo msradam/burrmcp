@@ -78,7 +78,7 @@ async def test_log_records_every_move():
     async with Client(server) as client:
         for action in ["enter_foyer", "go_to_library", "take_key"]:
             await client.call_tool("step", {"action": action, "inputs": {}})
-        state = json.loads((await client.read_resource("burr://state"))[0].text)
+        state = json.loads((await client.read_resource("theodosia://state"))[0].text)
         log = state["log"]
         assert len(log) == 3
         assert "foyer" in log[0]
@@ -92,7 +92,7 @@ async def test_graph_resource_describes_adventure_topology():
     conditional edges between them."""
     server = build_server()
     async with Client(server) as client:
-        graph = json.loads((await client.read_resource("burr://graph"))[0].text)
+        graph = json.loads((await client.read_resource("theodosia://graph"))[0].text)
         action_names = {a["name"] for a in graph["actions"]}
         assert {
             "enter_foyer",

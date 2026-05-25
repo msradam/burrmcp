@@ -22,7 +22,7 @@ async def test_custom_counter_middleware_fires_on_every_tool_call():
         await client.call_tool("step", {"action": "tick", "inputs": {}})
         await client.call_tool("step", {"action": "tick", "inputs": {}})
         await client.call_tool("step", {"action": "reset", "inputs": {}})
-        text = (await client.read_resource("burr://tool-counts"))[0].text
+        text = (await client.read_resource("theodosia://tool-counts"))[0].text
         counts = json.loads(text)
         assert counts.get("step") == 3
 
@@ -48,13 +48,13 @@ async def test_rate_limit_refuses_after_burst():
 
 @pytest.mark.asyncio
 async def test_other_resources_still_work_with_middleware():
-    """Middleware shouldn't break the burr:// resources."""
+    """Middleware shouldn't break the theodosia:// resources."""
     server = build_server()
     async with Client(server) as client:
         await client.call_tool("step", {"action": "tick", "inputs": {}})
-        state = json.loads((await client.read_resource("burr://state"))[0].text)
+        state = json.loads((await client.read_resource("theodosia://state"))[0].text)
         assert state["count"] == 1
-        history = json.loads((await client.read_resource("burr://history"))[0].text)
+        history = json.loads((await client.read_resource("theodosia://history"))[0].text)
         assert len(history) == 1
-        graph = json.loads((await client.read_resource("burr://graph"))[0].text)
+        graph = json.loads((await client.read_resource("theodosia://graph"))[0].text)
         assert {"tick", "reset"} == {a["name"] for a in graph["actions"]}

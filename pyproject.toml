@@ -1,6 +1,6 @@
 [project]
-name = "burrmcp"
-version = "0.1.1"
+name = "theodosia"
+version = "0.1.0"
 description = "Mount Burr state-machine Applications as MCP servers."
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
@@ -18,7 +18,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    # Burr's public API is stable, but burrmcp depends on some details
+    # Burr's public API is stable, but theodosia depends on some details
     # that aren't part of Burr's public surface: ``Action.fn``, the shape
     # of ``Action.inputs`` as a (required, optional) tuple, and Burr's
     # internal ``__PRIOR_STEP`` state key. Pin to a minor range so a
@@ -30,15 +30,15 @@ dependencies = [
     "apache-burr[tracking]>=0.42,<0.43",
     "fastmcp>=3.3,<3.4",
     "pydantic>=2,<3",
-    # Typer for the burrmcp CLI (serve, doctor). Brings click as a
+    # Typer for the theodosia CLI (serve, doctor). Brings click as a
     # transitive; that's fine.
     "typer>=0.12,<1.0",
 ]
 
 [project.optional-dependencies]
 # Turnkey OpenTelemetry: pulls Burr's opentelemetry extra plus the
-# core OTel API/SDK so a user can wire spans into their burrmcp
-# server in one ``pip install 'burrmcp[observability]'``. See
+# core OTel API/SDK so a user can wire spans into their theodosia
+# server in one ``pip install 'theodosia[observability]'``. See
 # ``examples/with_otel.py`` for the wire-up pattern.
 observability = [
     "apache-burr[opentelemetry]>=0.42,<0.43",
@@ -46,7 +46,7 @@ observability = [
     "opentelemetry-sdk>=1.20",
 ]
 
-# Burr UI (`burrmcp ui`) for inspecting tracked sessions. Optional
+# Burr UI (`theodosia ui`) for inspecting tracked sessions. Optional
 # because the [start] extra is heavy (streamlit, graphviz, openai). The
 # CLI also auto-bootstraps via uvx when this extra isn't installed, so
 # most users don't need to install it explicitly.
@@ -62,20 +62,20 @@ mellea = [
 
 # Convenience extra: install everything optional.
 all = [
-    "burrmcp[observability]",
-    "burrmcp[mellea]",
-    "burrmcp[ui]",
+    "theodosia[observability]",
+    "theodosia[mellea]",
+    "theodosia[ui]",
 ]
 
 [project.scripts]
-burrmcp = "burrmcp.cli:main"
+theodosia = "theodosia.cli:main"
 
 [build-system]
 requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/burrmcp"]
+packages = ["src/theodosia"]
 
 [dependency-groups]
 dev = [
@@ -85,7 +85,7 @@ dev = [
     "mypy>=1.10",
     # OTel testing uses the in-memory exporter; the [observability]
     # extra carries the rest.
-    "burrmcp[observability]",
+    "theodosia[observability]",
     # Example-demo deps: psutil for unix_health, bandit + detect-secrets
     # for codebase_security. Dev-only because the examples are not
     # part of the published wheel; end users running those demos

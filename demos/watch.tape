@@ -1,4 +1,4 @@
-# Live observability: burrmcp watch, Rose Pine.
+# Live observability: theodosia watch, Rose Pine.
 # Record with: vhs demos/watch.tape
 # Backgrounds a paced coffee-order walk, then live-tails it: steps appear
 # in real time, a red refusal then green recovery.
@@ -28,7 +28,7 @@ Type "clear"
 Enter
 Show
 
-Type "burrmcp watch --project coffee-order-demo"
+Type "theodosia watch --project coffee-order-demo"
 Sleep 600ms
 Enter
 # Watch animates as the background walk writes a step every ~2s.

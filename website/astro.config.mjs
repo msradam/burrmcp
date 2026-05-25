@@ -6,13 +6,13 @@ import starlightClientMermaid from '@pasqal-io/starlight-client-mermaid';
 // https://astro.build/config
 export default defineConfig({
 	site: 'https://msradam.github.io',
-	base: '/burrmcp',
+	base: '/theodosia',
 	integrations: [
 		starlight({
-			title: 'BurrMCP',
+			title: 'Theodosia',
 			description: 'Mount Burr state-machine Applications as MCP servers.',
 			social: [
-				{ icon: 'github', label: 'GitHub', href: 'https://github.com/msradam/burrmcp' },
+				{ icon: 'github', label: 'GitHub', href: 'https://github.com/msradam/theodosia' },
 			],
 			plugins: [starlightClientMermaid()],
 			sidebar: [

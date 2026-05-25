@@ -2,7 +2,7 @@
 
 Validates @streaming_action.pydantic typing surface plus the three
 streaming lifecycle hooks (PreStartStreamHook, PostStreamItemHook,
-PostEndStreamHook) under both direct Burr drivers and the BurrMCP
+PostEndStreamHook) under both direct Burr drivers and the Theodosia
 step path.
 """
 
@@ -64,7 +64,7 @@ async def test_streaming_pydantic_writes_typed_state():
 
 @pytest.mark.asyncio
 async def test_streaming_hooks_fire_through_mcp_step():
-    """BurrMCP routes streaming actions via app.astream_result inside
+    """Theodosia routes streaming actions via app.astream_result inside
     step, so the streaming hooks fire when an MCP client drives the
     action via the step tool."""
     server = build_server()
@@ -76,7 +76,7 @@ async def test_streaming_hooks_fire_through_mcp_step():
         assert out.get("error") is None, out
         assert out["streamed"] is True
         # MCP-level chunk count matches what stats saw.
-        text = (await client.read_resource("burr://stream-stats"))[0].text
+        text = (await client.read_resource("theodosia://stream-stats"))[0].text
         snap = json.loads(text)
         assert snap["transcribe"]["starts"] == 1
         assert snap["transcribe"]["ends"] == 1

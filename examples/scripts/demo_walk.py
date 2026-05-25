@@ -1,13 +1,13 @@
 """Records README's demo.gif via vhs.
 
 Drives a real Claude session through the Agent SDK against the demo
-bench (``~/burrmcp-demo/.mcp.json``). The user gives one
+bench (``~/theodosia-demo/.mcp.json``). The user gives one
 natural-language instruction; Claude figures out which MCP tool to
 call and walks the incident_response FSM end-to-end.
 
 The script prints a compact, color-coded conversation: user prompt,
 then each tool call Claude made and the structured response from
-the server. Shows the actual property of burrmcp: agents drive the
+the server. Shows the actual property of theodosia: agents drive the
 state machine in plain English; the server enforces the order.
 
 Cost: ~$0.05 per run on Claude Max (Sonnet via SDK). Re-record the

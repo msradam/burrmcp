@@ -1,7 +1,7 @@
 """Seed a coffee-order session for the observability demos.
 
 Walks the coffee_order FSM through a refusal (pay before ordering) and a
-recovery (order, add modifiers, pay, fulfill), so `burrmcp sessions show`
+recovery (order, add modifiers, pay, fulfill), so `theodosia sessions show`
 / `logs` / `watch` have a session with both a red refusal row and green
 success rows to render.
 
@@ -32,7 +32,7 @@ async def main() -> None:
     async with Client(server) as client:
         # Refusal: order with an invalid qty -> action_error (red row).
         # (action_error is recorded by Burr's tracker; invalid_transition,
-        # refused before the action runs, lives only in burr://history.)
+        # refused before the action runs, lives only in theodosia://history.)
         await _step(client, "take_order", item="latte", qty=0)
         if _SLOW:
             await asyncio.sleep(2)

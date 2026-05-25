@@ -43,7 +43,7 @@ from burr.core.action import Condition
 from burr.tracking.client import LocalTrackingClient
 from fastmcp.server.elicitation import AcceptedElicitation
 
-from burrmcp import ServingMode, current_mcp_context, mount
+from theodosia import ServingMode, current_mcp_context, mount
 
 _TRACKER_PROJECT = "elicit-confirm-demo"
 
@@ -66,7 +66,7 @@ async def purge(state: State) -> State:
     """
     ctx = current_mcp_context()
     if ctx is None:
-        raise RuntimeError("purge needs a FastMCP Context; call this FSM through burrmcp.mount.")
+        raise RuntimeError("purge needs a FastMCP Context; call this FSM through theodosia.mount.")
     staged = list(state["staged"])
     if not staged:
         return state.update(outcome="nothing_staged")

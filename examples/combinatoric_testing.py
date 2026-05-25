@@ -1,9 +1,9 @@
-"""Combinatoric differential testing: Hamilton + Burr + BurrMCP together.
+"""Combinatoric differential testing: Hamilton + Burr + Theodosia together.
 
 Each library does what it is best at. Hamilton declares the
 test DAG (param nodes, derivation nodes, assertion nodes). Burr wraps
 the search loop (``propose_and_run -> propose_and_run -> finalize``)
-with gated transitions and a session-tracked audit trail. BurrMCP
+with gated transitions and a session-tracked audit trail. Theodosia
 turns the loop into a tool the caller LLM drives, slot-filling
 parameter values on each call.
 
@@ -21,7 +21,7 @@ most: vary the values list shape, sweep different percentiles, build
 hypotheses from the abs_diff values returned by earlier trials, and
 call ``finalize`` when satisfied with the best divergence found.
 
-This demo is what BurrMCP enables that's hard to express otherwise.
+This demo is what Theodosia enables that's hard to express otherwise.
 LLM-driven adaptive parameter search where every iteration is a
 fully tracked Burr session, every divergence is reproducible via
 ``fork_from_past``, and the SUT model lives as a Hamilton DAG that
@@ -53,7 +53,7 @@ from burr.core import ApplicationBuilder, State, action
 from burr.core.action import Condition
 from burr.tracking.client import LocalTrackingClient
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 _TRACKER_PROJECT = "combinatoric-testing-demo"
 _DAG_PATH = Path(__file__).parent / "data" / "combinatoric_testing" / "dag.py"
@@ -89,7 +89,7 @@ def _run_dag(values_input: list[float], p_input: float) -> dict[str, Any]:
     """Build a Hamilton driver, execute the differential-test DAG.
 
     Lazy-imports ``hamilton`` so the FSM module is importable even
-    without Hamilton installed. ``examples/burrmcp serve`` callers
+    without Hamilton installed. ``examples/theodosia serve`` callers
     that just want to mount the FSM don't need the dep; only running
     the actions does.
     """
@@ -115,7 +115,7 @@ def initialize(
 
     Accepts an optional ``task`` string the caller can use to record
     its own goal; it's echoed back in subsequent state reads so an
-    observer reading ``burr://state`` mid-session can tell what the
+    observer reading ``theodosia://state`` mid-session can tell what the
     LLM was searching for.
     """
     return state.update(history=[], status="initialized", task=task)

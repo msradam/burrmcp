@@ -3,7 +3,7 @@
 Some MCP clients (e.g. IBM Bob as of mid-2026) serialize nested
 object arguments as JSON strings on the wire instead of as nested
 JSON objects. FastMCP's input-schema validator rejects those as
-``params/X must be object``. burrmcp's mount() installs a middleware
+``params/X must be object``. theodosia's mount() installs a middleware
 that re-parses such strings before validation when the tool's
 declared schema is object- or array-typed.
 
@@ -22,7 +22,7 @@ import pytest
 from fastmcp import Client
 from fastmcp.server.middleware import MiddlewareContext
 
-from burrmcp.adapter import _build_coercion_middleware, _expects_object_or_array
+from theodosia.adapter import _build_coercion_middleware, _expects_object_or_array
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT / "examples"))

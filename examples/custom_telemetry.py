@@ -17,7 +17,7 @@ without the OTel dependency.
 Domain: an artificial "render report" action that opens three
 sub-spans (fetch, render, summarize), logs an attribute inside each,
 and captures the tree via the custom hook. Exposed at
-``burr://spans``.
+``theodosia://spans``.
 
 Run:
 
@@ -38,7 +38,7 @@ from burr.lifecycle.base import (
 )
 from burr.tracking.client import LocalTrackingClient
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 _TRACKER_PROJECT = "custom-telemetry-demo"
 
@@ -170,11 +170,11 @@ def build_server():
             "Single action 'render_report(title: str)' that opens three "
             "sub-spans (fetch, render, summarize) and logs attributes "
             "inside each. Custom SpanCollector hook captures every "
-            "span and attribute log; read burr://spans for the tree."
+            "span and attribute log; read theodosia://spans for the tree."
         ),
     )
 
-    @server.resource("burr://spans")
+    @server.resource("theodosia://spans")
     async def _spans_resource() -> str:
         return json.dumps(sink.snapshot(), indent=2, default=str)
 

@@ -1,8 +1,8 @@
-"""upstream: burrmcp as an MCP client to other servers.
+"""upstream: theodosia as an MCP client to other servers.
 
 A Burr action calls call_upstream(server, tool, args) from its body; the
-call is forwarded to a real MCP server burrmcp connected to as a client.
-The agent only ever sees burrmcp's `step` tool -- the upstream server is
+call is forwarded to a real MCP server theodosia connected to as a client.
+The agent only ever sees theodosia's `step` tool -- the upstream server is
 not exposed to it (single surface). Every upstream call happens inside an
 action, so it advances state (ledger).
 """
@@ -14,8 +14,8 @@ from burr.core import ApplicationBuilder, State, action
 from burr.core.action import Condition
 from fastmcp import Client, FastMCP
 
-from burrmcp import ServingMode, UpstreamManager, call_upstream, mount
-from burrmcp.upstream import UpstreamError, bind_upstream, reset_upstream
+from theodosia import ServingMode, UpstreamManager, call_upstream, mount
+from theodosia.upstream import UpstreamError, bind_upstream, reset_upstream
 
 # == a fake upstream MCP server (in-process) =========================
 
@@ -103,7 +103,7 @@ def _build_app():
 @pytest.mark.asyncio
 async def test_action_calls_upstream_through_mounted_server():
     """The agent calls only `step`; the survey action reaches the upstream
-    cluster server through burrmcp; the result lands in state."""
+    cluster server through theodosia; the result lands in state."""
     server = mount(
         _build_app,
         mode=ServingMode.STEP,
@@ -111,7 +111,7 @@ async def test_action_calls_upstream_through_mounted_server():
         upstream={"cluster": _make_upstream_server()},
     )
     async with Client(server) as client:
-        # The agent's tool surface is just the burrmcp meta-tools -- the
+        # The agent's tool surface is just the theodosia meta-tools -- the
         # upstream cluster's get_pods/get_logs are NOT exposed here.
         tools = {t.name for t in await client.list_tools()}
         assert "step" in tools

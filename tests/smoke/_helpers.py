@@ -16,7 +16,7 @@ from typing import Any
 
 import pytest
 
-MCP_CONFIG = Path("~/burrmcp-demo/.mcp.json").expanduser()
+MCP_CONFIG = Path("~/theodosia-demo/.mcp.json").expanduser()
 
 
 def check_environment_or_skip() -> None:
@@ -29,7 +29,7 @@ def check_environment_or_skip() -> None:
     if shutil.which("claude") is None or not MCP_CONFIG.exists():
         pytest.skip(
             "Smoke tests require the `claude` CLI on PATH plus "
-            "~/burrmcp-demo/.mcp.json. Run `claude auth login` first.",
+            "~/theodosia-demo/.mcp.json. Run `claude auth login` first.",
             allow_module_level=True,
         )
 
@@ -70,7 +70,7 @@ async def drive(
       - tool_calls: list of {"id", "name", "input"} for every tool the
         model invoked.
       - tool_results: list of {"tool_use_id", "content", "is_error",
-        "parsed"} where ``parsed`` is the JSON payload BurrMCP returned.
+        "parsed"} where ``parsed`` is the JSON payload Theodosia returned.
       - final_text: concatenated text from assistant messages.
       - result: the ResultMessage (cost, error info, etc.).
     """
@@ -134,7 +134,7 @@ async def drive(
 def parse_tool_result(content: Any) -> dict | None:
     """Extract the JSON payload from a ToolResultBlock.content.
 
-    BurrMCP returns structured dicts; FastMCP wraps them as MCP content
+    Theodosia returns structured dicts; FastMCP wraps them as MCP content
     blocks (a list of text blocks whose ``text`` is the JSON-serialised
     response). Handle every shape we might see.
     """

@@ -16,7 +16,7 @@ span. Same three lifecycle hooks fire as in ``custom_telemetry``
 Domain: a tiny text analyzer. The ``analyze(text)`` action calls
 ``tokenize(text)`` which calls ``count_words(tokens)``; both are
 ``@trace``-decorated. The resulting span tree shows the call
-hierarchy automatically. Tree at ``burr://trace-spans``.
+hierarchy automatically. Tree at ``theodosia://trace-spans``.
 
 Run:
 
@@ -33,7 +33,7 @@ from burr.core import ApplicationBuilder, State, action
 from burr.lifecycle.base import DoLogAttributeHook, PostEndSpanHook, PreStartSpanHook
 from burr.visibility import trace
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 # == span sink =======================================================
 
@@ -168,12 +168,12 @@ def build_server():
             "Single action 'analyze(text: str)' that internally calls "
             "tokenize() and count_words(), both wrapped with @trace. "
             "Each helper call auto-opens a span with its inputs/outputs "
-            "logged as attributes. Read burr://trace-spans for the "
+            "logged as attributes. Read theodosia://trace-spans for the "
             "captured tree."
         ),
     )
 
-    @server.resource("burr://trace-spans")
+    @server.resource("theodosia://trace-spans")
     async def _spans_resource() -> str:
         return json.dumps(sink.snapshot(), indent=2, default=str)
 

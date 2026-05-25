@@ -1,14 +1,14 @@
 """Two graphs in one MCP server via ``mount_multi``.
 
-Most multi-graph setups run one ``burrmcp serve`` per graph: separate
-processes, each with its own ``burr://graph``, disambiguated by the client.
+Most multi-graph setups run one ``theodosia serve`` per graph: separate
+processes, each with its own ``theodosia://graph``, disambiguated by the client.
 ``mount_multi`` is the other option: compose several Burr Applications into a
 single server. FastMCP namespacing then applies:
 
 * Tools are renamed ``<app>_<tool>``: ``orders_step`` and ``tickets_step``.
-* Resources carry the namespace in the URI: ``burr://orders/graph``,
-  ``burr://tickets/next``, and so on.
-* A parent ``burr://apps`` resource lists the mounted names so an agent can
+* Resources carry the namespace in the URI: ``theodosia://orders/graph``,
+  ``theodosia://tickets/next``, and so on.
+* A parent ``theodosia://apps`` resource lists the mounted names so an agent can
   discover the surface in one read.
 
 Run it:
@@ -23,7 +23,7 @@ from __future__ import annotations
 from burr.core import ApplicationBuilder, State, action
 from burr.tracking.client import LocalTrackingClient
 
-from burrmcp import ServingMode, mount_multi
+from theodosia import ServingMode, mount_multi
 
 
 @action(reads=[], writes=["stage", "item", "qty"])
@@ -88,8 +88,8 @@ def build_server(mode: ServingMode = ServingMode.STEP):
         name="backoffice",
         instructions=(
             "Two independent workflows on one server. Drive orders with "
-            "orders_step and tickets with tickets_step. Read burr://apps for "
-            "the list, then burr://orders/graph or burr://tickets/graph for "
+            "orders_step and tickets with tickets_step. Read theodosia://apps for "
+            "the list, then theodosia://orders/graph or theodosia://tickets/graph for "
             "each topology."
         ),
     )
