@@ -7,11 +7,26 @@
 [![Built on Apache Burr](https://img.shields.io/badge/built%20on-Apache%20Burr-31748f.svg)](https://github.com/apache/burr)
 [![Built on FastMCP](https://img.shields.io/badge/built%20on-FastMCP-c4a7e7.svg)](https://github.com/jlowin/fastmcp)
 
-Theodosia gives an AI agent a stateful, auditable workflow it cannot step outside of. You define the workflow as a [Burr](https://burr.dagworks.io/) state machine; Theodosia serves it over [MCP](https://modelcontextprotocol.io/) so the agent advances it one transition at a time. Burr is the graph engine, MCP is the wire, and Theodosia is the layer between them.
+AI agents are capable and unpredictable. Given real tools, they skip steps, act out of order, and leave you reconstructing what happened from a chat log. Theodosia puts the agent on rails. You define the workflow once as a [Burr](https://burr.dagworks.io/) state machine, and Theodosia serves it over [MCP](https://modelcontextprotocol.io/) so the agent can only advance one allowed step at a time, with every step recorded. Burr is the graph engine, MCP is the wire, and Theodosia is the layer between them.
 
 Each Burr `@action` is reachable through one `step(action, inputs)` MCP tool. State lives on the server. The server enforces transitions: if the agent calls an action that isn't reachable from the current state, the response is a structured refusal listing the actions that are reachable. Every step is recorded to a replayable trace. The model can be wrong; the model cannot lie about state.
 
 ![demo](demos/demo.gif)
+
+| | |
+|---|---|
+| **Stays on the rails** | The server enforces the graph. An action that isn't reachable from the current state returns a structured refusal listing the ones that are, and the agent self-corrects from it. |
+| **Auditable by default** | Every step, its inputs, the state change, refusals, and timing, recorded to a replayable trace through Burr's tracker and UI. |
+| **One portable contract** | Drive the same graph from your own Python (deterministic) or hand it to an external LLM over MCP. The workflow is a versioned artifact, not tied to either. |
+| **Built on mature parts** | The workflow engine is Apache Burr; the MCP layer is FastMCP. Theodosia is the thin layer that makes one drive the other. |
+
+## Why this shape works
+
+Current LLM agents are unreliable at procedural work in nameable, structural ways: they skip steps, terminate early or fail to stop, and declare success without verifying. IBM Research's [IT-Bench analysis](https://huggingface.co/blog/ibm-research/itbenchandmast) measured that prompt-level fixes for these failures buy around 15.6%, while a stricter state machine to enforce termination buys up to 53%, and recommends implementing finite state machines outright. Theodosia is that state machine, served to the agent over the wire.
+
+It removes the structural failures: out-of-order steps, skipped gates, premature or missed termination, an unbounded action space. It does not fix reasoning or verification errors inside a valid step, and does not claim to.
+
+Further reading: [IBM IT-Bench + MAST](https://huggingface.co/blog/ibm-research/itbenchandmast) · [Why Do Multi-Agent LLM Systems Fail? (UC Berkeley)](https://arxiv.org/abs/2503.13657) · [Microsoft AIOpsLab](https://www.microsoft.com/en-us/research/blog/aiopslab-building-ai-agents-for-autonomous-clouds/) · [Grafana o11y-bench](https://o11ybench.ai/)
 
 ```python
 from theodosia import mount
