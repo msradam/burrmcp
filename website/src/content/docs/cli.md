@@ -70,8 +70,9 @@ theodosia logs --refusals --plain     # only steps that errored, pipe-friendly
 ```
 
 `app-id` defaults to the most-recently-touched session and accepts a uuid prefix.
-`--burr-home` points at a tracker root other than `~/.burr`. `--json` on `ls` and
-`show` emits machine output.
+`--home` points at a tracker root other than the default `~/.theodosia` (Burr's
+own `LocalTrackingClient` writes to `~/.burr`, so pass `--home ~/.burr` for a
+graph wired that way). `--json` on `ls` and `show` emits machine output.
 
 ## ui
 
@@ -98,7 +99,7 @@ cli = build_cli(
     help="My graph as an MCP server.",
     server_name="my-fsm-mcp",           # default MCP server name
     ui_extra="my-fsm-mcp[ui]",          # named in the `ui` install hint
-    burr_home="~/.my-fsm-mcp",          # default tracker root for observability
+    home="~/.my-fsm-mcp",               # default tracker root for observability
 )
 
 def main() -> int:
@@ -133,6 +134,7 @@ cli = build_cli(
 ```
 
 See [Driving other MCP servers](upstream.md) for the action-body side.
+
 ## Drive it from any MCP client
 
 `theodosia serve module:attr` is a stdio MCP server, so any MCP client can launch

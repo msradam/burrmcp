@@ -3,7 +3,7 @@ title: 'Driving other MCP servers'
 description: 'The upstream feature: actions calling other MCP servers.'
 ---
 
-theodosia is normally the MCP server the agent talks to. With `upstream`, it also
+Theodosia is normally the MCP server the agent talks to. With `upstream`, it also
 opens MCP *client* sessions to other servers (Kubernetes, Grafana, filesystem,
 and so on). A Burr action calls those servers' tools from inside its Python body
 via `call_upstream(server, tool, args)`.
@@ -40,7 +40,7 @@ way an mcp-config dict would prefix them.
   so it advances state by construction. The graph cannot fall out of sync with
   what actually happened.
 - **Any server.** MCP is a standard protocol and `fastmcp.Client` speaks every
-  transport (stdio, http, sse). theodosia does not need to know what the upstream
+  transport (stdio, http, sse). Theodosia does not need to know what the upstream
   server is.
 - **No arg-guessing.** The action author writes the call explicitly. There is no
   per-backend name or argument inference.
