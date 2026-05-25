@@ -171,4 +171,9 @@ Two ways to serve more than one graph:
   composes several graphs into one server. Tools become `coffee_step` /
   `triage_step`, and resources carry the namespace in the URI:
   `burr://coffee/graph`, `burr://triage/next`. A parent `burr://apps` resource
-  lists the mounted names.
+  lists the mounted names. See `examples/multi_graph.py`.
+
+The URI overlap across separate servers is not a problem: a resource URI is
+unique only within its server, and every read is addressed to one server, so two
+servers both exposing `burr://graph` never collide. Only a single server holding
+two graphs needs distinct URIs, which is what `mount_multi` provides.
