@@ -87,7 +87,7 @@ The list of valid actions rides on the response, so a client without its own mod
 
 ## Why this shape
 
-The four-tool surface (`step`, `reset_session`, `fork_at`, `fork_from_past`) is constant regardless of FSM complexity. The agent reads the action namespace from `burr://graph`, calls `step(action=X)`, and the server refuses anything not reachable from the current state. The reachable action set is the graph, enforced at the protocol layer rather than asked of the model. See [Architecture](https://msradam.github.io/burrmcp/architecture/).
+The four-tool surface (`step`, `reset_session`, `fork_at`, `fork_from_past`) is constant regardless of FSM complexity. The agent reads the action namespace from `burr://graph`, calls `step(action=X)`, and the server refuses anything not reachable from the current state. The reachable action set is the graph, enforced at the protocol layer rather than asked of the model. Run `burrmcp render <target>` to print that graph in the terminal, or `--mermaid` for a diagram. See [Architecture](https://msradam.github.io/burrmcp/architecture/).
 
 The integration boundary is Burr's `Application`: anything `ApplicationBuilder` supports (parallelism, persistence, typed state, hooks, telemetry, sub-applications) passes through `mount()` without adapter changes. See [What works through mount()](https://msradam.github.io/burrmcp/compatibility/).
 

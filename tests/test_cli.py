@@ -162,3 +162,54 @@ def test_build_cli_default_burr_home_used_when_flag_absent(restore_branding, tmp
     # an explicit flag still wins
     other = tmp_path / "other"
     assert cli._resolve_home(other) == other
+
+
+def test_build_cli_records_upstream_for_serve(restore_branding):
+    """A baked-in upstream map is held on the branding so serve passes it to mount."""
+    upstream = {"fs": {"command": "npx", "args": ["-y", "server-filesystem", "."]}}
+    build_cli("mygraph", application="coffee_order:build_application", upstream=upstream)
+    assert cli._BRANDING.upstream == upstream
+
+
+# ── render ───────────────────────────────────────────────────────
+
+
+def test_topology_extracts_entry_terminals_edges():
+    topo = cli._topology("coffee_order:build_application", ["examples"], "coffee")
+    assert topo.entry == "take_order"
+    assert "fulfill" in topo.actions
+    assert topo.is_terminal("fulfill")
+    assert not topo.is_terminal("take_order")
+    assert topo.has_self_loop("add_modifier")
+
+
+def test_condition_label_suppresses_default():
+    class Default:
+        name = "default"
+
+    class Real:
+        name = "stage == 'paid'"
+
+    assert cli._condition_label(Default()) is None
+    assert cli._condition_label(Real()) == "stage == 'paid'"
+
+
+def test_render_mermaid_emits_statediagram(capsys):
+    cli.render("coffee_order:build_application", app_dir=["examples"], mermaid=True)
+    out = capsys.readouterr().out
+    assert "stateDiagram-v2" in out
+    assert "[*] --> take_order" in out
+    assert "add_modifier --> add_modifier" in out
+    assert "fulfill --> [*]" in out
+
+
+def test_render_dot_emits_digraph(capsys):
+    cli.render("coffee_order:build_application", app_dir=["examples"], dot=True)
+    out = capsys.readouterr().out
+    assert out.strip().startswith("digraph G {")
+    assert '"take_order" -> "pay"' in out
+
+
+def test_render_rejects_both_mermaid_and_dot():
+    with pytest.raises(SystemExit, match="not both"):
+        cli.render("coffee_order:build_application", app_dir=["examples"], mermaid=True, dot=True)
