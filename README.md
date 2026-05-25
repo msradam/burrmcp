@@ -7,9 +7,9 @@
 [![Built on Apache Burr](https://img.shields.io/badge/built%20on-Apache%20Burr-31748f.svg)](https://github.com/apache/burr)
 [![Built on FastMCP](https://img.shields.io/badge/built%20on-FastMCP-c4a7e7.svg)](https://github.com/jlowin/fastmcp)
 
-AI agents are capable and unpredictable. Given real tools, they skip steps, act out of order, and leave you reconstructing what happened from a chat log. Theodosia puts the agent on rails. You define the workflow once as a [Burr](https://burr.dagworks.io/) state machine, and Theodosia serves it over [MCP](https://modelcontextprotocol.io/) so the agent can only advance one allowed step at a time, with every step recorded. Burr is the graph engine, MCP is the wire, and Theodosia is the layer between them.
+AI agents are capable and unpredictable. Given real tools, they skip steps, act out of order, and leave you reconstructing what happened from a chat log. Theodosia puts the agent on rails. You define the workflow once as a [Burr](https://burr.dagworks.io/) state machine, and Theodosia serves it over [MCP](https://modelcontextprotocol.io/) so the agent can only advance one allowed step at a time, with every step recorded.
 
-Each Burr `@action` is reachable through one `step(action, inputs)` MCP tool. State lives on the server. The server enforces transitions: if the agent calls an action that isn't reachable from the current state, the response is a structured refusal listing the actions that are reachable. Every step is recorded to a replayable trace. The model can be wrong; the model cannot lie about state.
+**The model can be wrong; the model cannot lie about state.**
 
 ![demo](demos/demo.gif)
 
@@ -28,195 +28,62 @@ It removes the structural failures: out-of-order steps, skipped gates, premature
 
 Further reading: [IBM IT-Bench + MAST](https://huggingface.co/blog/ibm-research/itbenchandmast) · [Why Do Multi-Agent LLM Systems Fail? (UC Berkeley)](https://arxiv.org/abs/2503.13657) · [Microsoft AIOpsLab](https://www.microsoft.com/en-us/research/blog/aiopslab-building-ai-agents-for-autonomous-clouds/) · [Grafana o11y-bench](https://o11ybench.ai/)
 
-```python
-from theodosia import mount
-
-server = mount(application)
-server.run()
-```
-
-Full documentation: [msradam.github.io/theodosia](https://msradam.github.io/theodosia/).
-
 ## Install
 
 ```bash
 uv pip install theodosia     # or: pip install theodosia
 ```
 
-From source:
-
-```bash
-git clone git@github.com:msradam/theodosia.git
-cd theodosia
-uv sync
-```
-
-Python 3.11 through 3.13. Optional extras: `theodosia[observability]` (OpenTelemetry), `theodosia[ui]` (Burr web UI), `theodosia[all]`.
+Python 3.11 through 3.13. Optional extras: `theodosia[observability]`, `theodosia[ui]`, `theodosia[all]`.
 
 ## Quickstart
 
-Build a Burr graph, mount it, point an agent at it.
+Define a Burr graph, mount it, point an agent at it.
 
 ```python
-from burr.core import action, ApplicationBuilder, State
-from theodosia import mount, ServingMode
+from theodosia import mount
 
-@action(reads=[], writes=["stage", "item", "qty"])
-def take_order(state: State, item: str, qty: int = 1) -> State:
-    """Place a new coffee order."""
-    return state.update(stage="ordered", item=item, qty=qty)
-
-@action(reads=["stage"], writes=["stage", "paid_amount"])
-def pay(state: State, amount: float) -> State:
-    """Pay for the placed order."""
-    return state.update(stage="paid", paid_amount=amount)
-
-@action(reads=["stage"], writes=["stage"])
-def fulfill(state: State) -> State:
-    """Mark the order fulfilled. Terminal."""
-    return state.update(stage="fulfilled")
-
-app = (
-    ApplicationBuilder()
-    .with_actions(take_order=take_order, pay=pay, fulfill=fulfill)
-    .with_transitions(("take_order", "pay"), ("pay", "fulfill"))
-    .with_state(stage="new")
-    .with_entrypoint("take_order")
-    .build()
-)
-
-mount(app, mode=ServingMode.STEP, name="coffee").run()
+mount(application, name="coffee").run()
 ```
 
-A client that calls `pay` before `take_order` gets a structured refusal:
+A client that calls `pay` before `take_order` gets a structured refusal it can recover from:
 
 ```json
-{
-  "error": "invalid_transition",
-  "valid_next_actions": ["take_order"],
-  "message": "action 'pay' is not reachable from current state. Valid actions now: ['take_order']."
-}
+{ "error": "invalid_transition", "valid_next_actions": ["take_order"] }
 ```
 
-The list of valid actions rides on the response, so a client without its own model of the graph recovers from a single error. The shipped `examples/coffee_order.py` extends this with an `add_modifier` loop and a `cancel` escape, demonstrating loop, branch, and escape on top of the linear path.
+The valid action set rides on every response, so a client with no model of the graph self-corrects. Full walkthrough and the graph definition: [Quickstart and Architecture](https://msradam.github.io/theodosia/architecture/). Runnable graphs in [`examples/`](examples/).
 
-## Why this shape
+## What you can build on it
 
-The four-tool surface (`step`, `reset_session`, `fork_at`, `fork_from_past`) is constant regardless of FSM complexity. The agent reads the action namespace from `theodosia://graph`, calls `step(action=X)`, and the server refuses anything not reachable from the current state. The reachable action set is the graph, enforced at the protocol layer rather than asked of the model. Run `theodosia render <target>` to print that graph in the terminal, or `--mermaid` for a diagram. See [Architecture](https://msradam.github.io/theodosia/architecture/).
+The integration boundary is Burr's `Application`: anything `ApplicationBuilder` supports (typed state, persistence, lifecycle hooks, parallelism, sub-applications, OpenTelemetry) passes through `mount()` with no adapter changes. An action can also reach *other* MCP servers through `call_upstream(...)`, so the graph can drive a filesystem, Kubernetes, or Grafana server while the agent still sees one `step` tool.
 
-This inverts the usual setup: the model sits outside the workflow engine and can only advance through the gated `step` call, instead of your code driving the model. The graph stops skipped, out-of-order, and premature steps, the failure modes IBM Research's [MAST/IT-Bench](https://huggingface.co/blog/ibm-research/itbenchandmast) flags in agent systems, for which it recommends exactly this state-machine fix. It enforces the shape of the work, not the reasoning inside a step.
-
-The integration boundary is Burr's `Application`: anything `ApplicationBuilder` supports (parallelism, persistence, typed state, hooks, telemetry, sub-applications) passes through `mount()` without adapter changes. See [What works through mount()](https://msradam.github.io/theodosia/compatibility/).
+Details: [What works through mount()](https://msradam.github.io/theodosia/compatibility/) · [Driving other MCP servers](https://msradam.github.io/theodosia/upstream/)
 
 ## Observability
 
-Add a tracker to the builder and every step is recorded to JSONL and replayable in the Burr UI:
-
-```python
-from burr.tracking.client import LocalTrackingClient
-
-app = ApplicationBuilder().with_tracker(LocalTrackingClient(project="coffee-demo"))  # ...
-```
+Add a tracker to the builder and every step is recorded to JSONL and replayable in the Burr UI. The agent reads its own trail through `theodosia://` resources; from the terminal the CLI reads the same store (`theodosia sessions show <app-id>`, `theodosia watch`, `theodosia logs --refusals`).
 
 ![sessions](demos/observability.gif)
 
-The agent reads its own audit trail through `theodosia://` resources (`graph`, `state`, `next`, `history`, `trace`, `session`, `subruns`). From the terminal, the CLI reads the same tracker store:
-
-```bash
-theodosia sessions ls                 # recent sessions
-theodosia sessions show <app-id>      # full timeline: per-step state diff + timing
-theodosia watch [app-id]              # live-tail a running session
-theodosia logs --refusals --plain     # only steps that errored, pipe-friendly
-```
-
-![watch](demos/watch.gif)
-
 Full surface (resources, CLI, UI, OpenTelemetry): [Observability](https://msradam.github.io/theodosia/observability/).
 
-## Driving other MCP servers
+## CLI
 
-A Burr action can call tools on *other* MCP servers through Theodosia. Pass `mount(application, upstream={...})` a map of server name to a `fastmcp.Client` transport; inside an action body, `call_upstream(server, tool, args)` forwards to it.
+`theodosia serve` / `doctor` / `render` / `sessions` / `watch` / `logs`. `doctor` statically validates a graph and exits nonzero for CI. A downstream package can ship its own command with `build_cli`, baking in its graph. See [CLI](https://msradam.github.io/theodosia/cli/).
 
-```python
-from theodosia import call_upstream, mount
+## Examples and tests
 
-@action(reads=[], writes=["pods"])
-async def survey(state):
-    pods = await call_upstream("k8s", "list_pods", {"namespace": "prod"})
-    return state.update(pods=pods)
-
-server = mount(build_application, upstream={"k8s": {"command": "npx", "args": ["-y", "kubernetes-mcp-server"]}})
-```
-
-The agent connects to one server (this one) and sees one tool (`step`). The upstream servers are reached from inside actions, so every upstream call advances state. See [Driving other MCP servers](https://msradam.github.io/theodosia/upstream/).
-
-## Shipping your own command
-
-A package that ships an MCP graph can expose its own command with `build_cli`, baking in the graph so `serve` needs no target:
-
-```python
-# my_fsm_mcp/cli.py
-from theodosia.cli import build_cli, run
-from my_fsm_mcp import build_application
-
-cli = build_cli("my-fsm-mcp", application=build_application, help="My graph as an MCP server.")
-
-def main() -> int:
-    return run(cli)
-```
-
-Then `my-fsm-mcp serve`, `my-fsm-mcp doctor`, and `my-fsm-mcp sessions ls` all carry your name. See [CLI](https://msradam.github.io/theodosia/cli/).
-
-## Examples
-
-`examples/` ships self-contained FSMs, each runnable as `uv run python examples/<file>.py` and wireable into a client via the shipped `examples/*.example.json` configs.
-
-- **Pure FSM**: `coffee_order`, `triage`, `adventure`, `chargen`, `incident_response`, `local_shell`, `ml_training`, `subgraphs`.
-- **Typed state, hooks, persistence**: `typed_state_loan`, `pydantic_actions`, `pipeline_hooks`, `async_hooks`, `streaming_hooks`, `sqlite_persister`, `async_persister`, `state_forking`.
-- **Shellout / real tooling**: `unix_health`, `codebase_security`, `git_review`.
-- **LLM-in-the-graph (local model runtime)**: `granite_oncall`, `adaptive_crag`, `granite_guardian`, `mellea_qiskit_migration`.
-- **Caller-LLM / user-in-the-loop**: `caller_sample`, `elicit_confirm`.
-- **Observability**: `with_otel`, `custom_telemetry`, `trace_decorator`, `full_logger`, `with_middleware`.
-- **SKILL-to-FSM**: `security_audit`, `differential_review`, `fp_check`, `webapp_testing`.
-- **Upstream**: `upstream_filesystem` drives the official filesystem MCP server.
-- **Composition**: `multi_graph` serves two graphs from one server via `mount_multi` (namespaced tools + `theodosia://<app>/graph`).
-
-Some demos need a runtime (Ollama with a Granite model; `bandit` / `detect-secrets` on PATH; a git repo). Each refuses at action time with a clear message when its runtime is missing.
-
-## Validate before mounting
-
-```bash
-theodosia doctor module:attr            # static validation
-theodosia doctor module:attr --runtime  # also probe the mounted wire shape
-```
-
-`doctor` exits nonzero on failures, so it slots into CI. Importable too: `from theodosia.doctor import run_checks`.
-
-## Tests
-
-```bash
-uv run pytest
-```
-
-Six hundred and thirty-one tests, most in-process via FastMCP's in-memory client. `tests/smoke/` holds opt-in real-Claude tests (deselected by default).
+[`examples/`](examples/) ships self-contained FSMs (pure-FSM, typed state, hooks, persistence, real shellouts, LLM-in-the-graph, SKILL-to-FSM, upstream, multi-graph), each runnable with `uv run python examples/<file>.py`. `uv run pytest` runs the suite (most tests in-process via FastMCP's in-memory client).
 
 ## Acknowledgements
 
-Theodosia is glue between two libraries that do the hard parts:
-
-- [Apache Burr](https://github.com/apache/burr) provides the state-machine `Application`, the transition graph, and the `LocalTrackingClient` / Burr UI replay.
-- [FastMCP](https://github.com/jlowin/fastmcp) provides the MCP server, the resource and tool transforms, and the client used by the `upstream` feature.
-
-The SKILL demos under `examples/skills/` are reproduced verbatim from Anthropic and Trail of Bits with attribution in each file.
+Theodosia is glue between two libraries that do the hard parts: [Apache Burr](https://github.com/apache/burr) provides the state-machine `Application`, the transition graph, and the tracking UI; [FastMCP](https://github.com/jlowin/fastmcp) provides the MCP server, the transforms, and the client behind `upstream`. The SKILL demos under `examples/skills/` are reproduced verbatim from Anthropic and Trail of Bits with attribution.
 
 On the name: Theodosia was Aaron Burr's daughter, known for her correspondence with him. The project sits in the same family as Burr and reaches it, which is the role it plays here.
 
-Theodosia is an independent project. It is not affiliated with, endorsed by, or sponsored by the Apache Software Foundation, DAGWorks, the Apache Burr project, or the FastMCP project. "Apache Burr" and "FastMCP" are the property of their respective owners and are referenced here only to describe what Theodosia builds on.
+Theodosia is an independent project, not affiliated with or endorsed by the Apache Software Foundation, DAGWorks, the Apache Burr project, or FastMCP. "Apache Burr" and "FastMCP" are referenced only to describe what Theodosia builds on.
 
-## License
+## License and notice
 
-Apache 2.0.
-
-## Notice
-
-Theodosia is independent open-source work by Adam Munawar Rahman and does not represent the views, positions, or technology roadmap of IBM Corporation or any other employer. See [NOTICE.md](NOTICE.md).
+Apache 2.0. Theodosia is independent open-source work by Adam Munawar Rahman and does not represent the views of IBM Corporation or any other employer. See [NOTICE.md](NOTICE.md).
