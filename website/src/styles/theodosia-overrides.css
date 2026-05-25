@@ -46,6 +46,10 @@ h1#_top,
    and restores legible sidebar contrast (links use --sl-color-gray-2). */
 :root[data-theme="light"] {
   --sl-color-white: var(--thd-ink);       /* #0a0a0a - page title, strong text */
+  /* The text colour on a solid-accent surface (active sidebar/TOC item). Must
+     be true white here: remapping --sl-color-white above would otherwise leave
+     it near-black, making the current-page item dark-on-purple = invisible. */
+  --sl-color-text-invert: #ffffff;
   --sl-color-gray-1: #1c1c1a;
   --sl-color-gray-2: #343432;              /* sidebar links - dark, readable */
   --sl-color-gray-3: #565654;              /* secondary text */
@@ -76,15 +80,25 @@ h1#_top,
   --sl-color-text-accent: var(--thd-dark-iris);
 }
 
-/* Sidebar legibility. Links read in body ink; hover and the current page read in
-   the accent with a soft tint behind, so neither is washed out. */
+/* Sidebar legibility. Links read in body ink; hover shows a soft tint; the
+   current page is white on solid accent (readable regardless of which var
+   Starlight reaches for). */
 .sidebar-content a { color: var(--sl-color-gray-2); }
 :root:not([data-theme="light"]) .sidebar-content a { color: var(--sl-color-gray-3); }
-.sidebar-content a:hover { color: var(--sl-color-text-accent); background: var(--sl-color-accent-low); }
-.sidebar-content a[aria-current="page"] {
+.sidebar-content a:hover {
   color: var(--sl-color-text-accent);
   background: var(--sl-color-accent-low);
+}
+.sidebar-content a[aria-current="page"] {
+  color: #ffffff;
+  background: var(--sl-color-text-accent);
   font-weight: 600;
+}
+/* Right-rail table of contents: subtle tint + accent text for the active entry
+   (it was rendering dark-on-solid-accent and disappearing). */
+starlight-toc a[aria-current="true"] {
+  color: var(--sl-color-text-accent);
+  background: var(--sl-color-accent-low);
 }
 
 /* ── Stage accents on callouts ───────────────────────────────────
