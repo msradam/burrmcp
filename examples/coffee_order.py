@@ -32,9 +32,8 @@ from typing import Literal
 
 from burr.core import ApplicationBuilder, State, action
 from burr.core.action import Condition
-from burr.tracking.client import LocalTrackingClient
 
-from theodosia import ServingMode, mount
+from theodosia import ServingMode, mount, tracker
 
 _TRACKER_PROJECT = "coffee-order-demo"
 _BASE_PRICE = 5.0
@@ -126,7 +125,7 @@ def build_application():
             # Post-pay: only fulfill. No refunds.
             ("pay", "fulfill", paid),
         )
-        .with_tracker(LocalTrackingClient(project=_TRACKER_PROJECT))
+        .with_tracker(tracker(project=_TRACKER_PROJECT))
         .with_state(stage="new")
         .with_entrypoint("take_order")
         .build()
