@@ -7,25 +7,25 @@
 
 :root {
   /* ── Surface & ink ─────────────────────────────────────────── */
-  --thd-paper:    #fafafa;  /* page bg — pure neutral, NOT warm cream */
+  --thd-paper:    #fafafa;  /* page bg - pure neutral, NOT warm cream */
   --thd-sheet:    #ffffff;  /* card / panel */
   --thd-raised:   #f5f5f3;  /* overlay, code-block header */
   --thd-edge:     #e6e6e2;  /* hairline borders */
   --thd-rule:     #d4d4cf;  /* stronger dividers, dashed borders */
 
-  --thd-ink:      #0a0a0a;  /* primary text — pure near-black */
+  --thd-ink:      #0a0a0a;  /* primary text - pure near-black */
   --thd-subtle:   #3a3a38;  /* body paragraphs */
   --thd-muted:    #7a7a76;  /* captions, meta, labels */
   --thd-dim:      #a8a8a4;  /* disabled, very low emphasis */
 
   /* ── Accents ───────────────────────────────────────────────── */
-  --thd-pine:       #286983;  /* PRIMARY brand accent — pine teal */
+  --thd-pine:       #286983;  /* PRIMARY brand accent - pine teal */
   --thd-pine-soft:  #3d8aa3;  /* hover/active variant */
   --thd-pine-tint:  #eaf3f6;  /* pill bg, callout bg, inline-code bg */
   --thd-pine-line:  rgba(40,105,131,0.18);
   --thd-foam:       #56949f;  /* support accent */
 
-  --thd-seal:       #7a3c4a;  /* HERITAGE oxblood — seal & section markers only */
+  --thd-seal:       #7a3c4a;  /* HERITAGE oxblood - seal & section markers only */
   --thd-seal-soft:  #a04e5d;
   --thd-seal-tint:  #f6ebed;
   --thd-seal-line:  rgba(122,60,74,0.2);

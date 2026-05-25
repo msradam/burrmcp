@@ -1,4 +1,4 @@
-/* Theodosia v14 — Starlight reskin.
+/* Theodosia v14 - Starlight reskin.
  * Keeps the Rose Pine dark theme (it matches the v14 dark palette and the
  * demo gifs) and rebrands light mode to the v14 neutral-paper + pine-teal
  * register (no warm cream), with the v14 typography across both modes.
@@ -35,15 +35,15 @@ h1#_top,
    surface; gray-1 dark → gray-7 near-bg). This both kills the warm-cream cast
    and restores legible sidebar contrast (links use --sl-color-gray-2). */
 :root[data-theme="light"] {
-  --sl-color-white: var(--thd-ink);       /* #0a0a0a — page title, strong text */
+  --sl-color-white: var(--thd-ink);       /* #0a0a0a - page title, strong text */
   --sl-color-gray-1: #1c1c1a;
-  --sl-color-gray-2: #343432;              /* sidebar links — dark, readable */
+  --sl-color-gray-2: #343432;              /* sidebar links - dark, readable */
   --sl-color-gray-3: #565654;              /* secondary text */
-  --sl-color-gray-4: var(--thd-muted);     /* #7a7a76 — captions/meta */
+  --sl-color-gray-4: var(--thd-muted);     /* #7a7a76 - captions/meta */
   --sl-color-gray-5: #c9c9c4;              /* borders, dim */
   --sl-color-gray-6: #ededea;              /* faint panel bg */
   --sl-color-gray-7: var(--thd-raised);    /* #f5f5f3 */
-  --sl-color-black: var(--thd-paper);      /* #fafafa — page bg */
+  --sl-color-black: var(--thd-paper);      /* #fafafa - page bg */
 
   --sl-color-bg: var(--thd-paper);
   --sl-color-bg-nav: var(--thd-paper);
