@@ -1,4 +1,7 @@
-# Architecture
+---
+title: 'Architecture'
+description: 'How mount() turns a Burr Application into an MCP server.'
+---
 
 How `mount()` turns a Burr `Application` into an MCP server, and the load-bearing
 internals behind the four-tool surface.

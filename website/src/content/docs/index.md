@@ -1,4 +1,7 @@
-# BurrMCP
+---
+title: 'BurrMCP'
+description: 'Mount Burr state-machine Applications as MCP servers.'
+---
 
 BurrMCP gives an AI agent a stateful, auditable workflow it cannot step outside
 of. You define the workflow as a [Burr](https://burr.dagworks.io/) state machine;

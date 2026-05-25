@@ -1,4 +1,7 @@
-# What works through `mount()`
+---
+title: 'What works through mount()'
+description: 'Burr surfaces that pass through the adapter.'
+---
 
 The integration boundary is Burr's `Application`. Anything supported by
 `ApplicationBuilder` passes through `mount()` without adapter changes, including
