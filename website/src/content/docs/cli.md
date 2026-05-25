@@ -133,3 +133,42 @@ cli = build_cli(
 ```
 
 See [Driving other MCP servers](upstream.md) for the action-body side.
+## Drive it from any MCP client
+
+`burrmcp serve module:attr` is a stdio MCP server, so any MCP client can launch
+it. The same server is driven by each client through its own config mechanism.
+Verified against a fresh `pip install burrmcp`:
+
+```bash
+# fast-agent (Python REPL). Define the server in fastagent.config.yaml:
+#   mcp: { servers: { vending: { command: burrmcp, args: [serve, vending:build_application] } } }
+uvx fast-agent-mcp go --servers vending -m "Buy a soda: choose, pay 2 dollars, dispense."
+
+# Claude Code (reads .mcp.json's mcpServers block):
+claude -p "Buy a soda: choose, pay 2 dollars, dispense." \
+  --mcp-config .mcp.json --allowedTools mcp__vending__step
+
+# Gemini CLI (reads .gemini/settings.json, same mcpServers schema):
+GEMINI_CLI_TRUST_WORKSPACE=true gemini --yolo \
+  -p "Buy a soda: choose, pay 2 dollars, dispense."
+```
+
+Claude and Gemini share the same `mcpServers` block (command + args), just in
+different files (`.mcp.json` vs `.gemini/settings.json`). fast-agent uses its own
+`fastagent.config.yaml`. Gemini's headless mode needs
+`GEMINI_CLI_TRUST_WORKSPACE=true` to clear its folder-trust gate.
+
+## Multiple graphs
+
+Two ways to serve more than one graph:
+
+- **Separate servers.** Run one `burrmcp serve` per graph. Each is an
+  independent MCP server with its own state, history, and `burr://` resources.
+  The URI `burr://graph` is identical on every server but is read against a
+  specific server connection, so there is no collision; the client namespaces
+  tools by server (`mcp__coffee__step` vs `mcp__triage__step`).
+- **One server, `mount_multi`.** `mount_multi({"coffee": ..., "triage": ...})`
+  composes several graphs into one server. Tools become `coffee_step` /
+  `triage_step`, and resources carry the namespace in the URI:
+  `burr://coffee/graph`, `burr://triage/next`. A parent `burr://apps` resource
+  lists the mounted names.
