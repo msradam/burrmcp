@@ -2,6 +2,8 @@
 
 [![PyPI](https://img.shields.io/pypi/v/theodosia.svg)](https://pypi.org/project/theodosia/)
 [![Python](https://img.shields.io/pypi/pyversions/theodosia.svg)](https://pypi.org/project/theodosia/)
+[![CI](https://github.com/msradam/theodosia/actions/workflows/ci.yml/badge.svg)](https://github.com/msradam/theodosia/actions/workflows/ci.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/msradam/theodosia/badge)](https://scorecard.dev/viewer/?uri=github.com/msradam/theodosia)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Docs](https://img.shields.io/badge/docs-msradam.github.io%2Ftheodosia-573e8a.svg)](https://msradam.github.io/theodosia/)
 [![Built on Apache Burr](https://img.shields.io/badge/built%20on-Apache%20Burr-573e8a.svg)](https://github.com/apache/burr)
@@ -100,6 +102,7 @@ Full docs at **[msradam.github.io/theodosia](https://msradam.github.io/theodosia
 | [Architecture](https://msradam.github.io/theodosia/architecture/) | The four-tool surface, structured refusals, how `mount()` drives Burr |
 | [What works through mount()](https://msradam.github.io/theodosia/compatibility/) | Typed state, persistence, hooks, parallelism, sub-applications, telemetry |
 | [Observability](https://msradam.github.io/theodosia/observability/) | The `theodosia://` resources, the CLI, the Burr UI, OpenTelemetry |
+| [Security model](https://msradam.github.io/theodosia/security-model/) | The agent trust boundary: what Theodosia enforces, and what it does not |
 | [Driving other MCP servers](https://msradam.github.io/theodosia/upstream/) | `upstream`: a Burr action calling tools on other MCP servers |
 | [CLI](https://msradam.github.io/theodosia/cli/) | `serve` / `doctor` / `render` / `sessions` / `watch` / `logs`, and `build_cli` |
 

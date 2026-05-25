@@ -37,6 +37,7 @@ export default defineConfig({
 						{ label: 'Architecture', slug: 'architecture' },
 						{ label: 'Refusals and recovery', slug: 'refusals' },
 						{ label: 'Sessions and forking', slug: 'sessions' },
+						{ label: 'Security model', slug: 'security-model' },
 					],
 				},
 				{
