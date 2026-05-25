@@ -3,8 +3,8 @@
 [![PyPI](https://img.shields.io/pypi/v/theodosia.svg)](https://pypi.org/project/theodosia/)
 [![Python](https://img.shields.io/pypi/pyversions/theodosia.svg)](https://pypi.org/project/theodosia/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![Docs](https://img.shields.io/badge/docs-msradam.github.io%2Ftheodosia-31748f.svg)](https://msradam.github.io/theodosia/)
-[![Built on Apache Burr](https://img.shields.io/badge/built%20on-Apache%20Burr-31748f.svg)](https://github.com/apache/burr)
+[![Docs](https://img.shields.io/badge/docs-msradam.github.io%2Ftheodosia-573e8a.svg)](https://msradam.github.io/theodosia/)
+[![Built on Apache Burr](https://img.shields.io/badge/built%20on-Apache%20Burr-573e8a.svg)](https://github.com/apache/burr)
 [![Built on FastMCP](https://img.shields.io/badge/built%20on-FastMCP-c4a7e7.svg)](https://github.com/jlowin/fastmcp)
 
 **Theodosia puts an AI agent on rails.** You define a workflow once as a [Burr](https://burr.dagworks.io/) state machine, and Theodosia serves it over [MCP](https://modelcontextprotocol.io/) so the agent can only take the next allowed step, with every step recorded and replayable. The model can be wrong; the model cannot lie about state.
@@ -16,7 +16,7 @@
 | What you get | Why it holds |
 |---|---|
 | **Stays on the rails** | The server enforces the graph. An unreachable action returns a structured refusal listing the ones that are reachable, and the agent self-corrects from it. |
-| **Auditable by default** | Every step, its inputs, the state change, refusals, and timing, recorded to a replayable trace through Burr's tracker and UI. |
+| **Auditable by default** | Every step, its inputs, the state change, refusals, and timing are recorded to a replayable trace through Burr's tracker and UI. |
 | **One portable contract** | Drive the same graph from your own Python or hand it to an external LLM over MCP. The workflow is a versioned artifact, not tied to either. |
 | **Built on mature parts** | Apache Burr is the workflow engine; FastMCP is the MCP layer. Theodosia is the thin layer that makes one drive the other. |
 
@@ -48,7 +48,7 @@ from theodosia import mount
 mount(application, name="coffee").run()   # `application` is any Burr Application
 ```
 
-A client that calls `pay` before `take_order` gets a refusal it can recover from, the valid actions ride on every response:
+A client that calls `pay` before `take_order` gets a refusal it can recover from: the valid actions ride on every response.
 
 ```json
 { "error": "invalid_transition", "valid_next_actions": ["take_order"] }

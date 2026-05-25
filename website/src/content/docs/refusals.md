@@ -9,7 +9,7 @@ every refusal carries `valid_next_actions`, the list of actions reachable from
 the current state. An agent with no model of the graph can read that list and
 correct itself in one turn.
 
-There are four refusal shapes, distinguished by the `error` field.
+There are five refusal shapes, distinguished by the `error` field.
 
 ## `invalid_transition`
 
@@ -27,6 +27,20 @@ blocked it before the action body ran, so no state changed.
 
 This is the load-bearing refusal: it is how the state machine enforces order.
 The agent retries with one of `valid_next_actions`.
+
+## `unknown_action`
+
+The requested action is not in the FSM at all (a typo or a hallucinated verb),
+as opposed to `invalid_transition`, where the action exists but is not reachable
+yet. The response carries `known_actions`, every action name in the graph.
+
+```json
+{
+  "error": "unknown_action",
+  "requested": "tako_order",
+  "known_actions": ["take_order", "add_modifier", "pay", "fulfill", "cancel"]
+}
+```
 
 ## `validation_failed`
 

@@ -81,8 +81,9 @@ scope. Each entry holds the Application built lazily on first touch, a
 per-session `asyncio.Lock`, and the history and subrun records.
 
 Eviction is lazy: stale entries are dropped on the next access, not on a
-background timer. `session_ttl_seconds` and `max_sessions` both default to live
-values and either can be set to `None` to disable that form of eviction.
+background timer. `session_ttl_seconds` (default 3600) and `max_sessions`
+(default 100) each cap the store; set either to `None` to disable that form of
+eviction.
 
 FastMCP's `ctx.set_state(serializable=False)` is request-scoped, not
 session-scoped, so it is not suitable for caching the Application across calls in
