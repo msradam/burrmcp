@@ -1,0 +1,83 @@
+/* Theodosia · Design Tokens · v14
+ * ============================================
+ * Drop into src/styles/theodosia.css and import from src/content/docs/_layout or
+ * astro.config.mjs (Starlight customCss). Override Starlight tokens by reassigning
+ * --sl-color-* to these values in a sibling starlight-overrides.css file.
+ */
+
+:root {
+  /* ── Surface & ink ─────────────────────────────────────────── */
+  --thd-paper:    #fafafa;  /* page bg — pure neutral, NOT warm cream */
+  --thd-sheet:    #ffffff;  /* card / panel */
+  --thd-raised:   #f5f5f3;  /* overlay, code-block header */
+  --thd-edge:     #e6e6e2;  /* hairline borders */
+  --thd-rule:     #d4d4cf;  /* stronger dividers, dashed borders */
+
+  --thd-ink:      #0a0a0a;  /* primary text — pure near-black */
+  --thd-subtle:   #3a3a38;  /* body paragraphs */
+  --thd-muted:    #7a7a76;  /* captions, meta, labels */
+  --thd-dim:      #a8a8a4;  /* disabled, very low emphasis */
+
+  /* ── Accents ───────────────────────────────────────────────── */
+  --thd-pine:       #286983;  /* PRIMARY brand accent — pine teal */
+  --thd-pine-soft:  #3d8aa3;  /* hover/active variant */
+  --thd-pine-tint:  #eaf3f6;  /* pill bg, callout bg, inline-code bg */
+  --thd-pine-line:  rgba(40,105,131,0.18);
+  --thd-foam:       #56949f;  /* support accent */
+
+  --thd-seal:       #7a3c4a;  /* HERITAGE oxblood — seal & section markers only */
+  --thd-seal-soft:  #a04e5d;
+  --thd-seal-tint:  #f6ebed;
+  --thd-seal-line:  rgba(122,60,74,0.2);
+
+  --thd-gold:       #ea9d34;  /* current state in diagrams; warnings */
+  --thd-gold-tint:  #fcefd5;
+  --thd-love:       #b4637a;  /* refused transitions; error states (NOT bright red) */
+  --thd-love-tint:  #f6e8ec;
+  --thd-sage:       #5b8d68;  /* allowed / success */
+  --thd-sage-tint:  #e8efe9;
+
+  /* ── Dark surface (product / terminal / asciinema) ────────── */
+  --thd-slate-0:    #10131c;  /* terminal bg */
+  --thd-slate-1:    #161a23;
+  --thd-slate-2:    #1d212d;
+  --thd-slate-edge: #2a2f3c;
+  --thd-dark-text:  #e0def4;
+  --thd-dark-muted: #6e6a86;
+  --thd-dark-foam:  #9ccfd8;  /* primary on dark */
+  --thd-dark-iris:  #c4a7e7;  /* code keyword on dark */
+  --thd-dark-rose:  #ebbcba;  /* code string on dark */
+  --thd-dark-gold:  #f6c177;  /* current state on dark */
+  --thd-dark-love:  #eb6f92;  /* refused on dark */
+
+  /* ── Geometry ──────────────────────────────────────────────── */
+  --thd-r-sm:    6px;
+  --thd-r-md:    10px;
+  --thd-r-lg:    16px;
+  --thd-r-pill:  999px;
+
+  --thd-shadow-card: 0 1px 2px rgba(10,10,10,0.04), 0 4px 12px rgba(10,10,10,0.04);
+  --thd-shadow-node: 0 1px 1px rgba(10,10,10,0.05), 0 2px 6px rgba(10,10,10,0.05);
+
+  /* ── Type ──────────────────────────────────────────────────── */
+  --thd-display: "Inria Serif", "Iowan Old Style", Georgia, serif;
+  --thd-sans:    "Funnel Sans", -apple-system, system-ui, sans-serif;
+  --thd-mono:    "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
+
+  /* ── Canvas grid (apply to body::before) ───────────────────── */
+  --thd-canvas-grid: radial-gradient(circle at 1px 1px, rgba(10,10,10,0.04) 1px, transparent 0);
+  --thd-canvas-grid-size: 24px 24px;
+}
+
+/* Starlight token overrides — see starlight.css for full mapping */
+:root {
+  --sl-color-bg:         var(--thd-paper);
+  --sl-color-bg-nav:     var(--thd-paper);
+  --sl-color-bg-sidebar: var(--thd-raised);
+  --sl-color-text:       var(--thd-ink);
+  --sl-color-text-accent:var(--thd-pine);
+  --sl-color-accent:     var(--thd-pine);
+  --sl-color-accent-low: var(--thd-pine-tint);
+  --sl-font:             var(--thd-sans);
+  --sl-font-system-mono: var(--thd-mono);
+}
