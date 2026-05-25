@@ -97,7 +97,9 @@ async def test_unknown_subrun_id_returns_error():
     async with Client(server) as client:
         # Step at least once so the session has an entry.
         await client.call_tool("step", {"action": "investigate", "inputs": {"source": "x"}})
-        detail = json.loads((await client.read_resource("theodosia://subruns/sub-doesnotexist"))[0].text)
+        detail = json.loads(
+            (await client.read_resource("theodosia://subruns/sub-doesnotexist"))[0].text
+        )
         assert detail["error"] == "unknown_subrun"
         assert detail["subrun_id"] == "sub-doesnotexist"
 
