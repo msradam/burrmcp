@@ -24,12 +24,33 @@ export default defineConfig({
 				starlightClientMermaid(),
 			],
 			sidebar: [
-				{ label: 'Home', slug: 'index' },
-				{ label: 'Architecture', slug: 'architecture' },
-				{ label: 'What works through mount()', slug: 'compatibility' },
-				{ label: 'Observability', slug: 'observability' },
-				{ label: 'Driving other MCP servers', slug: 'upstream' },
-				{ label: 'CLI', slug: 'cli' },
+				{
+					label: 'Start',
+					items: [{ label: 'Authoring a graph', slug: 'authoring' }],
+				},
+				{
+					label: 'Concepts',
+					items: [
+						{ label: 'Architecture', slug: 'architecture' },
+						{ label: 'Refusals and recovery', slug: 'refusals' },
+						{ label: 'Sessions and forking', slug: 'sessions' },
+					],
+				},
+				{
+					label: 'Reference',
+					items: [
+						{ label: 'MCP tools and resources', slug: 'tools' },
+						{ label: 'CLI', slug: 'cli' },
+					],
+				},
+				{
+					label: 'Integration',
+					items: [
+						{ label: 'What works through mount()', slug: 'compatibility' },
+						{ label: 'Driving other MCP servers', slug: 'upstream' },
+						{ label: 'Observability', slug: 'observability' },
+					],
+				},
 			],
 		}),
 	],

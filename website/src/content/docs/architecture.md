@@ -101,10 +101,3 @@ advertised schema (so the schema must accept the string form) and it serializes
 nested-object arguments as JSON strings (so the middleware must coerce them
 before the action body runs).
 
-## Stashed serving modes
-
-`TOOLS` (one MCP tool per action, no enforcement) and `DYNAMIC` (per-session
-`tools/list_changed` visibility) were carved out into
-`src/theodosia/_experimental/modes.py` once STEP became the sole product. The
-`ServingMode` enum keeps `STEP` as its only member. Reviving either mode is a
-contained change; see that module's docstring.
