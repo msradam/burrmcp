@@ -162,6 +162,7 @@ Then `my-fsm-mcp serve`, `my-fsm-mcp doctor`, and `my-fsm-mcp sessions ls` all c
 - **Observability**: `with_otel`, `custom_telemetry`, `trace_decorator`, `full_logger`, `with_middleware`.
 - **SKILL-to-FSM**: `security_audit`, `differential_review`, `fp_check`, `webapp_testing`.
 - **Upstream**: `upstream_filesystem` drives the official filesystem MCP server.
+- **Composition**: `multi_graph` serves two graphs from one server via `mount_multi` (namespaced tools + `burr://<app>/graph`).
 
 Some demos need a runtime (Ollama with a Granite model; `bandit` / `detect-secrets` on PATH; a git repo). Each refuses at action time with a clear message when its runtime is missing.
 
