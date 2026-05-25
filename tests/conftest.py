@@ -16,8 +16,21 @@ setting wins.
 from __future__ import annotations
 
 # Make examples importable without an editable install of the examples dir.
+import os
 import sys
 from pathlib import Path
+
+# Typer renders help through Rich. With color on, Rich styles an option as
+# separate spans ("-\x1b[0m\x1b[1m-mode"), so substring assertions like
+# `"--mode" in output` fail; they pass locally only because Rich emits plain
+# text to a non-tty. CI forces color, so pin plain output here: drop the
+# force-color vars (they beat NO_COLOR), set NO_COLOR, and pin a wide width
+# so nothing wraps. Makes help text deterministic regardless of environment.
+for _force in ("FORCE_COLOR", "CLICOLOR_FORCE"):
+    os.environ.pop(_force, None)
+os.environ["NO_COLOR"] = "1"
+os.environ["TERM"] = "dumb"
+os.environ["COLUMNS"] = "200"
 
 import pytest
 
