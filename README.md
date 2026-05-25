@@ -9,7 +9,9 @@
 
 **Theodosia puts an AI agent on rails.** You define a workflow once as a [Burr](https://burr.dagworks.io/) state machine, and Theodosia serves it over [MCP](https://modelcontextprotocol.io/) so the agent can only take the next allowed step, with every step recorded and replayable. The model can be wrong; the model cannot lie about state.
 
-![demo](demos/demo.gif)
+![A real Kimi K2.6 run driven through a gated SRE incident investigation by Theodosia](demos/hero.gif)
+
+*An open 1T-parameter model (Kimi K2.6) investigating a live incident on rails: each Grafana query is recorded as evidence, out-of-budget and out-of-phase calls are refused, and the conclusion stays gated until the evidence cross-references. The investigation FSM ([Phoebe](https://github.com/msradam/phoebe)) is the workflow; Theodosia is what makes the model drive it.*
 
 | | |
 |---|---|
@@ -51,6 +53,10 @@ A client that calls `pay` before `take_order` gets a refusal it can recover from
 ```json
 { "error": "invalid_transition", "valid_next_actions": ["take_order"] }
 ```
+
+A smaller example, the same mechanism: an agent ordering coffee, refused when it tries to pay before ordering and recovering from the refusal.
+
+![A coffee-order FSM driven over MCP, with a refusal and recovery](demos/demo.gif)
 
 ---
 
