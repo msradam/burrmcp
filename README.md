@@ -7,9 +7,9 @@
 [![Built on Apache Burr](https://img.shields.io/badge/built%20on-Apache%20Burr-31748f.svg)](https://github.com/apache/burr)
 [![Built on FastMCP](https://img.shields.io/badge/built%20on-FastMCP-c4a7e7.svg)](https://github.com/jlowin/fastmcp)
 
-Theodosia gives an AI agent a stateful, auditable workflow it cannot step outside of. You define the workflow as a [Burr](https://burr.dagworks.io/) state machine; Theodosia serves it over [MCP](https://modelcontextprotocol.io/) so the agent advances it one transition at a time.
+Theodosia gives an AI agent a stateful, auditable workflow it cannot step outside of. You define the workflow as a [Burr](https://burr.dagworks.io/) state machine; Theodosia serves it over [MCP](https://modelcontextprotocol.io/) so the agent advances it one transition at a time. Burr is the graph engine, MCP is the wire, and Theodosia is the layer between them.
 
-Each Burr `@action` is reachable through one `step(action, inputs)` MCP tool. State lives on the server. The server enforces transitions: if the agent calls an action that isn't reachable from the current state, the response is a structured refusal listing the actions that are reachable. Every step is recorded to a replayable trace.
+Each Burr `@action` is reachable through one `step(action, inputs)` MCP tool. State lives on the server. The server enforces transitions: if the agent calls an action that isn't reachable from the current state, the response is a structured refusal listing the actions that are reachable. Every step is recorded to a replayable trace. The model can be wrong; the model cannot lie about state.
 
 ![demo](demos/demo.gif)
 
@@ -88,6 +88,8 @@ The list of valid actions rides on the response, so a client without its own mod
 ## Why this shape
 
 The four-tool surface (`step`, `reset_session`, `fork_at`, `fork_from_past`) is constant regardless of FSM complexity. The agent reads the action namespace from `theodosia://graph`, calls `step(action=X)`, and the server refuses anything not reachable from the current state. The reachable action set is the graph, enforced at the protocol layer rather than asked of the model. Run `theodosia render <target>` to print that graph in the terminal, or `--mermaid` for a diagram. See [Architecture](https://msradam.github.io/theodosia/architecture/).
+
+This inverts the usual setup. In most frameworks your code drives the workflow and the model runs inside it; here the model is outside the engine and may only advance through the gated `step` call. What that buys is structural: the graph prevents out-of-order calls, skipped gates, and premature termination, and it bounds the action set the agent can choose from. What it does not buy is correctness inside a step. If an action verifies something and the model misreads the result, the transition is still legal. Theodosia enforces the shape of the work, not the quality of the reasoning, and the line between those is worth being honest about.
 
 The integration boundary is Burr's `Application`: anything `ApplicationBuilder` supports (parallelism, persistence, typed state, hooks, telemetry, sub-applications) passes through `mount()` without adapter changes. See [What works through mount()](https://msradam.github.io/theodosia/compatibility/).
 
@@ -191,6 +193,8 @@ Theodosia is glue between two libraries that do the hard parts:
 - [FastMCP](https://github.com/jlowin/fastmcp) provides the MCP server, the resource and tool transforms, and the client used by the `upstream` feature.
 
 The SKILL demos under `examples/skills/` are reproduced verbatim from Anthropic and Trail of Bits with attribution in each file.
+
+On the name: Theodosia was Aaron Burr's daughter, known for her correspondence with him. The project sits in the same family as Burr and reaches it, which is the role it plays here.
 
 Theodosia is an independent project. It is not affiliated with, endorsed by, or sponsored by the Apache Software Foundation, DAGWorks, the Apache Burr project, or the FastMCP project. "Apache Burr" and "FastMCP" are the property of their respective owners and are referenced here only to describe what Theodosia builds on.
 
