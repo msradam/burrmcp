@@ -42,6 +42,15 @@ config. `playground.py` loads `incident.app`, prints the resolved MCP config,
 mounts it, drives it over the `step` tool (with a refusal), and chains every
 attempt into the ledger.
 
+**Rebranding the CLI from a `.app`.** The frontmatter also takes a `cli:` block
+(`prog_name`, `ui_extra`, `home`, `help`), and `build_cli_from_appfile(path)`
+feeds it to `build_cli`. A shell command (`incident serve`) still needs a
+console-script entry point (a bare file cannot register a global command), but
+that entry point is one line: `run(build_cli_from_appfile("incident.app"))`. So
+one `.app` drives three front doors, all funneling to the same `mount()`:
+`theodosia serve incident.app` (no package), `incident serve` (rebranded), and
+programmatic `mount()`.
+
 **Verdict: works, and the bundling is the value.** One artifact carries the
 workflow and the entire MCP-server definition, which is exactly what Burr alone
 has no reason to provide.

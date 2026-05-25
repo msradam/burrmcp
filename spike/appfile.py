@@ -93,3 +93,37 @@ def serve_appfile(path: str | Path):
 
     target, meta, ns = load_app(path)
     return mount(target, **mount_kwargs(meta, ns))
+
+
+def build_cli_from_appfile(path: str | Path):
+    """Build a rebranded Theodosia CLI straight from a .app file.
+
+    A shell command (`phoebe serve`) still needs a console-script entry point in
+    pyproject, but that entry point collapses to one line:
+
+        # phoebe/_cli.py
+        from spike.appfile import build_cli_from_appfile
+        from theodosia.cli import run
+        def main() -> int:
+            return run(build_cli_from_appfile("phoebe.app"))
+
+    The .app's `cli:` block (prog_name, ui_extra, home, help) supplies the
+    branding; the graph and mount config come from the same file. One artifact
+    drives `theodosia serve phoebe.app`, `phoebe serve`, and programmatic mount.
+    """
+    from theodosia.cli import build_cli
+
+    target, meta, _ns = load_app(path)
+    cli = meta.get("cli") or {}
+    kwargs: dict[str, Any] = {
+        "application": target,
+        "help": cli.get("help") or meta.get("instructions") or meta.get("description"),
+        "server_name": meta.get("name"),
+    }
+    if "upstream" in meta:
+        kwargs["upstream"] = meta["upstream"]
+    if "ui_extra" in cli:
+        kwargs["ui_extra"] = cli["ui_extra"]
+    if "home" in cli:
+        kwargs["home"] = cli["home"]
+    return build_cli(cli.get("prog_name") or meta.get("name") or "app", **kwargs)

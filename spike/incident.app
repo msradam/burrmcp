@@ -1,6 +1,7 @@
 ---
 # The graph is below in Python. This frontmatter is the part Burr does not have:
-# how Theodosia should serve the graph as an MCP server.
+# how Theodosia should serve the graph as an MCP server, and how to rebrand the
+# CLI if you ship this as your own command.
 name: incident
 instructions: >
   Incident-response workflow. Acknowledge, then verify, then resolve;
@@ -12,6 +13,11 @@ upstream:
   fs:
     command: npx
     args: ["-y", "@modelcontextprotocol/server-filesystem", "."]
+# cli: rebrand the Theodosia CLI when shipped as a package (e.g. `incident serve`)
+cli:
+  prog_name: incident
+  ui_extra: "incident[ui]"
+  home: "~/.incident"
 ---
 from burr.core import ApplicationBuilder, Condition, action
 
@@ -32,7 +38,7 @@ def resolve(state):
 
 
 # Picked up by name and passed to mount(input_validators=...). A callable cannot
-# live in YAML, so the MCP-server config that *is* code stays in the body.
+# live in YAML, so the parts of the MCP-server config that are code stay here.
 input_validators = {}
 
 
