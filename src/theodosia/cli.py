@@ -521,6 +521,39 @@ class StepRow:
     state_summary: dict[str, Any]
 
 
+def _read_refusals(log_path: Path) -> list[StepRow]:
+    """Read the refusals.jsonl sidecar (written by the adapter) next to the
+    tracker log. These are blocked transitions the agent attempted; Burr's own
+    log never sees them because the action never ran."""
+    sidecar = log_path.parent / "refusals.jsonl"
+    if not sidecar.exists():
+        return []
+    rows: list[StepRow] = []
+    with sidecar.open(encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            reason = rec.get("refusal_reason") or "refused"
+            msg = rec.get("error_message")
+            rows.append(
+                StepRow(
+                    seq=rec.get("seq", -1),
+                    action=rec.get("action", "?"),
+                    started=rec.get("ts", ""),
+                    duration_ms=None,
+                    status="error",
+                    error_summary=f"{reason}: {msg}" if msg else reason,
+                    state_summary={},
+                )
+            )
+    return rows
+
+
 def _read_steps(log_path: Path) -> list[StepRow]:
     """Pair begin/end entries from a Burr tracker JSONL into rows."""
     begins: dict[int, dict] = {}
@@ -1015,7 +1048,8 @@ def logs(
     log_path, _proj, _aid = _resolve_app(home, project, app_id)
     rows = _read_steps(log_path)
     if refusals_only:
-        rows = [r for r in rows if r.status == "error"]
+        rows = [r for r in rows if r.status == "error"] + _read_refusals(log_path)
+        rows.sort(key=lambda r: (r.started, r.seq))
     if not rows:
         console.print("[muted](no steps)[/]" if not plain else "(no steps)")
         return
@@ -1050,6 +1084,19 @@ def logs(
 
 
 # == CLI assembly =====================================================
+
+
+def _version_callback(value: bool) -> None:
+    if not value:
+        return
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        v = version("theodosia")
+    except PackageNotFoundError:
+        v = "unknown"
+    console.print(f"theodosia {v}")
+    raise typer.Exit()
 
 
 def build_cli(
@@ -1128,6 +1175,19 @@ def build_cli(
     cli.command()(ui)
     cli.command()(watch)
     cli.command()(logs)
+
+    @cli.callback()
+    def _root(
+        version: bool = typer.Option(
+            False,
+            "--version",
+            callback=_version_callback,
+            is_eager=True,
+            help="Show version and exit.",
+        ),
+    ) -> None:
+        pass
+
     return cli
 
 

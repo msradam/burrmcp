@@ -277,3 +277,41 @@ def test_exception_summary_extracts_message_not_traceback_tail():
         "ValueError: qty must be >= 1; got 0"
     )
     assert _exception_summary(tb) == "ValueError: qty must be >= 1; got 0"
+
+
+# == refusal sidecar (durable invalid_transition trail) ===============
+
+
+def test_read_refusals_reads_sidecar(tmp_path):
+    log = tmp_path / "proj" / "app-1" / "log.jsonl"
+    log.parent.mkdir(parents=True)
+    sidecar = log.parent / "refusals.jsonl"
+    sidecar.write_text(
+        json.dumps(
+            {
+                "seq": 2,
+                "action": "resolve",
+                "ts": "2026-05-24T12:00:01.000000",
+                "refused": True,
+                "refusal_reason": "invalid_transition",
+                "error_message": "not reachable from current state",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    from theodosia.cli import _read_refusals
+
+    rows = _read_refusals(log)
+    assert len(rows) == 1
+    assert rows[0].action == "resolve"
+    assert rows[0].status == "error"
+    assert "invalid_transition" in rows[0].error_summary
+
+
+def test_read_refusals_absent_sidecar_is_empty(tmp_path):
+    from theodosia.cli import _read_refusals
+
+    log = tmp_path / "proj" / "app-1" / "log.jsonl"
+    log.parent.mkdir(parents=True)
+    assert _read_refusals(log) == []
