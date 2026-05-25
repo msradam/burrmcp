@@ -54,17 +54,17 @@ bootstraps via `uvx`. Permanent install: `uv pip install 'burrmcp[ui]'`.
 graph baked in so `serve`/`doctor` need no target.
 
 ```python
-# mygraph/cli.py
+# my_fsm_mcp/cli.py
 from burrmcp.cli import build_cli, run
-from mygraph import build_application
+from my_fsm_mcp import build_application
 
 cli = build_cli(
-    "mygraph",
+    "my-fsm-mcp",
     application=build_application,   # Application, factory, or "module:attr"
     help="My graph as an MCP server.",
-    server_name="mygraph",           # default MCP server name
-    ui_extra="mygraph[ui]",          # named in the `ui` install hint
-    burr_home="~/.mygraph",          # default tracker root for observability
+    server_name="my-fsm-mcp",           # default MCP server name
+    ui_extra="my-fsm-mcp[ui]",          # named in the `ui` install hint
+    burr_home="~/.my-fsm-mcp",          # default tracker root for observability
 )
 
 def main() -> int:
@@ -73,7 +73,7 @@ def main() -> int:
 
 ```toml
 [project.scripts]
-mygraph = "mygraph.cli:main"
+my-fsm-mcp = "my_fsm_mcp.cli:main"
 ```
 
 `run(cli)` wraps the Typer app with the same exit-code handling `burrmcp` uses.

@@ -8,10 +8,10 @@ Output demos/observability.gif
 
 Set Shell "bash"
 Set Theme "rose-pine"
-Set FontSize 13
-Set Width 1180
-Set Height 900
-Set Padding 22
+Set FontSize 16
+Set Width 1200
+Set Height 380
+Set Padding 20
 Set TypingSpeed 28ms
 
 # Suppress the venv prompt, set a fixed one, seed a session off-camera.
