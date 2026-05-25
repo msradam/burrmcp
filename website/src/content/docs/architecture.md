@@ -47,6 +47,17 @@ The action namespace lives in `step`'s `action` argument schema and at
 `theodosia://graph`, not in the tool listing. The listing stays compact; the agent
 learns the verbs from the graph resource.
 
+### The step response
+
+`step` returns two content blocks: a short human-readable summary line (for
+clients that render server logs inline, like `Step 3: verify_usage ✓ → resolve`)
+and a structured JSON payload with the machine-readable result. A programmatic
+client should read the structured payload (FastMCP exposes it as
+`result.structured_content`, or the JSON block of `result.content`), not the
+summary string. Both success and refusal come back on this same shape: a refusal
+is `{"error": "invalid_transition", "valid_next_actions": [...], ...}`, an
+action-body failure is `{"error": "action_error", "error_message": "..."}`.
+
 ## The action-selection trick
 
 Burr's `astep` picks the next action via `app.get_next_action()`, which returns

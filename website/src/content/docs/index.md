@@ -22,6 +22,8 @@ server.run()
 
 ## Pages
 
+- [Authoring a graph](authoring.md): build a Burr Application from scratch and
+  serve it, with the two traps newcomers hit.
 - [Architecture](architecture.md): the four-tool surface, the action-selection
   trick, per-session isolation, input coercion.
 - [Observability](observability.md): the `theodosia://` resources, the terminal CLI,
