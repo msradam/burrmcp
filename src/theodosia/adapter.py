@@ -1127,6 +1127,29 @@ def _record_history(
         record["subrun_uris"] = [f"theodosia://subruns/{sid}" for sid in subruns]
     entry.history.append(record)
     entry.last_access = time.monotonic()
+    if refused and entry.application is not None:
+        _append_refusal_sidecar(entry.application, record)
+
+
+def _append_refusal_sidecar(app: Application, record: dict[str, Any]) -> None:
+    """Persist a refusal next to the Burr tracker log, so the durable audit
+    trail includes blocked transitions, not just executed steps.
+
+    Burr's ``LocalTrackingClient`` only logs actions that ran, so an
+    ``invalid_transition`` (the graph blocking an out-of-order call) never
+    reaches the on-disk log. We append it to a ``refusals.jsonl`` sidecar in the
+    same app directory; ``theodosia logs --refusals`` reads both. No-op when the
+    Application has no local tracker.
+    """
+    log_path = _tracker_log_path(app)
+    if log_path is None:
+        return
+    sidecar = log_path.parent / "refusals.jsonl"
+    try:
+        with sidecar.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record, default=str) + "\n")
+    except OSError:
+        pass
 
 
 def _refusal_payload(
