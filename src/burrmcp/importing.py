@@ -158,7 +158,7 @@ def _build_wrapper(
 
     else:
 
-        def wrapper(state: State, **kwargs: Any) -> State:
+        def wrapper(state: State, **kwargs: Any) -> State:  # type: ignore[misc]
             result = tool_fn(**kwargs)
             return _apply_result(state, result)
 
@@ -254,7 +254,7 @@ async def burr_app_from_fastmcp(
         if spec.rename:
             rename_map[tool.name] = spec.rename
         wrapped = _build_wrapper(
-            tool_fn=tool.fn,
+            tool_fn=tool.fn,  # type: ignore[attr-defined]
             tool_name=tool.name,
             tool_doc=tool.description,
             spec=spec,
@@ -269,7 +269,7 @@ async def burr_app_from_fastmcp(
 
     normalized_transitions = _normalize_transitions(transitions, rename_map)
 
-    builder = (
+    builder: ApplicationBuilder = (
         ApplicationBuilder()
         .with_actions(**burr_actions)
         .with_state(**initial_state)

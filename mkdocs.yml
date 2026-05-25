@@ -1,0 +1,43 @@
+site_name: BurrMCP
+site_description: Mount Burr state-machine Applications as MCP servers.
+site_url: https://msradam.github.io/burrmcp/
+repo_url: https://github.com/msradam/burrmcp
+repo_name: msradam/burrmcp
+docs_dir: docs
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: deep purple
+      accent: deep purple
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - scheme: slate
+      primary: deep purple
+      accent: deep purple
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - search.suggest
+
+nav:
+  - Home: index.md
+  - Architecture: architecture.md
+  - What works through mount(): compatibility.md
+  - Observability: observability.md
+  - Driving other MCP servers: upstream.md
+  - CLI: cli.md
+
+markdown_extensions:
+  - admonition
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - tables

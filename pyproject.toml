@@ -96,6 +96,9 @@ dev = [
     "sf-hamilton>=1.0,<2.0",
     "claude-agent-sdk>=0.2.82",
 ]
+docs = [
+    "mkdocs-material>=9.5",
+]
 
 [tool.ruff]
 target-version = "py311"
@@ -117,6 +120,15 @@ select = ["E", "F", "W", "I", "B", "C4", "UP", "SIM", "RUF", "PERF", "PIE", "RET
 
 [tool.ruff.format]
 quote-style = "double"
+
+[tool.mypy]
+python_version = "3.11"
+# apache-burr and fastmcp ship no type stubs, so strict import-following
+# only surfaces third-party shape noise, not real defects here.
+ignore_missing_imports = true
+# Stashed serving modes, preserved verbatim for revival; not on the
+# import path and not held to the type gate.
+exclude = ["_experimental/"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

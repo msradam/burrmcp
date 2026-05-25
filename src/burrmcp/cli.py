@@ -69,19 +69,28 @@ _THEME = Theme(
 console = Console(theme=_THEME)
 err_console = Console(stderr=True, theme=_THEME)
 
-app = typer.Typer(
-    name="burrmcp",
-    help="Mount a Burr Application as an MCP server, with rich terminal observability.",
-    no_args_is_help=True,
-    add_completion=False,
-)
+_DEFAULT_HELP = "Mount a Burr Application as an MCP server, with rich terminal observability."
 
-sessions_app = typer.Typer(
-    name="sessions",
-    help="Inspect Burr tracker storage: list, show, or live-tail a session.",
-    no_args_is_help=True,
-)
-app.add_typer(sessions_app, name="sessions")
+
+@dataclass
+class _Branding:
+    """Per-CLI configuration set by ``build_cli``.
+
+    A downstream package that ships its own command (``mygraph serve``)
+    stamps its name, bakes in its graph so ``serve``/``doctor`` need no
+    target, and points the observability commands at its tracker store.
+    A console script is its own process and builds exactly one CLI, so a
+    module-level singleton is the right scope.
+    """
+
+    prog_name: str = "burrmcp"
+    application: Any | None = None  # Application, factory, or "module:attr"
+    server_name: str | None = None
+    ui_extra: str = "burrmcp[ui]"
+    burr_home: str | Path | None = None  # default tracker storage_dir
+
+
+_BRANDING = _Branding()
 
 
 # == target import (shared by serve + doctor) =========================
@@ -112,20 +121,44 @@ def _import_target(target: str, extra_paths: list[str] | None = None) -> Any:
     return getattr(module, attr)
 
 
-# == serve / doctor / ui (preserved API) =============================
+def _resolve_serve_target(target: str | None, app_dir: list[str]) -> tuple[Any, str]:
+    """Resolve the Application (or factory) to serve, plus a default name.
+
+    ``target`` wins when given; otherwise fall back to a graph baked in via
+    ``build_cli(application=...)``. The baked-in value may be an object, a
+    factory, or a ``module:attr`` string.
+    """
+    src = _BRANDING.application if target is None else target
+    if src is None:
+        raise SystemExit(
+            "serve needs a target in module:attr form (e.g. coffee_order:build_application), "
+            "or a graph baked in via build_cli(application=...)."
+        )
+    if isinstance(src, str):
+        return _import_target(src, app_dir), src.split(":", 1)[0].split(".")[-1]
+    return src, _BRANDING.server_name or _BRANDING.prog_name
 
 
-@app.command()
+def _resolve_home(burr_home: Path | None) -> Path:
+    """Tracker storage root: explicit flag, then the build_cli default, then ~/.burr."""
+    chosen = burr_home or _BRANDING.burr_home or (Path.home() / ".burr")
+    return Path(chosen).expanduser()
+
+
+# == serve / doctor / ui ==============================================
+
+
 def serve(
     target: Annotated[
-        str,
+        str | None,
         typer.Argument(
             help=(
                 "Import target in module:attr form. The attr is either a "
-                "burr.core.Application or a callable returning one."
+                "burr.core.Application or a callable returning one. Optional "
+                "when a graph is baked in via build_cli(application=...)."
             ),
         ),
-    ],
+    ] = None,
     mode: Annotated[
         ServingMode,
         typer.Option("--mode", help="Serving mode.", case_sensitive=False),
@@ -149,18 +182,16 @@ def serve(
     ] = None,
 ) -> None:
     """Launch an importable Burr Application or factory as an MCP server."""
-    application_or_factory = _import_target(target, app_dir or [])
-    server_name = name or target.split(":", 1)[0].split(".")[-1]
-    server = mount(application_or_factory, mode=mode, name=server_name)
+    application_or_factory, derived_name = _resolve_serve_target(target, app_dir or [])
+    server = mount(application_or_factory, mode=mode, name=name or derived_name)
     server.run()
 
 
-@app.command()
 def doctor(
     target: Annotated[
-        str,
+        str | None,
         typer.Argument(help="Import target in module:attr form. Same shape as `serve`."),
-    ],
+    ] = None,
     app_dir: Annotated[
         list[str] | None,
         typer.Option("--app-dir", help="Extra sys.path directory before importing."),
@@ -183,14 +214,13 @@ def doctor(
     """Statically validate a Burr Application or factory before mounting."""
     from burrmcp.doctor import format_report, run_checks
 
-    application_or_factory = _import_target(target, app_dir or [])
+    application_or_factory, _ = _resolve_serve_target(target, app_dir or [])
     report = run_checks(application_or_factory, runtime=runtime)
     typer.echo(format_report(report, verbose=verbose))
     if not report.ok:
         raise typer.Exit(code=1)
 
 
-@app.command()
 def ui(
     port: Annotated[int, typer.Option("--port", help="Port for the Burr UI server.")] = 7241,
     host: Annotated[
@@ -205,7 +235,6 @@ def ui(
 
     Prefers the local install if apache-burr\\[start] is present (one
     process). Otherwise shells out to ``uvx --from 'apache-burr\\[start]'``.
-    For a permanent install: ``uv pip install 'burrmcp\\[ui]'``.
     """
     import shutil
     import subprocess
@@ -226,8 +255,8 @@ def ui(
     except ImportError:
         if shutil.which("uvx") is None:
             err_console.print(
-                "burrmcp ui needs either apache-burr[start] installed in the "
-                "current env (try [bold]uv pip install 'burrmcp[ui]'[/]) or "
+                "the Burr UI needs either apache-burr[start] installed in the "
+                f"current env (try [bold]uv pip install '{_BRANDING.ui_extra}'[/]) or "
                 "[bold]uvx[/] on PATH (https://docs.astral.sh/uv/) for one-shot bootstrap."
             )
             raise typer.Exit(code=1) from None
@@ -452,7 +481,6 @@ def _build_steps_table(
 # == sessions ls ======================================================
 
 
-@sessions_app.command("ls")
 def sessions_ls(
     burr_home: Annotated[
         Path | None,
@@ -471,7 +499,7 @@ def sessions_ls(
     ] = False,
 ) -> None:
     """Table of recent tracked sessions, most recent first."""
-    home = (burr_home or Path.home() / ".burr").expanduser()
+    home = _resolve_home(burr_home)
     if not home.exists():
         err_console.print(f"[err]No Burr tracker storage at[/] {home}")
         raise typer.Exit(code=1)
@@ -592,7 +620,6 @@ def _resolve_app(home: Path, project: str | None, app_id: str | None) -> tuple[P
     return proj_path / app_id / "log.jsonl", project, app_id
 
 
-@sessions_app.command("show")
 def sessions_show(
     app_id: Annotated[
         str | None,
@@ -611,7 +638,7 @@ def sessions_show(
     ] = False,
 ) -> None:
     """Full post-mortem timeline of one session."""
-    home = (burr_home or Path.home() / ".burr").expanduser()
+    home = _resolve_home(burr_home)
     log_path, proj, aid = _resolve_app(home, project, app_id)
     rows = _read_steps(log_path)
 
@@ -661,7 +688,6 @@ def _tail(log_path: Path, *, project: str, app_id: str, poll_interval: float) ->
         console.print("[dim](stopped)[/]")
 
 
-@sessions_app.command("tail")
 def sessions_tail(
     app_id: Annotated[
         str | None,
@@ -680,12 +706,11 @@ def sessions_tail(
     ] = 0.5,
 ) -> None:
     """Live-tail a running (or completed) session as a rich-rendered table."""
-    home = (burr_home or Path.home() / ".burr").expanduser()
+    home = _resolve_home(burr_home)
     log_path, proj, aid = _resolve_app(home, project, app_id)
     _tail(log_path, project=proj, app_id=aid, poll_interval=poll_interval)
 
 
-@app.command()
 def watch(
     app_id: Annotated[
         str | None,
@@ -711,7 +736,7 @@ def watch(
     ] = 0.5,
 ) -> None:
     """Alias for `sessions tail`. Lives at the top level for muscle memory."""
-    home = (burr_home or Path.home() / ".burr").expanduser()
+    home = _resolve_home(burr_home)
     if list_projects:
         sessions_ls(burr_home=home, project=None, limit=8, as_json=False)
         return
@@ -722,7 +747,6 @@ def watch(
     _tail(log_path, project=proj, app_id=aid, poll_interval=poll_interval)
 
 
-@app.command()
 def logs(
     app_id: Annotated[
         str | None,
@@ -751,7 +775,7 @@ def logs(
     (live). One line per step: seq, time, status, action, duration, and the
     state change. Pipe it: `burrmcp logs --plain | grep error`.
     """
-    home = (burr_home or Path.home() / ".burr").expanduser()
+    home = _resolve_home(burr_home)
     log_path, _proj, _aid = _resolve_app(home, project, app_id)
     rows = _read_steps(log_path)
     if refusals_only:
@@ -789,10 +813,88 @@ def logs(
             console.print(line)
 
 
-def main(argv: list[str] | None = None) -> int:
-    """Entry point. ``argv`` is for testing; ``None`` lets Typer read sys.argv."""
+# == CLI assembly =====================================================
+
+
+def build_cli(
+    prog_name: str = "burrmcp",
+    *,
+    application: Any | None = None,
+    help: str | None = None,
+    server_name: str | None = None,
+    ui_extra: str = "burrmcp[ui]",
+    burr_home: str | Path | None = None,
+) -> typer.Typer:
+    """Build a burrmcp CLI, optionally rebranded for a downstream package.
+
+    A package that ships its own MCP graph can expose its own command::
+
+        # mygraph/cli.py
+        from burrmcp.cli import build_cli, run
+        from mygraph import build_application
+
+        cli = build_cli("mygraph", application=build_application,
+                        help="My graph as an MCP server.")
+
+        def main() -> int:
+            return run(cli)
+
+    Then ``mygraph serve`` (no target needed), ``mygraph doctor``, and
+    ``mygraph sessions ls`` all carry the downstream's name. Sessions are
+    still stored in Burr's tracker format; set ``burr_home`` to match the
+    ``storage_dir`` the downstream's ``LocalTrackingClient`` writes to.
+
+    Args:
+        prog_name: command name shown in help and used as the default
+            server name when a baked-in Application has no other name.
+        application: an ``Application``, a factory, or a ``module:attr``
+            string. When set, ``serve``/``doctor`` accept no target.
+        help: root help text. Defaults to the burrmcp description.
+        server_name: default MCP server name surfaced to clients.
+        ui_extra: pip extra named in the ``ui`` install hint.
+        burr_home: default tracker storage root for the observability
+            commands. Overridden per-invocation by ``--burr-home``.
+    """
+    global _BRANDING
+    _BRANDING = _Branding(
+        prog_name=prog_name,
+        application=application,
+        server_name=server_name,
+        ui_extra=ui_extra,
+        burr_home=burr_home,
+    )
+
+    cli = typer.Typer(
+        name=prog_name,
+        help=help or _DEFAULT_HELP,
+        no_args_is_help=True,
+        add_completion=False,
+    )
+    sessions = typer.Typer(
+        name="sessions",
+        help="Inspect Burr tracker storage: list, show, or live-tail a session.",
+        no_args_is_help=True,
+    )
+    sessions.command("ls")(sessions_ls)
+    sessions.command("show")(sessions_show)
+    sessions.command("tail")(sessions_tail)
+    cli.add_typer(sessions, name="sessions")
+
+    cli.command()(serve)
+    cli.command()(doctor)
+    cli.command()(ui)
+    cli.command()(watch)
+    cli.command()(logs)
+    return cli
+
+
+app = build_cli()
+
+
+def run(cli: typer.Typer, argv: list[str] | None = None) -> int:
+    """Run a Typer app with graceful exit-code handling. ``argv`` is for tests."""
     try:
-        rv = app(args=argv, standalone_mode=False)
+        rv = cli(args=argv, standalone_mode=False)
         return rv if isinstance(rv, int) else 0
     except typer.Exit as e:
         return e.exit_code or 0
@@ -803,6 +905,11 @@ def main(argv: list[str] | None = None) -> int:
             return e.code
         err_console.print(str(e.code))
         return 1
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Default ``burrmcp`` entry point."""
+    return run(app, argv)
 
 
 if __name__ == "__main__":

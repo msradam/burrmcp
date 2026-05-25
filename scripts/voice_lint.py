@@ -26,6 +26,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # vendored content stays out.
 _DEFAULT_GLOBS: tuple[str, ...] = (
     "*.md",
+    "docs/**/*.md",
     "src/**/*.py",
     "tests/**/*.py",
     "examples/**/*.py",
