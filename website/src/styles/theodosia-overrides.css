@@ -37,7 +37,7 @@ h1#_top,
   color: var(--thd-pine);
 }
 :root:not([data-theme="light"]) .sl-markdown-content :is(h1, h2, h3) em {
-  color: var(--thd-dark-foam);
+  color: var(--thd-dark-iris);
 }
 
 /* ── Light mode: v14 neutral paper + pine teal (not Rose Pine dawn) ──
@@ -63,22 +63,29 @@ h1#_top,
   --sl-color-text-accent: var(--thd-pine);
   --sl-color-accent: var(--thd-pine);
   --sl-color-accent-low: var(--thd-pine-tint);
-  --sl-color-accent-high: #1d4f63;
+  --sl-color-accent-high: #3e2a66;
   --sl-color-hairline: var(--thd-edge);
   --sl-color-hairline-light: var(--thd-edge);
   --sl-color-hairline-shade: var(--thd-rule);
 }
 
-/* ── Dark mode: keep Rose Pine, move the accent to v14 foam ── */
+/* ── Dark mode: keep Rose Pine, accent on lavender iris (the purple identity) ── */
 :root[data-theme="dark"],
 :root:not([data-theme="light"]) {
-  --sl-color-accent: var(--thd-dark-foam);
-  --sl-color-text-accent: var(--thd-dark-foam);
+  --sl-color-accent: var(--thd-dark-iris);
+  --sl-color-text-accent: var(--thd-dark-iris);
 }
 
-/* Active sidebar entry, both modes: pine/foam and bold so "you are here" reads. */
-:root[data-theme="light"] a[aria-current="page"] { color: var(--thd-pine); font-weight: 600; }
-:root:not([data-theme="light"]) a[aria-current="page"] { color: var(--thd-dark-foam); font-weight: 600; }
+/* Sidebar legibility. Links read in body ink; hover and the current page read in
+   the accent with a soft tint behind, so neither is washed out. */
+.sidebar-content a { color: var(--sl-color-gray-2); }
+:root:not([data-theme="light"]) .sidebar-content a { color: var(--sl-color-gray-3); }
+.sidebar-content a:hover { color: var(--sl-color-text-accent); background: var(--sl-color-accent-low); }
+.sidebar-content a[aria-current="page"] {
+  color: var(--sl-color-text-accent);
+  background: var(--sl-color-accent-low);
+  font-weight: 600;
+}
 
 /* ── Stage accents on callouts ───────────────────────────────────
    Echo the investigation stages from the hero gif: foam (blue, triage),
@@ -99,3 +106,30 @@ h1#_top,
 :root:not([data-theme="light"]) .starlight-aside--tip    { --sl-color-asides-text-accent: var(--thd-dark-iris); --sl-color-asides-border: var(--thd-dark-iris); }
 :root:not([data-theme="light"]) .starlight-aside--caution { --sl-color-asides-text-accent: var(--thd-dark-gold); --sl-color-asides-border: var(--thd-dark-gold); }
 :root:not([data-theme="light"]) .starlight-aside--danger { --sl-color-asides-text-accent: var(--thd-dark-love); --sl-color-asides-border: var(--thd-dark-love); }
+
+/* Tighten the splash hero: less dead vertical space, art aligned with copy. */
+.hero { padding-block: 2rem 1rem; gap: 2rem; align-items: center; }
+.hero > img, .hero .hero-html { align-self: center; }
+
+/* ── Cards: white sheet, hairline, soft shadow (not muddy grey) ── */
+.sl-markdown-content .card {
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(10, 10, 10, 0.04), 0 4px 12px rgba(10, 10, 10, 0.04);
+}
+:root[data-theme="light"] .sl-markdown-content .card { background: var(--thd-sheet); }
+:root:not([data-theme="light"]) .sl-markdown-content .card { background: var(--sl-color-gray-6); }
+
+/* ── Heading scale: smaller and calmer than the Starlight defaults, and inline
+   code in a heading should not balloon to the heading size. ── */
+:root {
+  --sl-text-h1: 2.4rem;
+  --sl-text-h2: 1.65rem;
+  --sl-text-h3: 1.3rem;
+  --sl-text-h4: 1.1rem;
+}
+h1#_top { font-size: 2.5rem; line-height: 1.1; }
+.sl-markdown-content :is(h1, h2, h3, h4) code {
+  font-size: 0.82em;
+  font-weight: 600;
+}
