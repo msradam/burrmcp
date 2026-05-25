@@ -30,6 +30,16 @@ h1#_top,
 .sl-markdown-content :is(h1, h2) { font-weight: 700; }
 .hero h1 { font-weight: 700; letter-spacing: -0.02em; }
 
+/* Italic emphasis inside a heading reads in the accent (v14 signature). */
+.sl-markdown-content :is(h1, h2, h3) em {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--thd-pine);
+}
+:root:not([data-theme="light"]) .sl-markdown-content :is(h1, h2, h3) em {
+  color: var(--thd-dark-foam);
+}
+
 /* ── Light mode: v14 neutral paper + pine teal (not Rose Pine dawn) ──
    A full neutral gray ramp (Starlight: white = darkest text, black = lightest
    surface; gray-1 dark → gray-7 near-bg). This both kills the warm-cream cast
