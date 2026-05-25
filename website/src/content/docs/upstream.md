@@ -1,4 +1,7 @@
-# Upstream MCP servers
+---
+title: 'Driving other MCP servers'
+description: 'The upstream feature: actions calling other MCP servers.'
+---
 
 burrmcp is normally the MCP server the agent talks to. With `upstream`, it also
 opens MCP *client* sessions to other servers (Kubernetes, Grafana, filesystem,

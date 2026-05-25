@@ -4,8 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - docs/**
-      - mkdocs.yml
+      - website/**
       - .github/workflows/docs.yml
   workflow_dispatch:
 
@@ -23,11 +22,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
-      - run: uv run --group docs mkdocs build --strict
-      - uses: actions/upload-pages-artifact@v3
+      - uses: withastro/action@v3
         with:
-          path: site
+          path: website
 
   deploy:
     needs: build

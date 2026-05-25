@@ -1,4 +1,7 @@
-# CLI
+---
+title: 'CLI'
+description: 'serve, doctor, render, the observability commands, and build_cli.'
+---
 
 `pip install burrmcp` registers a `burrmcp` console script with three groups of
 commands: serve, validate, and observe.

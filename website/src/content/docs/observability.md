@@ -1,4 +1,7 @@
-# Observability
+---
+title: 'Observability'
+description: 'The burr:// resources, the terminal CLI, the Burr UI, OpenTelemetry.'
+---
 
 Every narrative demo wires `LocalTrackingClient(project="<demo>-demo")`, so each
 MCP session writes a JSONL log under `~/.burr`. Three surfaces read it: the
