@@ -9,7 +9,8 @@ hero:
     replayable. The model can be wrong; the model cannot lie about state.
   image:
     html: |
-      <img src="/theodosia/hero_tall.gif" alt="A real Kimi K2.6 run stepping through a gated SRE investigation on rails" style="border-radius:12px;border:1px solid var(--sl-color-gray-5);width:100%;max-width:600px;" />
+      <img src="/theodosia/hero_tall.gif" alt="A real Kimi K2.6 run stepping through a gated SRE investigation on rails" class="thd-hero-gif thd-hero-dark" style="border-radius:12px;border:1px solid var(--sl-color-gray-5);width:100%;max-width:600px;" />
+      <img src="/theodosia/hero_tall_light.gif" alt="A real Kimi K2.6 run stepping through a gated SRE investigation on rails" class="thd-hero-gif thd-hero-light" style="border-radius:12px;border:1px solid var(--sl-color-gray-5);width:100%;max-width:600px;" />
   actions:
     - text: Get started
       link: /theodosia/authoring/
@@ -71,6 +72,15 @@ enforce termination buys up to 53%, and recommends finite state machines
 outright. Theodosia is that state machine, served over the wire. It removes the
 structural failures; it does not fix reasoning inside a valid step, and does not
 claim to.
+
+The rails constrain the procedure, not the model. The agent keeps its full
+toolset, including [tools on other MCP servers](upstream.md) (Kubernetes,
+Grafana, a filesystem), and chooses freely within the current step. Theodosia
+gates only what order steps run in and when the workflow may finish. So you add
+the methodology and the audit trail without giving up the model's reach: a
+capable model on rails is still a capable model, now one that cannot skip a step
+or declare a result it has not verified. [Phoebe](examples.md), an SRE
+investigation agent, is built exactly this way.
 
 <LinkButton href="/theodosia/authoring/" icon="right-arrow">Build your first graph</LinkButton>
 <LinkButton href="/theodosia/architecture/" variant="secondary">How it works</LinkButton>
