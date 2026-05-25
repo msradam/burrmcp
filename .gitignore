@@ -30,3 +30,6 @@ demos/*.png
 
 # internal grounding notes (not published)
 research/
+
+# Local secrets (never commit)
+.env
