@@ -1,0 +1,51 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v8.1.0
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+      - run: uv sync
+      - name: format
+        run: uv run ruff format --check .
+      - name: lint
+        run: uv run ruff check .
+      - name: type-check
+        run: uv run mypy src/theodosia
+      - name: test
+        run: uv run pytest -q --cov=theodosia --cov-report=term-missing
+
+  security:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v8.1.0
+        with:
+          python-version: "3.12"
+      - run: uv sync
+      - name: bandit (fail on medium or high)
+        run: uv run bandit -r src/theodosia --severity-level medium
+      - name: pip-audit (dependency vulnerabilities)
+        run: uvx pip-audit

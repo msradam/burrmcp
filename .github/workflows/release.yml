@@ -16,6 +16,10 @@ jobs:
       - uses: astral-sh/setup-uv@v8.1.0
       - run: uv build
       - run: uvx twine check dist/*
+      - name: SBOM (CycloneDX, runtime dependencies)
+        run: |
+          uv export --no-dev --no-emit-project --format requirements-txt -o requirements.txt
+          uvx cyclonedx-py requirements requirements.txt -o dist/theodosia.cdx.json
       - uses: actions/upload-artifact@v7
         with:
           name: dist
