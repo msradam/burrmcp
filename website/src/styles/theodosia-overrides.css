@@ -125,6 +125,11 @@ starlight-toc a[aria-current="true"] {
 .hero { padding-block: 2rem 1rem; gap: 2rem; align-items: center; }
 .hero > img, .hero .hero-html { align-self: center; }
 
+/* Hero gif follows the theme: dark Rose Pine render in dark mode, light render
+   in light mode. Only one is shown. */
+:root[data-theme="light"] .thd-hero-dark { display: none; }
+:root:not([data-theme="light"]) .thd-hero-light { display: none; }
+
 /* ── Cards: white sheet, hairline, soft shadow (not muddy grey) ── */
 .sl-markdown-content .card {
   border: 1px solid var(--sl-color-gray-5);
@@ -147,3 +152,43 @@ h1#_top { font-size: 2.5rem; line-height: 1.1; }
   font-size: 0.82em;
   font-weight: 600;
 }
+
+/* ── MechanismDiagram dark mode ──────────────────────────────────
+   The diagram (a light "artifact" panel) ignored dark mode. Recolor its
+   surface, text, callouts, and the inline SVG (CSS fill/stroke override the
+   SVG presentation attributes) to the v14 dark palette. */
+:root:not([data-theme="light"]) .thd-mech { background: var(--thd-slate-1); color: var(--thd-dark-text); }
+:root:not([data-theme="light"]) .thd-mech-head { background: var(--thd-slate-2); border-color: var(--thd-slate-edge); }
+:root:not([data-theme="light"]) .thd-mech-title { color: var(--thd-dark-text); }
+:root:not([data-theme="light"]) .thd-pill { background: var(--thd-slate-2); border-color: var(--thd-slate-edge); color: var(--thd-dark-muted); }
+:root:not([data-theme="light"]) .thd-pill.ok { color: var(--thd-dark-iris); border-color: rgba(196,167,231,0.25); background: rgba(196,167,231,0.12); }
+:root:not([data-theme="light"]) .thd-pill.no { color: var(--thd-dark-love); border-color: rgba(235,111,146,0.25); background: rgba(235,111,146,0.12); }
+:root:not([data-theme="light"]) .thd-pill.cur { color: var(--thd-dark-gold); border-color: rgba(246,193,119,0.3); background: rgba(246,193,119,0.12); }
+:root:not([data-theme="light"]) .thd-legend-row { color: var(--thd-dark-muted); }
+:root:not([data-theme="light"]) .thd-legend-row strong { color: var(--thd-dark-text); }
+:root:not([data-theme="light"]) .thd-legend-row .g.ok { color: var(--thd-dark-iris); }
+:root:not([data-theme="light"]) .thd-legend-row .g.no { color: var(--thd-dark-love); }
+:root:not([data-theme="light"]) .thd-legend-row .g.cur { color: var(--thd-dark-gold); }
+:root:not([data-theme="light"]) .thd-audit { background: var(--thd-slate-0); border-color: var(--thd-slate-edge); }
+:root:not([data-theme="light"]) .thd-audit-lbl { color: var(--thd-dark-muted); border-color: var(--thd-slate-edge); }
+:root:not([data-theme="light"]) .thd-audit-head { color: var(--thd-dark-muted); border-color: var(--thd-slate-edge); background: var(--thd-slate-2); }
+:root:not([data-theme="light"]) .thd-audit-row { color: var(--thd-dark-text); border-color: var(--thd-slate-edge); }
+:root:not([data-theme="light"]) .thd-audit-row .ts, :root:not([data-theme="light"]) .thd-audit-row .rsn { color: var(--thd-dark-muted); }
+:root:not([data-theme="light"]) .thd-audit-row .act { color: var(--thd-dark-text); }
+:root:not([data-theme="light"]) .thd-audit-row.refused .act { color: var(--thd-dark-love); }
+:root:not([data-theme="light"]) .thd-audit-row .ft .ar { color: var(--thd-dark-iris); }
+:root:not([data-theme="light"]) .thd-audit-row .ft .ar.no { color: var(--thd-dark-love); }
+:root:not([data-theme="light"]) .thd-audit-row .out.ok { color: var(--thd-dark-iris); background: rgba(196,167,231,0.12); }
+:root:not([data-theme="light"]) .thd-audit-row .out.no { color: var(--thd-dark-love); background: rgba(235,111,146,0.12); }
+:root:not([data-theme="light"]) .thd-mech svg [fill="#ffffff"] { fill: var(--thd-slate-2); }
+:root:not([data-theme="light"]) .thd-mech svg [fill="#0a0a0a"] { fill: var(--thd-dark-text); }
+:root:not([data-theme="light"]) .thd-mech svg [fill="#7a7a76"] { fill: var(--thd-dark-muted); }
+:root:not([data-theme="light"]) .thd-mech svg [fill="#573e8a"] { fill: var(--thd-dark-iris); }
+:root:not([data-theme="light"]) .thd-mech svg [fill="#7a3c4a"] { fill: var(--thd-dark-love); }
+:root:not([data-theme="light"]) .thd-mech svg [fill="#9c6b1a"] { fill: var(--thd-dark-gold); }
+:root:not([data-theme="light"]) .thd-mech svg [fill="#fcefd5"] { fill: rgba(246,193,119,0.14); }
+:root:not([data-theme="light"]) .thd-mech svg [fill="#f6ebed"] { fill: rgba(235,111,146,0.12); }
+:root:not([data-theme="light"]) .thd-mech svg [stroke="#d4d4cf"] { stroke: var(--thd-slate-edge); }
+:root:not([data-theme="light"]) .thd-mech svg [stroke="#573e8a"] { stroke: var(--thd-dark-iris); }
+:root:not([data-theme="light"]) .thd-mech svg [stroke="#ea9d34"] { stroke: var(--thd-dark-gold); }
+:root:not([data-theme="light"]) .thd-mech svg [stroke="#7a3c4a"] { stroke: var(--thd-dark-love); }
