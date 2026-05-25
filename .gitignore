@@ -27,3 +27,6 @@ site/
 
 # VHS Screenshot verification frames (regenerable from the .tape files)
 demos/*.png
+
+# internal grounding notes (not published)
+research/
