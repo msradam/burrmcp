@@ -21,7 +21,7 @@ from pathlib import Path
 
 import pytest
 
-from burrmcp import ServingMode
+from theodosia import ServingMode
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "examples"))
@@ -34,7 +34,7 @@ def _isolate_burr_home(request, monkeypatch, tmp_path):
     # Smoke tests under tests/smoke/ drive a real Claude session via the
     # Agent SDK; they need the real $HOME so the SDK can read OAuth from
     # the platform keychain (or ~/.claude/.credentials.json) and resolve
-    # ~/burrmcp-demo/.mcp.json against the user's actual home.
+    # ~/theodosia-demo/.mcp.json against the user's actual home.
     if "smoke" in request.keywords:
         return
     monkeypatch.setenv("HOME", str(tmp_path))

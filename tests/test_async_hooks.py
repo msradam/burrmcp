@@ -94,12 +94,12 @@ async def test_full_async_walk_through_mcp_step():
             out = r.structured_content
             assert out.get("error") is None, f"{name}: {out}"
         # Read the hooks resource.
-        text = (await client.read_resource("burr://hooks"))[0].text
+        text = (await client.read_resource("theodosia://hooks"))[0].text
         hooks = json.loads(text)
         # Each step fires timing.
         assert "fetch" in hooks["timing_by_action"]
         assert "score" in hooks["timing_by_action"]
-        # execute_call counters increment per MCP step (BurrMCP's
+        # execute_call counters increment per MCP step (Theodosia's
         # adapter calls app.astep; each call is an execute boundary).
         assert hooks["executes_started"] >= 3
         assert hooks["executes_started"] == hooks["executes_completed"]

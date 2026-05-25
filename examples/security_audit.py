@@ -2,7 +2,7 @@
 
 A real Claude Code SKILL decomposed into a Burr FSM whose actions
 emit prompts for the *caller* LLM (Opus, Sonnet, Granite, whoever
-is driving BurrMCP through an MCP client). The FSM does not call any
+is driving Theodosia through an MCP client). The FSM does not call any
 LLM itself; it stores the caller's structured findings in state and
 gates which prompt-phase is reachable next.
 
@@ -24,8 +24,8 @@ Shape:
 
 What the FSM gives the SKILL:
 
-* Each phase becomes a separate visible step in ``burr://history``
-  and ``burr://trace``. The audit trail is the artifact: every
+* Each phase becomes a separate visible step in ``theodosia://history``
+  and ``theodosia://trace``. The audit trail is the artifact: every
   prompt the caller LLM was given + every set of structured
   findings it returned.
 * OUTSIDE / BOTH mode require ``authorization_source`` because the
@@ -38,7 +38,7 @@ What the FSM gives the SKILL:
   step. The prompt tells it which checklist to run, with the
   cheap-first ordering the SKILL recommends.
 * Same SKILL, any LLM. The prompts are model-agnostic. Whatever's
-  driving BurrMCP processes them.
+  driving Theodosia processes them.
 
 Pure FSM. No server-side LLM calls, no shellouts, no scanners.
 Complementary to ``codebase_security.py`` (which runs deterministic
@@ -59,7 +59,7 @@ from burr.core import ApplicationBuilder, State, action
 from burr.core.action import Condition
 from burr.tracking.client import LocalTrackingClient
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 _TRACKER_PROJECT = "skill-security-audit-demo"
 
@@ -505,8 +505,8 @@ def build_server():
             "state.current_prompt. Phases: context -> source review "
             "(INSIDE/BOTH) -> blackbox review (OUTSIDE/BOTH) -> infra "
             "sweep -> rate-limit deep-dive -> write advisory "
-            "(terminal). Read burr://state after every step to see "
-            "the current prompt; burr://history for the full audit "
+            "(terminal). Read theodosia://state after every step to see "
+            "the current prompt; theodosia://history for the full audit "
             "trail. Source SKILL at examples/skills/security-audit/."
         ),
     )

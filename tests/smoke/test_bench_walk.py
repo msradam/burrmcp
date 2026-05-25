@@ -1,6 +1,6 @@
 """Parameterized FSM-walk smoke tests for every zero-setup demo in the bench.
 
-For each server in ``~/burrmcp-demo/.mcp.json`` not already covered by a
+For each server in ``~/theodosia-demo/.mcp.json`` not already covered by a
 hand-written smoke test, asks a real Claude session to walk its FSM to
 a terminal state. Assertions are intentionally structural: the model
 called the server's step tool, made meaningful progress, and the last
@@ -8,7 +8,7 @@ call succeeded (or the FSM hit a terminal where ``valid_next_actions``
 is empty).
 
 The hypothesis under test: with the polish work (ResourcesAsTools so
-Claude can read burr://graph through a tool, ctx.info per step, and the
+Claude can read theodosia://graph through a tool, ctx.info per step, and the
 headline at content[0]), a frontier model can navigate any of these
 FSMs unaided. If it can't, the polish isn't doing its job and the
 specific failure tells us where to invest.
@@ -40,12 +40,12 @@ check_environment_or_skip()
 
 # (server_name, prompt_hint, min_steps).
 #
-# server_name matches the key in ~/burrmcp-demo/.mcp.json; the tool name
+# server_name matches the key in ~/theodosia-demo/.mcp.json; the tool name
 # is "mcp__<server>__step".
 #
 # prompt_hint is appended to the generic "walk this FSM" preamble. Keep
 # it minimal: the demo bench is the source of truth and the model reads
-# burr://graph for the action surface. Where the FSM needs concrete
+# theodosia://graph for the action surface. Where the FSM needs concrete
 # inputs that aren't obvious (a directory, a corpus, a target file), the
 # hint provides them; otherwise the hint is empty.
 #
@@ -108,7 +108,7 @@ _CASES: list[tuple[str, str, int]] = [
 def _preamble(server: str, hint: str) -> str:
     base = (
         f"Use the {server} burr app to walk its FSM to a terminal state. "
-        f"Start by calling read_resource for `burr://graph` (or list_resources "
+        f"Start by calling read_resource for `theodosia://graph` (or list_resources "
         f"if you need to see what's there) to learn the actions and "
         f"transitions. Then call the {server} step tool repeatedly, one "
         f"action at a time, in the order the graph allows. Each step "

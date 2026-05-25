@@ -6,7 +6,7 @@ Covers the load-bearing claims:
 * Pydantic field constraints reject out-of-range inputs via
   ``action_error`` with the full ValidationError message visible.
 * The PydanticTypingSystem surfaces the model's JSON schema in
-  ``burr://graph`` under ``state_schema``.
+  ``theodosia://graph`` under ``state_schema``.
 """
 
 from __future__ import annotations
@@ -125,13 +125,13 @@ def test_underwriting_buckets_extremes_correctly():
 
 @pytest.mark.asyncio
 async def test_graph_resource_exports_pydantic_schema():
-    """burr://graph carries the LoanApplication JSON schema."""
+    """theodosia://graph carries the LoanApplication JSON schema."""
     server = build_server()
     async with Client(server) as client:
-        text = (await client.read_resource("burr://graph"))[0].text
+        text = (await client.read_resource("theodosia://graph"))[0].text
         graph = json.loads(text)
         schema = graph.get("state_schema")
-        assert schema is not None, "state_schema missing from burr://graph"
+        assert schema is not None, "state_schema missing from theodosia://graph"
         # Pydantic JSON schemas have a "properties" dict.
         assert "properties" in schema
         props = schema["properties"]

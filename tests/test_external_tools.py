@@ -2,8 +2,8 @@
 
 A mount(external_tools={action: [tool, ...]}) declares which tools on
 OTHER connected MCP servers are relevant when each action is a reachable
-next move. BurrMCP surfaces them per-action in burr://graph and
-contextually as next_external_tools in each step response. BurrMCP does
+next move. Theodosia surfaces them per-action in theodosia://graph and
+contextually as next_external_tools in each step response. Theodosia does
 not execute these tools; it sequences them.
 """
 
@@ -15,8 +15,8 @@ import pytest
 from coffee_order import build_application
 from fastmcp import Client
 
-from burrmcp import ServingMode, mount
-from burrmcp.adapter import (
+from theodosia import ServingMode, mount
+from theodosia.adapter import (
     _next_external_tools,
     _normalize_external_tools,
 )
@@ -80,13 +80,13 @@ def test_next_external_tools_empty_when_no_declared_tools():
     assert _next_external_tools(m, ["cancel"]) == {}
 
 
-# == burr://graph surfacing ===========================================
+# == theodosia://graph surfacing ===========================================
 
 
 @pytest.mark.asyncio
 async def test_graph_resource_carries_per_action_external_tools():
     async with Client(_server()) as client:
-        graph = json.loads((await client.read_resource("burr://graph"))[0].text)
+        graph = json.loads((await client.read_resource("theodosia://graph"))[0].text)
         by_name = {a["name"]: a for a in graph["actions"]}
         assert by_name["take_order"]["external_tools"] == ["menu_lookup", "inventory_check"]
         assert by_name["pay"]["external_tools"] == ["payment_gateway_charge"]
@@ -98,7 +98,7 @@ async def test_graph_resource_carries_per_action_external_tools():
 async def test_graph_resource_omits_external_tools_when_not_configured():
     server = mount(build_application, mode=ServingMode.STEP, name="coffee-plain")
     async with Client(server) as client:
-        graph = json.loads((await client.read_resource("burr://graph"))[0].text)
+        graph = json.loads((await client.read_resource("theodosia://graph"))[0].text)
         for a in graph["actions"]:
             assert "external_tools" not in a
 

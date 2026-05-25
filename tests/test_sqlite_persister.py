@@ -32,7 +32,7 @@ from sqlite_persister import (
     tick,
 )
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 # == persister unit tests ==========================================
 

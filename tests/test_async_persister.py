@@ -2,7 +2,7 @@
 
 Verifies that AsyncBaseStatePersister + PersisterHookAsync persist
 post-action state when an Application is driven via astep, and that
-the path works through BurrMCP's step tool.
+the path works through Theodosia's step tool.
 """
 
 from __future__ import annotations
@@ -81,7 +81,7 @@ async def test_async_persister_via_mcp_step():
     server = build_server()
     async with Client(server) as client:
         await client.call_tool("step", {"action": "record", "inputs": {"event": "via-mcp"}})
-        text = (await client.read_resource("burr://event-log"))[0].text
+        text = (await client.read_resource("theodosia://event-log"))[0].text
         payload = json.loads(text)
         assert len(payload["rows"]) == 1
         assert payload["rows"][0]["events"][0]["event"] == "via-mcp"

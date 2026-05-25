@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 from fastmcp import Client
 
-from burrmcp import ServingMode
+from theodosia import ServingMode
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT / "examples"))

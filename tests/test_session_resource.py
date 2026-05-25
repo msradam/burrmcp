@@ -1,7 +1,7 @@
-"""burr://session: tracker coordinates for the current MCP session.
+"""theodosia://session: tracker coordinates for the current MCP session.
 
 Returns ``{project, app_id, app_dir, partition_key}`` so MCP clients
-and terminal tooling (``burrmcp watch``, scripted inspection, etc.)
+and terminal tooling (``theodosia watch``, scripted inspection, etc.)
 can locate the session's tracker data on disk without guessing.
 ``project`` and ``app_dir`` are null when no ``LocalTrackingClient`` is
 attached; ``app_id`` is always populated.
@@ -16,7 +16,7 @@ from burr.core import ApplicationBuilder, State, action
 from burr.tracking.client import LocalTrackingClient
 from fastmcp import Client
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 
 @action(reads=[], writes=["counter"])
@@ -60,7 +60,7 @@ async def test_session_returns_tracker_coords_when_tracker_attached(tmp_path, mo
         name="session-tracked",
     )
     async with Client(server) as client:
-        text = (await client.read_resource("burr://session"))[0].text
+        text = (await client.read_resource("theodosia://session"))[0].text
         info = json.loads(text)
         assert info["project"] == project
         assert isinstance(info["app_id"], str) and len(info["app_id"]) > 0
@@ -75,7 +75,7 @@ async def test_session_returns_tracker_coords_when_tracker_attached(tmp_path, mo
 async def test_session_returns_nulls_when_no_tracker():
     server = mount(_untracked_app, mode=ServingMode.STEP, name="session-no-tracker")
     async with Client(server) as client:
-        text = (await client.read_resource("burr://session"))[0].text
+        text = (await client.read_resource("theodosia://session"))[0].text
         info = json.loads(text)
         assert info["project"] is None
         assert info["app_dir"] is None
@@ -85,7 +85,7 @@ async def test_session_returns_nulls_when_no_tracker():
 
 @pytest.mark.asyncio
 async def test_session_app_id_matches_step_response(tmp_path, monkeypatch):
-    """The app_id in burr://session matches what step() reports for the
+    """The app_id in theodosia://session matches what step() reports for the
     same session. Sanity check that they reference the same Application."""
     monkeypatch.setenv("HOME", str(tmp_path))
     project = f"session-match-{tmp_path.name}"
@@ -95,7 +95,7 @@ async def test_session_app_id_matches_step_response(tmp_path, monkeypatch):
         name="session-match",
     )
     async with Client(server) as client:
-        session_text = (await client.read_resource("burr://session"))[0].text
+        session_text = (await client.read_resource("theodosia://session"))[0].text
         session_info = json.loads(session_text)
         step_result = await client.call_tool("step", {"action": "tick"})
         step_payload = step_result.structured_content

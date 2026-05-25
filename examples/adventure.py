@@ -10,7 +10,7 @@ so a "go_north" call from the wrong room comes back as
 response.
 
 The agent navigates a state space the server fully describes. The
-full topology is one ``burr://graph`` read away; the agent doesn't
+full topology is one ``theodosia://graph`` read away; the agent doesn't
 have to guess.
 
 Map:
@@ -42,7 +42,7 @@ from burr.core import ApplicationBuilder, State, action
 from burr.core.action import Condition
 from burr.tracking.client import LocalTrackingClient
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 _TRACKER_PROJECT = "adventure-demo"
 
@@ -152,11 +152,11 @@ def build_server():
         mode=ServingMode.STEP,
         name="adventure",
         instructions=(
-            "A tiny text adventure. Read burr://graph for the map "
+            "A tiny text adventure. Read theodosia://graph for the map "
             "(actions and their gated transitions). Goal: reach the "
             "garden via the hallway, which requires unlocking the "
             "door, which requires the key, which is in the library. "
-            "Each move records to state['log']; read burr://state to "
+            "Each move records to state['log']; read theodosia://state to "
             "see where you are and what's happened."
         ),
     )

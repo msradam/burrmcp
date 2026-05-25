@@ -14,7 +14,7 @@ import json
 import pytest
 from fastmcp import Client, FastMCP
 
-from burrmcp import ServingMode, ToolSpec, burr_app_from_fastmcp, mount
+from theodosia import ServingMode, ToolSpec, burr_app_from_fastmcp, mount
 
 
 def _make_flat_server() -> FastMCP:
@@ -110,7 +110,7 @@ async def test_lifted_graph_records_history():
 
     async with Client(server) as client:
         await client.call_tool("step", {"action": "create_order", "inputs": {"item": "mocha"}})
-        history = json.loads((await client.read_resource("burr://history"))[0].text)
+        history = json.loads((await client.read_resource("theodosia://history"))[0].text)
         assert len(history) == 1
         assert history[0]["action"] == "create_order"
         assert history[0]["state_after"]["order_id"] == "ORD-MOCHA"
@@ -242,7 +242,7 @@ async def test_string_conditions_lifted_to_expressions():
 
     async with Client(server) as client:
         await client.call_tool("step", {"action": "classify", "inputs": {"severity": "urgent"}})
-        valid = json.loads((await client.read_resource("burr://next"))[0].text)
+        valid = json.loads((await client.read_resource("theodosia://next"))[0].text)
         assert valid == ["escalate"]
 
 
@@ -278,7 +278,7 @@ async def test_signature_preserved_through_lift():
     actual parameter names + types from the original tool, not a
     flattened ``**kwargs``. STEP mode's step tool exposes a generic
     ``{action, inputs}`` shape on the MCP wire, but the Burr Action's
-    declared inputs are what burrmcp uses to validate calls, so we
+    declared inputs are what theodosia uses to validate calls, so we
     introspect those directly.
     """
     flat = FastMCP("sig-test")

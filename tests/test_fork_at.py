@@ -1,7 +1,7 @@
 """fork_at: rewind to a specific history entry and continue from there.
 
 Lets an agent explore alternate paths from any checkpoint without
-disconnecting. Implemented via the in-memory burr://history so it
+disconnecting. Implemented via the in-memory theodosia://history so it
 works without users wiring up a Burr LocalTrackingClient.
 """
 
@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 from fastmcp import Client
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "examples"))
@@ -29,7 +29,7 @@ async def test_fork_at_appears_as_tool_and_in_meta_tools():
         tools = {t.name for t in await client.list_tools()}
         assert "fork_at" in tools
 
-        graph = json.loads((await client.read_resource("burr://graph"))[0].text)
+        graph = json.loads((await client.read_resource("theodosia://graph"))[0].text)
         meta_names = [m["name"] for m in graph["meta_tools"]]
         assert "fork_at" in meta_names
 
@@ -51,7 +51,7 @@ async def test_fork_at_rewinds_to_an_earlier_state():
         ]:
             await client.call_tool("step", {"action": a, "inputs": {}})
         # Terminal: valid is [].
-        valid = json.loads((await client.read_resource("burr://next"))[0].text)
+        valid = json.loads((await client.read_resource("theodosia://next"))[0].text)
         assert valid == []
 
         # Fork back to after enter_foyer (seq 0).
@@ -73,7 +73,7 @@ async def test_fork_at_records_marker_in_history():
         await client.call_tool("step", {"action": "go_to_library", "inputs": {}})
         await client.call_tool("fork_at", {"sequence_id": 0})
 
-        history = json.loads((await client.read_resource("burr://history"))[0].text)
+        history = json.loads((await client.read_resource("theodosia://history"))[0].text)
         actions = [h["action"] for h in history]
         assert actions == ["enter_foyer", "go_to_library", "fork_at"]
         fork_entry = history[2]
@@ -87,7 +87,7 @@ async def test_fork_at_refuses_to_a_refusal_entry():
     async with Client(server) as client:
         # Generate a refusal: unlock_door from initial state.
         await client.call_tool("step", {"action": "unlock_door", "inputs": {}})
-        history = json.loads((await client.read_resource("burr://history"))[0].text)
+        history = json.loads((await client.read_resource("theodosia://history"))[0].text)
         assert history[0]["refused"] is True
 
         r = await client.call_tool("fork_at", {"sequence_id": 0})
@@ -140,7 +140,7 @@ async def test_fork_at_lets_alternate_path_complete():
         # First attempt: dead-end via go_to_garden_direct.
         await client.call_tool("step", {"action": "enter_foyer", "inputs": {}})
         await client.call_tool("step", {"action": "go_to_garden_direct", "inputs": {}})
-        state = json.loads((await client.read_resource("burr://state"))[0].text)
+        state = json.loads((await client.read_resource("theodosia://state"))[0].text)
         assert state["room"] == "garden"
         assert state["won"] is False  # the dead-end branch
 
@@ -155,5 +155,5 @@ async def test_fork_at_lets_alternate_path_complete():
             "go_to_garden_via_hallway",
         ]:
             await client.call_tool("step", {"action": a, "inputs": {}})
-        state = json.loads((await client.read_resource("burr://state"))[0].text)
+        state = json.loads((await client.read_resource("theodosia://state"))[0].text)
         assert state["won"] is True

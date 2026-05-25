@@ -8,7 +8,7 @@ finalize), instrumented with two user-written hooks:
 * ``StepCounter``: post-step counter, demonstrates multi-hook
   composition (Burr applies hooks in registration order).
 
-The hooks attach via ``ApplicationBuilder.with_hooks(...)``. BurrMCP's
+The hooks attach via ``ApplicationBuilder.with_hooks(...)``. Theodosia's
 ``mount()`` doesn't have to know they're there: the hooks fire at
 Burr's action-execution layer, whether the action runs via MCP
 ``step``, ``app.astep`` from a script, or ``app.run(halt_after=...)``.
@@ -16,9 +16,9 @@ That's the 1:1 surface point: any user code plugged into Burr's hook
 system comes along through ``mount()`` for free.
 
 The hook data is exposed back to the MCP client via a custom
-``burr://timings`` resource added on the mounted FastMCP server.
+``theodosia://timings`` resource added on the mounted FastMCP server.
 This shows that users can register their own resources on top of
-the ones BurrMCP ships, which is occasionally useful for hook-driven
+the ones Theodosia ships, which is occasionally useful for hook-driven
 side channels like this one.
 
 Run:
@@ -37,7 +37,7 @@ from burr.core import ApplicationBuilder, State, action
 from burr.lifecycle import PostRunStepHook, PreRunStepHook
 from burr.tracking.client import LocalTrackingClient
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 _TRACKER_PROJECT = "pipeline-hooks-demo"
 
@@ -156,7 +156,7 @@ def build_application(
     Pass ``timing_hook`` / ``counter_hook`` (either or both) to wire
     hooks via ``ApplicationBuilder.with_hooks(...)``. Tests create
     fresh hooks per Application; ``build_server`` shares one set
-    across all sessions so the ``burr://timings`` resource sees the
+    across all sessions so the ``theodosia://timings`` resource sees the
     cumulative picture.
     """
     hooks = [h for h in (timing_hook, counter_hook) if h is not None]
@@ -186,7 +186,7 @@ def build_server():
     """Mount the pipeline with server-scoped hooks.
 
     Hooks are created once at server build time and shared across all
-    MCP sessions hitting this server; the ``burr://timings`` resource
+    MCP sessions hitting this server; the ``theodosia://timings`` resource
     therefore returns cumulative data across every session that has
     run. A real deployment that wants per-session timings would
     construct fresh hooks inside the factory closure instead.
@@ -206,12 +206,12 @@ def build_server():
             "finalize) instrumented with two user-defined Burr "
             "lifecycle hooks: TimingHook (wall-clock per action) and "
             "StepCounter (post-step success/error counts). The hooks "
-            "fire automatically on every step. Read burr://timings "
+            "fire automatically on every step. Read theodosia://timings "
             "for the captured timing snapshot."
         ),
     )
 
-    @server.resource("burr://timings")
+    @server.resource("theodosia://timings")
     async def _timings_resource() -> str:
         """Cumulative hook-recorded data across every session."""
         return json.dumps(

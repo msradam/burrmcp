@@ -1,4 +1,4 @@
-"""Two-layer reactive hinting: BurrMCP auto-hints + domain hint callback.
+"""Two-layer reactive hinting: Theodosia auto-hints + domain hint callback.
 
 After every step (success or refusal), the response carries a ``next_hint``
 field. The auto-hint layer is structural and graph-introspective --
@@ -16,8 +16,8 @@ import pytest
 from coffee_order import build_server
 from fastmcp import Client
 
-from burrmcp import ServingMode, mount
-from burrmcp.adapter import (
+from theodosia import ServingMode, mount
+from theodosia.adapter import (
     _auto_hint_refusal,
     _auto_hint_success,
     _compose_next_hint,

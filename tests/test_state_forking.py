@@ -96,7 +96,7 @@ async def test_persister_visible_via_mcp_resource():
         await client.call_tool(
             "step", {"action": "commit", "inputs": {"amount": 25, "note": "via-mcp"}}
         )
-        text = (await client.read_resource("burr://forks"))[0].text
+        text = (await client.read_resource("theodosia://forks"))[0].text
         payload = json.loads(text)
         assert payload["baseline_app_id"] is not None
         assert any(r["state"]["budget"] == 75.0 for r in payload["rows"])

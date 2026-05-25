@@ -13,7 +13,7 @@ Pairs two upstream surfaces in one demo:
   first kicked, ``post_stream_item`` fires per chunk, and
   ``post_end_stream`` fires once the generator is exhausted.
 
-Both surfaces plug through ``mount()`` unchanged. BurrMCP drives
+Both surfaces plug through ``mount()`` unchanged. Theodosia drives
 streaming actions via ``app.astream_result(halt_after=[action])``
 inside the ``step`` tool, so the streaming hooks fire when an MCP
 client calls ``step`` against a streaming action just as they would
@@ -46,7 +46,7 @@ from burr.lifecycle.base import (
 )
 from burr.tracking.client import LocalTrackingClient
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 _TRACKER_PROJECT = "streaming-hooks-demo"
 
@@ -204,12 +204,12 @@ def build_server():
             "yields validated Chunk partials and a typed final state. "
             "PreStartStreamHook / PostStreamItemHook / PostEndStreamHook "
             "are wired; their counters and wall-clock durations are at "
-            "burr://stream-stats. Chunks also surface via MCP progress "
+            "theodosia://stream-stats. Chunks also surface via MCP progress "
             "notifications."
         ),
     )
 
-    @server.resource("burr://stream-stats")
+    @server.resource("theodosia://stream-stats")
     async def _stream_stats_resource() -> str:
         return json.dumps(stats.snapshot(), indent=2)
 

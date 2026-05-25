@@ -22,7 +22,7 @@ Run as a server:
     python examples/coffee_order.py
 
 Inspect from another shell with the FastMCP client or any MCP client.
-``burr://state`` shows the order's current shape; ``burr://next``
+``theodosia://state`` shows the order's current shape; ``theodosia://next``
 lists the legal next actions.
 """
 
@@ -34,7 +34,7 @@ from burr.core import ApplicationBuilder, State, action
 from burr.core.action import Condition
 from burr.tracking.client import LocalTrackingClient
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 _TRACKER_PROJECT = "coffee-order-demo"
 _BASE_PRICE = 5.0
@@ -143,8 +143,8 @@ def build_server(mode: ServingMode = ServingMode.STEP):
             "A coffee-order FSM. Walk: take_order(item, qty) -> "
             "[add_modifier(modifier) loop, optional] -> pay(amount) -> "
             "fulfill. The running total is in state.total. cancel "
-            "is reachable from any pre-pay state. Read burr://state "
-            "for the order; burr://next for legal next actions."
+            "is reachable from any pre-pay state. Read theodosia://state "
+            "for the order; theodosia://next for legal next actions."
         ),
     )
 

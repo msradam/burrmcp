@@ -382,7 +382,7 @@ async def test_ask_with_empty_question_is_refused(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_burr_next_advertises_rewrite_not_finalize_mid_loop(monkeypatch):
-    """After a grade of 3 at round 1 of 3, ``burr://next`` should
+    """After a grade of 3 at round 1 of 3, ``theodosia://next`` should
     advertise rewrite_query and NOT finalize."""
     _patch_granite(
         monkeypatch,
@@ -395,14 +395,14 @@ async def test_burr_next_advertises_rewrite_not_finalize_mid_loop(monkeypatch):
         await _step(client, "retrieve")
         await _step(client, "synthesize")
         await _step(client, "grade")
-        nxt = json.loads((await client.read_resource("burr://next"))[0].text)
+        nxt = json.loads((await client.read_resource("theodosia://next"))[0].text)
         assert "rewrite_query" in nxt
         assert "finalize" not in nxt
 
 
 @pytest.mark.asyncio
 async def test_burr_next_advertises_finalize_not_rewrite_at_cap(monkeypatch):
-    """After a grade of 3 at round 3 of 3, ``burr://next`` should
+    """After a grade of 3 at round 3 of 3, ``theodosia://next`` should
     advertise finalize and NOT rewrite_query."""
     _patch_granite(
         monkeypatch,
@@ -426,6 +426,6 @@ async def test_burr_next_advertises_finalize_not_rewrite_at_cap(monkeypatch):
         await _step(client, "retrieve")
         await _step(client, "synthesize")
         await _step(client, "grade")
-        nxt = json.loads((await client.read_resource("burr://next"))[0].text)
+        nxt = json.loads((await client.read_resource("theodosia://next"))[0].text)
         assert "finalize" in nxt
         assert "rewrite_query" not in nxt

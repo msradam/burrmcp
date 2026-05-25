@@ -1,21 +1,21 @@
-"""Upstream MCP servers: burrmcp as an MCP *client* to other servers.
+"""Upstream MCP servers: theodosia as an MCP *client* to other servers.
 
 This is the load-bearing half of the "works with any MCP server" promise.
-burrmcp is normally the MCP *server* the agent talks to. With ``upstream``,
+theodosia is normally the MCP *server* the agent talks to. With ``upstream``,
 it also opens MCP *client* sessions to other servers (Kubernetes, Grafana,
 filesystem, ...). A Burr action can then call those servers' tools from
 inside its Python body via ``call_upstream(server, tool, args)``.
 
 Why this keeps the architecture honest:
 
-* **Single surface.** The agent only ever sees burrmcp's ``step`` tool.
+* **Single surface.** The agent only ever sees theodosia's ``step`` tool.
   The upstream servers are not exposed to it. There is no separate "query
   the cluster" surface to get absorbed in, so weak models can't loop.
 * **Every call is a ledger entry.** The upstream call happens inside an
   action, so it advances state by construction. The graph can't fall out
   of sync with what actually happened.
 * **Any server.** MCP is a standard protocol and ``fastmcp.Client``
-  speaks every transport (stdio, http, sse). burrmcp doesn't need to know
+  speaks every transport (stdio, http, sse). theodosia doesn't need to know
   what the upstream server is.
 * **No arg-guessing.** The action author writes the call explicitly
   (server, tool, args) -- the same as calling any API. No fragile
@@ -34,7 +34,7 @@ import json
 from contextvars import ContextVar
 from typing import Any
 
-_UPSTREAM: ContextVar[Any | None] = ContextVar("burrmcp_upstream", default=None)
+_UPSTREAM: ContextVar[Any | None] = ContextVar("theodosia_upstream", default=None)
 
 
 class UpstreamError(RuntimeError):

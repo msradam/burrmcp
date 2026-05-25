@@ -24,8 +24,8 @@ support MCP server-to-client sampling; it returns the explicit error
 latter; the smoke test asserts the Claude Code refusal as documented
 compat.
 
-The Burr-side glue: ``burrmcp.current_mcp_context()`` returns the
-FastMCP ``Context`` BurrMCP's step handler threads into each action.
+The Burr-side glue: ``theodosia.current_mcp_context()`` returns the
+FastMCP ``Context`` Theodosia's step handler threads into each action.
 Action bodies pull it out and call any ``Context`` method. Outside an
 action body the helper returns ``None``.
 
@@ -50,7 +50,7 @@ from __future__ import annotations
 from burr.core import ApplicationBuilder, State, action
 from burr.tracking.client import LocalTrackingClient
 
-from burrmcp import ServingMode, current_mcp_context, mount
+from theodosia import ServingMode, current_mcp_context, mount
 
 _TRACKER_PROJECT = "caller-sample-demo"
 
@@ -59,13 +59,13 @@ async def _sample_text(prompt: str, *, system: str | None = None, max_tokens: in
     """Sample text from the caller's LLM via ``ctx.sample``.
 
     Returns the response text. Raises ``RuntimeError`` if called outside
-    a BurrMCP-dispatched action body (no Context to delegate through).
+    a Theodosia-dispatched action body (no Context to delegate through).
     """
     ctx = current_mcp_context()
     if ctx is None:
         raise RuntimeError(
             "caller_sample actions need a FastMCP Context; call this FSM "
-            "through burrmcp.mount, not directly via app.astep."
+            "through theodosia.mount, not directly via app.astep."
         )
     result = await ctx.sample(messages=prompt, system_prompt=system, max_tokens=max_tokens)
     return result.text

@@ -10,8 +10,8 @@ arxiv:2401.15884) collapsed into a six-action Burr FSM:
                                   -> rewrite_query  (try again)
     rewrite_query -> retrieve
 
-Every loop iteration is a separate visible step in ``burr://history``
-and ``burr://trace``. The retry-as-transition pattern is the same one
+Every loop iteration is a separate visible step in ``theodosia://history``
+and ``theodosia://trace``. The retry-as-transition pattern is the same one
 used in ``granite_oncall``: instead of a Python ``while`` loop inside
 one action, each round of grade-then-route is encoded as transitions
 so an operator can step through one re-retrieval at a time.
@@ -65,7 +65,7 @@ from parallel_research import (
     _score_documents,
 )
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 _TRACKER_PROJECT = "adaptive-crag-demo"
 _DATA_DIR = Path(__file__).parent / "data" / "parallel_research"

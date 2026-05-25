@@ -3,7 +3,7 @@
 Six stages run in strict order. Tests cover the happy path through to
 ``finalize``, the refusal-on-skip pattern that's the whole point of
 the demo, per-action input validation (point-buy total, class skill
-list), and that ``burr://state`` shows the in-progress sheet.
+list), and that ``theodosia://state`` shows the in-progress sheet.
 """
 
 from __future__ import annotations
@@ -178,7 +178,7 @@ async def test_state_shows_progress_partway_through():
     async with Client(server) as client:
         await client.call_tool("step", {"action": "begin", "inputs": {"name": "Gwen"}})
         await client.call_tool("step", {"action": "choose_race", "inputs": {"race": "dwarf"}})
-        state = json.loads((await client.read_resource("burr://state"))[0].text)
+        state = json.loads((await client.read_resource("theodosia://state"))[0].text)
         assert state["name"] == "Gwen"
         assert state["race"] == "dwarf"
         assert state["class_"] == ""

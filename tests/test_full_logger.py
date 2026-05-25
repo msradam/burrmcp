@@ -60,7 +60,7 @@ async def test_full_log_resource_via_mcp():
     async with Client(server) as client:
         await client.call_tool("step", {"action": "tick", "inputs": {}})
         await client.call_tool("step", {"action": "tick", "inputs": {}})
-        text = (await client.read_resource("burr://full-log"))[0].text
+        text = (await client.read_resource("theodosia://full-log"))[0].text
         payload = json.loads(text)
         assert len(payload["rows"]) == 2
         assert payload["rows"][0]["action"] == "tick"

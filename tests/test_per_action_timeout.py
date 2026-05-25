@@ -4,7 +4,7 @@ A ``ToolSpec.timeout_seconds`` declared at lift time annotates the
 wrapped action with a per-call timeout. ``mount`` reads the annotation
 back and applies it in preference to its own
 ``action_timeout_seconds`` default. Annotating a hand-written Burr
-action with ``fn._burrmcp_timeout_seconds = N`` works too.
+action with ``fn._theodosia_timeout_seconds = N`` works too.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ import pytest
 from burr.core import ApplicationBuilder, State, action
 from fastmcp import Client, FastMCP
 
-from burrmcp import ServingMode, ToolSpec, burr_app_from_fastmcp, mount
+from theodosia import ServingMode, ToolSpec, burr_app_from_fastmcp, mount
 
 
 @pytest.mark.asyncio
@@ -126,7 +126,7 @@ async def test_hand_tagged_action_function_works_too():
     # @action returns the underlying function with extra attributes;
     # FunctionBasedAction.fn IS this same function, so setting the
     # magic attribute here is what mount() reads back.
-    hand_slow._burrmcp_timeout_seconds = 0.1  # type: ignore[attr-defined]
+    hand_slow._theodosia_timeout_seconds = 0.1  # type: ignore[attr-defined]
 
     def app_factory():
         return (

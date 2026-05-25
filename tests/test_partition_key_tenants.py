@@ -3,7 +3,7 @@
 Validates that ``with_identifiers(partition_key=...)`` sets a real
 partition_key on the live Application, and that switching the env
 var produces isolated Applications. Also confirms the custom
-``burr://tenant`` resource exposes the current tenant id.
+``theodosia://tenant`` resource exposes the current tenant id.
 """
 
 from __future__ import annotations
@@ -88,18 +88,18 @@ async def test_tenant_resource_exposes_partition_key(monkeypatch):
     monkeypatch.setenv("BURRMCP_TENANT_ID", "acme")
     server = build_server()
     async with Client(server) as client:
-        text = (await client.read_resource("burr://tenant"))[0].text
+        text = (await client.read_resource("theodosia://tenant"))[0].text
         info = json.loads(text)
         assert info["tenant_id"] == "acme"
 
 
 @pytest.mark.asyncio
 async def test_session_resource_carries_partition_key(monkeypatch):
-    """BurrMCP's burr://session resource exposes the partition_key
+    """Theodosia's theodosia://session resource exposes the partition_key
     set via with_identifiers."""
     monkeypatch.setenv("BURRMCP_TENANT_ID", "globex")
     server = build_server()
     async with Client(server) as client:
-        text = (await client.read_resource("burr://session"))[0].text
+        text = (await client.read_resource("theodosia://session"))[0].text
         info = json.loads(text)
         assert info["partition_key"] == "globex"

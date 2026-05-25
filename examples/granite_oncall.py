@@ -23,7 +23,7 @@ What the FSM gives the LLM:
   search suffices.
 * The retry loop is encoded as transitions, not as a Python
   ``while`` loop inside the action. Every retry is a separate
-  visible step in ``burr://history`` and ``burr://trace``, and
+  visible step in ``theodosia://history`` and ``theodosia://trace``, and
   every Granite response is captured in
   ``severity_attempts`` / ``service_attempts`` for audit.
 
@@ -49,7 +49,7 @@ from burr.core import ApplicationBuilder, State, action
 from burr.core.action import Condition
 from burr.tracking.client import LocalTrackingClient
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 _TRACKER_PROJECT = "granite-oncall-demo"
 _DEFAULT_MODEL = os.environ.get("BURR_MCP_GRANITE_MODEL", "granite4.1:3b")

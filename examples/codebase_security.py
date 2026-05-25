@@ -63,7 +63,7 @@ from burr.core import ApplicationBuilder, State, action
 from burr.core.action import Condition
 from burr.tracking.client import LocalTrackingClient
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 _TRACKER_PROJECT = "codebase-security-demo"
 _SCAN_TIMEOUT_SECONDS = 30

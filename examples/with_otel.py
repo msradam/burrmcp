@@ -13,7 +13,7 @@ running ``uv run python examples/with_otel.py``, then making a few
 tool calls against it, prints spans to stderr. Swap the exporter for
 OTLP, Jaeger, Honeycomb, etc. by changing one line.
 
-Install: ``pip install 'burrmcp[observability]'``.
+Install: ``pip install 'theodosia[observability]'``.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ from opentelemetry.sdk.trace.export import (
     ConsoleSpanExporter,
 )
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 # ── OTel wiring (do once at process start) ──────────────────────────
 
@@ -53,7 +53,7 @@ def build_application():
         ApplicationBuilder()
         .with_actions(greet=greet, farewell=farewell)
         .with_transitions(("greet", "farewell"))
-        .with_hooks(OpenTelemetryBridge(tracer_name="burrmcp.example"))
+        .with_hooks(OpenTelemetryBridge(tracer_name="theodosia.example"))
         .with_state(greeted=None, farewell=None)
         .with_entrypoint("greet")
         .build()

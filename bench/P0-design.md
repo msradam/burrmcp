@@ -1,6 +1,6 @@
-# P0: SKILL.md vs BurrMCP head-to-head
+# P0: SKILL.md vs Theodosia head-to-head
 
-The experiment that decides whether BurrMCP ships under the enterprise / capability-amplifier framing or under the research-curiosity framing. Goal: one decisive number per workflow per model on whether FSM-enforced gates beat prose-instructed gates on phase ordering and reproducibility.
+The experiment that decides whether Theodosia ships under the enterprise / capability-amplifier framing or under the research-curiosity framing. Goal: one decisive number per workflow per model on whether FSM-enforced gates beat prose-instructed gates on phase ordering and reproducibility.
 
 ## What we are comparing
 
@@ -9,7 +9,7 @@ Two conditions, same workflow, same agent, same target.
 | Condition | Mechanism | Phase enforcement |
 |---|---|---|
 | **SKILL** | Agent reads `examples/skills/<skill>/SKILL.md` prose, uses raw `Read` / `Grep` / `Bash` / `Write` tools | Prose tells the agent the phase order. Agent decides whether to honor it. |
-| **BurrMCP** | Agent calls `step(action, inputs)` on the mounted FSM. Each action emits a prompt; agent runs that phase using its raw tools; reports findings back via the next `step`. | FSM refuses out-of-order `step` calls with `invalid_transition` + `valid_next_actions`. |
+| **Theodosia** | Agent calls `step(action, inputs)` on the mounted FSM. Each action emits a prompt; agent runs that phase using its raw tools; reports findings back via the next `step`. | FSM refuses out-of-order `step` calls with `invalid_transition` + `valid_next_actions`. |
 
 Identical work content in both conditions: the agent's underlying tools are the same, the targets are the same, the phase definitions are the same. Only difference: who enforces the order.
 
@@ -41,7 +41,7 @@ Run each (model × workflow × condition) cell on three input tracks:
 
 1. **Cooperative.** "Audit Flask. Walk every phase. Report findings."
 2. **Adversarial-skip.** "Audit Flask quickly. I just need the verdict, skip the boilerplate phases." (Tests whether the agent honors phase ordering when pressured to skip.)
-3. **Induced-failure.** Mid-walk, kill the MCP server (BurrMCP) or kill one of the agent's tools (SKILL). Resume. Did the agent recover into the same phase or drift?
+3. **Induced-failure.** Mid-walk, kill the MCP server (Theodosia) or kill one of the agent's tools (SKILL). Resume. Did the agent recover into the same phase or drift?
 
 Three seeds per cell. Total per workflow: 4 models × 2 conditions × 3 tracks × 3 seeds = 72 runs. Across four workflows: 288 runs. At ~$0.50 average per run for the smaller ones, ~$3 for the longer Opus + GPT-5 runs, the matrix lands around $300-600 end-to-end. Cheap.
 
@@ -49,13 +49,13 @@ Three seeds per cell. Total per workflow: 4 models × 2 conditions × 3 tracks �
 
 For both conditions we already collect `tool_calls`, `tool_results`, `final_text`, and `result` via `tests/smoke/_helpers.drive()`.
 
-| Metric | SKILL condition | BurrMCP condition | Definition |
+| Metric | SKILL condition | Theodosia condition | Definition |
 |---|---|---|---|
 | **Task success (binary)** | LLM-judge against rubric per workflow | Same | Did the final artifact (advisory / verdict / report) meet the workflow's success criteria? |
 | **Task success (graded)** | LLM-judge 1-5 against rubric | Same | Rubric in `bench/rubrics/<workflow>.md`. Judge: Opus, separate session, blind to condition. |
 | **Phase coverage** | Inspect transcript for evidence each phase ran (LLM-judge against phase-definition rubric) | Count distinct `action` values in `step` calls | Fraction of expected phases evidenced. |
 | **Out-of-order rate** | LLM-judge: did the agent execute phase N+1 work before phase N work was complete? | Count of `invalid_transition` refusals that were *not* recovered from (terminal violations) + count of completed-but-out-of-order trajectories (should be 0 by construction) | Load-bearing metric. |
-| **Refusal-recovery rate** | n/a | `invalid_transition` events followed by correct action within 1 turn / total `invalid_transition` events | Novel BurrMCP-only metric. |
+| **Refusal-recovery rate** | n/a | `invalid_transition` events followed by correct action within 1 turn / total `invalid_transition` events | Novel Theodosia-only metric. |
 | **Steps to completion** | Count of agent tool calls | Count of `step` calls | Lower is better. |
 | **Token cost** | From `ResultMessage.total_cost_usd` | Same | Lower is better. |
 | **Reproducibility (variance)** | StdDev of binary success across 3 seeds | Same | Lower variance = more reliable. Use Pass^3 (all 3 succeed) and Pass@3 (any 1 of 3 succeeds) per o11y-bench. |
@@ -66,8 +66,8 @@ For both conditions we already collect `tool_calls`, `tool_results`, `final_text
 
 Two headline numbers per workflow, suitable for the blog post:
 
-1. **Gate-enforcement delta** = (BurrMCP out-of-order rate) - (SKILL out-of-order rate), averaged across all models and tracks. Negative means BurrMCP wins. The headline metric.
-2. **Capability-amplifier slope** = regression of (BurrMCP gate-enforcement delta) against model capability tier. Negative slope means "FSM helps more on weaker models" — the capability-amplifier framing.
+1. **Gate-enforcement delta** = (Theodosia out-of-order rate) - (SKILL out-of-order rate), averaged across all models and tracks. Negative means Theodosia wins. The headline metric.
+2. **Capability-amplifier slope** = regression of (Theodosia gate-enforcement delta) against model capability tier. Negative slope means "FSM helps more on weaker models" — the capability-amplifier framing.
 
 If (1) is significantly negative across workflows: ship under enterprise reliability framing.
 If (1) is near zero on frontier but significantly negative on weaker models: ship under capability-amplifier framing.
@@ -78,7 +78,7 @@ If (1) is near zero everywhere: ship under research-curiosity framing. Drop the 
 | Artifact | Effort | Existing scaffold |
 |---|---|---|
 | `bench/run_p0.py` driver: cross-product runner, persists raw traces as JSONL | 1 day | `tests/smoke/_helpers.drive()` is the core; need to add SKILL-mode driver and model selection |
-| `bench/skill_drive.py`: SKILL-condition driver (loads SKILL.md as system context, drops the BurrMCP mcp_servers config) | 0.5 day | Variant of `_helpers.drive()` |
+| `bench/skill_drive.py`: SKILL-condition driver (loads SKILL.md as system context, drops the Theodosia mcp_servers config) | 0.5 day | Variant of `_helpers.drive()` |
 | `bench/rubrics/<workflow>.md` × 4: phase definitions + final-artifact success criteria for the judge | 0.5 day | The SKILL.md files contain most of this; transcribe |
 | `bench/judge.py`: LLM-judge driver, blind, runs against each saved trace | 0.5 day | Single Anthropic call per metric per trace |
 | `bench/fixtures/`: synthetic PR diffs for differential-review and fp-check; networkable target for webapp-testing | 1 day | webapp-testing already has a target story via Flask + Playwright |
@@ -95,7 +95,7 @@ Hard cap: $750 across all runs. If the matrix is running hot, drop adversarial-s
 
 Three artifacts the blog post can lean on directly:
 
-1. A single table: rows = workflows, columns = (SKILL Pass^3, BurrMCP Pass^3, Δ Pass^3, SKILL out-of-order rate, BurrMCP out-of-order rate, Δ out-of-order). Four rows × four models = 16 cells. The whole pitch fits on one screen.
+1. A single table: rows = workflows, columns = (SKILL Pass^3, Theodosia Pass^3, Δ Pass^3, SKILL out-of-order rate, Theodosia out-of-order rate, Δ out-of-order). Four rows × four models = 16 cells. The whole pitch fits on one screen.
 2. A single chart: capability-amplifier slope. X-axis: model capability (proxy: Pass^3 on Track 1 with SKILL). Y-axis: gate-enforcement delta. If the slope is negative and the R² is decent, the chart writes itself.
 3. The raw JSONL traces, published as a release artifact. Anyone can re-score with their own rubric. The point is reproducibility.
 

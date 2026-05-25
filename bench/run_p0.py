@@ -1,4 +1,4 @@
-"""P0 matrix runner: SKILL.md prose vs BurrMCP FSM, head-to-head.
+"""P0 matrix runner: SKILL.md prose vs Theodosia FSM, head-to-head.
 
 Iterates (workflow x model x prompt_track x seed x condition), persists
 each trace to JSONL, prints a headline table at the end.
@@ -290,7 +290,7 @@ async def main() -> None:
         s_cost = sum(x["cost_usd"] for x in s) / len(s)
         f_cost = sum(x["cost_usd"] for x in f) / len(f)
         delta = f_cov - s_cov
-        marker = "  <-- BurrMCP wins" if delta > 10 else "  <-- close" if abs(delta) <= 10 else ""
+        marker = "  <-- Theodosia wins" if delta > 10 else "  <-- close" if abs(delta) <= 10 else ""
         print(
             f"  {wf:18} {m:7} {t:12}  "
             f"SKILL cov={s_cov:5.1f}% (${s_cost:.2f})  "

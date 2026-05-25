@@ -72,7 +72,7 @@ async def test_spans_resource_via_mcp():
         )
         out = r.structured_content
         assert out.get("error") is None, out
-        text = (await client.read_resource("burr://spans"))[0].text
+        text = (await client.read_resource("theodosia://spans"))[0].text
         spans = json.loads(text)
         names = {entry["name"] for entry in spans["render_report"]}
         assert names == {"fetch", "render", "summarize"}

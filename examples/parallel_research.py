@@ -8,7 +8,7 @@ documents. For each source, a four-step sub-Application runs:
     load_documents -> score_documents -> extract_snippets -> summarize
 
 All sub-Applications run concurrently via ``asyncio.gather``, each
-appearing as its own ``burr://subruns/{id}`` entry with the source
+appearing as its own ``theodosia://subruns/{id}`` entry with the source
 folder as its label. The parent collects the per-source mini-reports
 into a single combined report.
 
@@ -46,7 +46,7 @@ from pathlib import Path
 from burr.core import ApplicationBuilder, State, action
 from burr.tracking.client import LocalTrackingClient
 
-from burrmcp import ServingMode, mount, spawn_subapp
+from theodosia import ServingMode, mount, spawn_subapp
 
 _TRACKER_PROJECT = "parallel-research-demo"
 _DATA_DIR = Path(__file__).parent / "data" / "parallel_research"
@@ -266,7 +266,7 @@ async def research(
     four-step pipeline (load_documents, score_documents,
     extract_snippets, summarize) concurrently with the others via
     ``asyncio.gather``. Each sub-run is recorded at
-    ``burr://subruns/{id}`` with the source name as its label, so an
+    ``theodosia://subruns/{id}`` with the source name as its label, so an
     MCP client can drill into one source's timeline without the
     others getting in the way.
 
@@ -342,7 +342,7 @@ def build_server():
             "sub-Application (load_documents, score_documents, "
             "extract_snippets, summarize) via asyncio.gather. The "
             "combined report joins every per-source mini-report. Each "
-            "sub-run is addressable at burr://subruns/{id} with the "
+            "sub-run is addressable at theodosia://subruns/{id} with the "
             "source name as its label."
         ),
     )

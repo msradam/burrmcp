@@ -51,7 +51,7 @@ from typing import Any, Literal
 from burr.core import ApplicationBuilder, State, action
 from burr.tracking.client import LocalTrackingClient
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 _TRACKER_PROJECT = "webapp-testing-demo"
 _VALID_VERDICTS = {"passed", "failed", "inconclusive"}
@@ -170,7 +170,7 @@ notes='...')` with one of:
   refused, timeout, blocked by infra)
 
 The FSM stores the verdict + a small summary so the audit trail in
-burr://history is complete.
+theodosia://history is complete.
 """
 
 

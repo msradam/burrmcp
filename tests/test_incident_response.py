@@ -93,7 +93,7 @@ async def test_full_walk_with_late_mitigation_verifies():
         target="v2.14.2",
         simulated_offset_minutes=9,
     )
-    # Agent reads burr://state and sees the evidence; supplies verified.
+    # Agent reads theodosia://state and sees the evidence; supplies verified.
     await _aforce_step(app, "verify", verified=True, notes="error count zero post-rollback")
     evidence = app.state["verification_evidence"]
     assert evidence["error_count"] == 0
@@ -165,9 +165,9 @@ async def test_full_walk_through_mcp_step():
         assert invest_payload["state"]["findings"]
         assert "v2.14.3" in invest_payload["state"]["hypothesis"]
         # Sub-run id appears in the response somewhere.
-        history_text = (await client.read_resource("burr://history"))[0].text
+        history_text = (await client.read_resource("theodosia://history"))[0].text
         assert "investigate" in history_text
-        subruns_text = (await client.read_resource("burr://subruns"))[0].text
+        subruns_text = (await client.read_resource("theodosia://subruns"))[0].text
         subruns = json.loads(subruns_text)
         assert subruns, "expected at least one subrun"
 

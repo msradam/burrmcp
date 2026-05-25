@@ -486,7 +486,7 @@ async def test_history_records_each_phase():
     async with Client(server) as client:
         await _walk_through_stage_1(client)
         await _step(client, "agree_structure", sections=_SECTIONS)
-        history = json.loads((await client.read_resource("burr://history"))[0].text)
+        history = json.loads((await client.read_resource("theodosia://history"))[0].text)
         actions = [h["action"] for h in history]
         assert actions == [
             "start_doc",

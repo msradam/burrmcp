@@ -13,7 +13,7 @@ import pytest
 from coffee_order import build_server
 from fastmcp import Client
 
-from burrmcp import ServingMode
+from theodosia import ServingMode
 
 
 @pytest.mark.asyncio
@@ -74,7 +74,7 @@ async def test_state_resource_reflects_progress():
         await client.call_tool(
             "step", {"action": "take_order", "inputs": {"item": "americano", "qty": 1}}
         )
-        result = await client.read_resource("burr://state")
+        result = await client.read_resource("theodosia://state")
         state = json.loads(result[0].text)
         assert state["stage"] == "ordered"
         assert state["item"] == "americano"
@@ -87,8 +87,8 @@ async def test_state_resource_reflects_progress():
 async def test_next_resource_lists_valid_actions():
     server = build_server(ServingMode.STEP)
     async with Client(server) as client:
-        result = await client.read_resource("burr://next")
+        result = await client.read_resource("theodosia://next")
         assert json.loads(result[0].text) == ["take_order"]
         await client.call_tool("step", {"action": "take_order", "inputs": {"item": "latte"}})
-        result = await client.read_resource("burr://next")
+        result = await client.read_resource("theodosia://next")
         assert set(json.loads(result[0].text)) == {"pay", "add_modifier", "cancel"}

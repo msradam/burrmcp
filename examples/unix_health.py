@@ -24,15 +24,15 @@ What the FSM gives the health check:
 
 * Every subsystem probe is a real ``subprocess.exec`` of a tool an
   ops engineer would actually type. The raw stdout per check is
-  recorded in ``state.raw_outputs`` so ``burr://state`` shows the
+  recorded in ``state.raw_outputs`` so ``theodosia://state`` shows the
   literal output an operator would have seen at the terminal, not
   a pre-parsed dict.
-* Every probe is its own visible step in ``burr://history`` and
-  ``burr://trace``. A timeline of which command fired what
+* Every probe is its own visible step in ``theodosia://history`` and
+  ``theodosia://trace``. A timeline of which command fired what
   severity is reconstructable from the trace without bolting a
   separate metrics-logger on.
 * The deep-dive branch is encoded as a transition condition. An
-  agent reading ``burr://next`` after ``triage`` sees exactly one
+  agent reading ``theodosia://next`` after ``triage`` sees exactly one
   valid forward move; the routing decision lives in the graph
   rather than in glue code.
 * The escalation primitive (``deep_dive -> raise_alert``) runs
@@ -63,7 +63,7 @@ from burr.core import ApplicationBuilder, State, action
 from burr.core.action import Condition
 from burr.tracking.client import LocalTrackingClient
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 _TRACKER_PROJECT = "unix-health-demo"
 _COMMAND_TIMEOUT = 10.0  # seconds per shellout
@@ -690,7 +690,7 @@ def build_server():
             "overall_severity is healthy or warning) or deep_dive -> "
             "raise_alert (terminal, when at least one check is "
             "critical). Raw command output per check is recorded in "
-            "state.raw_outputs so burr://state shows the literal "
+            "state.raw_outputs so theodosia://state shows the literal "
             "stdout an operator would see at the terminal. Supports "
             "macOS (Darwin) and Linux; Windows users via WSL."
         ),

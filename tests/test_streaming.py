@@ -43,7 +43,7 @@ async def test_streaming_action_records_in_history():
     server = build_server()
     async with Client(server) as client:
         await client.call_tool("step", {"action": "narrate", "inputs": {"topic": "explorer"}})
-        history = json.loads((await client.read_resource("burr://history"))[0].text)
+        history = json.loads((await client.read_resource("theodosia://history"))[0].text)
         assert len(history) == 1
         entry = history[0]
         assert entry["action"] == "narrate"

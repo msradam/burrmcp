@@ -1,25 +1,25 @@
 {
-  "_comment": "Copy to ~/.mcp.json (or pass --config <this-file>) after editing the absolute paths. coffee runs the example script directly; triage uses the burrmcp CLI with --app-dir to make examples/ importable.",
+  "_comment": "Copy to ~/.mcp.json (or pass --config <this-file>) after editing the absolute paths. coffee runs the example script directly; triage uses the theodosia CLI with --app-dir to make examples/ importable.",
   "mcpServers": {
-    "burrmcp-coffee": {
+    "theodosia-coffee": {
       "type": "stdio",
       "command": "uv",
       "args": [
         "--directory",
-        "/ABSOLUTE/PATH/TO/burrmcp",
+        "/ABSOLUTE/PATH/TO/theodosia",
         "run",
         "python",
         "examples/coffee_order.py"
       ]
     },
-    "burrmcp-triage": {
+    "theodosia-triage": {
       "type": "stdio",
       "command": "uv",
       "args": [
         "--directory",
-        "/ABSOLUTE/PATH/TO/burrmcp",
+        "/ABSOLUTE/PATH/TO/theodosia",
         "run",
-        "burrmcp",
+        "theodosia",
         "serve",
         "triage:build_application",
         "--app-dir",

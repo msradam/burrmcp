@@ -1,7 +1,7 @@
 """Combinatorial software testing: hunt 2-way interaction bugs.
 
 Companion demo to ``combinatoric_testing.py``. Same architectural
-pattern (Hamilton DAG + Burr FSM + BurrMCP), different SUT shape:
+pattern (Hamilton DAG + Burr FSM + Theodosia), different SUT shape:
 where ``combinatoric_testing`` sweeps numeric parameters looking for
 algorithmic divergence, this one sweeps categorical parameters looking
 for interaction bugs in a piece of business logic.
@@ -57,7 +57,7 @@ from burr.core import ApplicationBuilder, State, action
 from burr.core.action import Condition
 from burr.tracking.client import LocalTrackingClient
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 _TRACKER_PROJECT = "combo-testing-demo"
 _DAG_PATH = Path(__file__).parent / "data" / "combo_testing" / "dag.py"

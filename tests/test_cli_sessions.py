@@ -1,7 +1,7 @@
 """CLI: `sessions` subcommands and rich-rendered observability.
 
 The sessions surface reads Burr's ``LocalTrackingClient`` JSONL logs
-out of ``~/.burr`` (or ``--burr-home``). These tests build a synthetic
+out of ``~/.burr`` (or ``--home``). These tests build a synthetic
 tracker tree under ``tmp_path`` so they don't depend on any real Burr
 session having been recorded on the dev's machine.
 """
@@ -13,7 +13,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from burrmcp.cli import _read_steps, _resolve_app, _state_diff_text, app
+from theodosia.cli import _read_steps, _resolve_app, _state_diff_text, app
 
 runner = CliRunner()
 
@@ -152,7 +152,7 @@ def test_sessions_ls_renders_table(tmp_path):
         proj / "abc123" / "log.jsonl",
         [_begin(0, "take_order"), _end(0, "take_order", {"stage": "ordered"})],
     )
-    result = runner.invoke(app, ["sessions", "ls", "--burr-home", str(tmp_path)])
+    result = runner.invoke(app, ["sessions", "ls", "--home", str(tmp_path)])
     assert result.exit_code == 0
     assert "coffee-order-demo" in result.output
     assert "abc123" in result.output
@@ -164,7 +164,7 @@ def test_sessions_ls_json_emits_valid_json(tmp_path):
         proj / "uuid1" / "log.jsonl",
         [_begin(0, "go"), _end(0, "go", {"x": 1})],
     )
-    result = runner.invoke(app, ["sessions", "ls", "--burr-home", str(tmp_path), "--json"])
+    result = runner.invoke(app, ["sessions", "ls", "--home", str(tmp_path), "--json"])
     assert result.exit_code == 0
     payload = json.loads(result.output)
     assert payload[0]["project"] == "demo"
@@ -183,7 +183,7 @@ def test_sessions_show_renders_steps_table(tmp_path):
         ],
     )
     result = runner.invoke(
-        app, ["sessions", "show", "u1", "--project", "demo", "--burr-home", str(tmp_path)]
+        app, ["sessions", "show", "u1", "--project", "demo", "--home", str(tmp_path)]
     )
     assert result.exit_code == 0
     assert "step_a" in result.output
@@ -197,7 +197,7 @@ def test_sessions_show_json_emits_step_records(tmp_path):
     )
     result = runner.invoke(
         app,
-        ["sessions", "show", "u1", "--project", "demo", "--burr-home", str(tmp_path), "--json"],
+        ["sessions", "show", "u1", "--project", "demo", "--home", str(tmp_path), "--json"],
     )
     assert result.exit_code == 0
     payload = json.loads(result.output)
@@ -211,14 +211,14 @@ def test_sessions_show_handles_no_steps(tmp_path):
     (tmp_path / "demo" / "u1").mkdir(parents=True)
     (tmp_path / "demo" / "u1" / "log.jsonl").write_text("")
     result = runner.invoke(
-        app, ["sessions", "show", "u1", "--project", "demo", "--burr-home", str(tmp_path)]
+        app, ["sessions", "show", "u1", "--project", "demo", "--home", str(tmp_path)]
     )
     assert result.exit_code == 0
     assert "No steps" in result.output
 
 
 def test_watch_alias_lives_at_top_level():
-    """`burrmcp watch` should still exist as a top-level command."""
+    """`theodosia watch` should still exist as a top-level command."""
     result = runner.invoke(app, ["watch", "--help"])
     assert result.exit_code == 0
     assert "Alias" in result.output or "sessions tail" in result.output
@@ -238,7 +238,7 @@ def test_logs_plain_one_line_per_step(tmp_path):
         ],
     )
     result = runner.invoke(
-        app, ["logs", "u1", "--project", "demo", "--burr-home", str(tmp_path), "--plain"]
+        app, ["logs", "u1", "--project", "demo", "--home", str(tmp_path), "--plain"]
     )
     assert result.exit_code == 0
     lines = [ln for ln in result.output.splitlines() if ln.strip()]
@@ -259,7 +259,7 @@ def test_logs_refusals_only_filters_errors(tmp_path):
     )
     result = runner.invoke(
         app,
-        ["logs", "u1", "--project", "demo", "--burr-home", str(tmp_path), "--plain", "--refusals"],
+        ["logs", "u1", "--project", "demo", "--home", str(tmp_path), "--plain", "--refusals"],
     )
     assert result.exit_code == 0
     assert "bad_step" in result.output
@@ -267,7 +267,7 @@ def test_logs_refusals_only_filters_errors(tmp_path):
 
 
 def test_exception_summary_extracts_message_not_traceback_tail():
-    from burrmcp.cli import _exception_summary
+    from theodosia.cli import _exception_summary
 
     tb = (
         "Traceback (most recent call last):\n"

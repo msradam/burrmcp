@@ -12,7 +12,7 @@ import time
 import pytest
 from coffee_order import build_application
 
-from burrmcp.adapter import _SessionStore
+from theodosia.adapter import _SessionStore
 
 
 def test_ttl_eviction_drops_stale_entries():
@@ -85,7 +85,7 @@ async def test_history_after_eviction_starts_fresh():
 
     from fastmcp import Client
 
-    from burrmcp import ServingMode, mount
+    from theodosia import ServingMode, mount
 
     server = mount(
         build_application,
@@ -96,7 +96,7 @@ async def test_history_after_eviction_starts_fresh():
 
     async with Client(server) as client:
         await client.call_tool("step", {"action": "take_order", "inputs": {"item": "latte"}})
-        history = json.loads((await client.read_resource("burr://history"))[0].text)
+        history = json.loads((await client.read_resource("theodosia://history"))[0].text)
         assert len(history) == 1
 
         # Reach into the closure-scoped store and backdate the session.

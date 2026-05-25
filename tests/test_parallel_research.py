@@ -89,7 +89,7 @@ async def test_default_sources_fan_out_across_all_three_folders():
         out = r.structured_content
         assert set(out["state"]["sources"]) == {"services", "runbooks", "faqs"}
         assert len(out["state"]["results"]) == 3
-        subs = json.loads((await client.read_resource("burr://subruns"))[0].text)
+        subs = json.loads((await client.read_resource("theodosia://subruns"))[0].text)
         assert len(subs) == 3
         labels = {s["label"] for s in subs}
         assert labels == {"search-services", "search-runbooks", "search-faqs"}
@@ -122,7 +122,7 @@ async def test_source_filter_only_spawns_requested_sources():
         )
         out = r.structured_content
         assert out["state"]["sources"] == ["runbooks"]
-        subs = json.loads((await client.read_resource("burr://subruns"))[0].text)
+        subs = json.loads((await client.read_resource("theodosia://subruns"))[0].text)
         assert len(subs) == 1
         assert subs[0]["label"] == "search-runbooks"
 
@@ -177,10 +177,10 @@ async def test_subrun_history_populated_with_four_step_trace():
                 "inputs": {"query": "deploy", "sources": ["services"]},
             },
         )
-        subs = json.loads((await client.read_resource("burr://subruns"))[0].text)
+        subs = json.loads((await client.read_resource("theodosia://subruns"))[0].text)
         assert len(subs) == 1
         sid = subs[0]["id"]
-        detail = json.loads((await client.read_resource(f"burr://subruns/{sid}"))[0].text)
+        detail = json.loads((await client.read_resource(f"theodosia://subruns/{sid}"))[0].text)
         actions_in_trace = [h.get("action") for h in detail["history"] if h.get("action")]
         # Each action appears twice in the trace (begin + end entries).
         assert actions_in_trace.count("load_documents") == 2
@@ -203,11 +203,11 @@ async def test_parent_history_lists_every_spawned_subrun():
                 },
             },
         )
-        history = json.loads((await client.read_resource("burr://history"))[0].text)
+        history = json.loads((await client.read_resource("theodosia://history"))[0].text)
         entry = history[0]
         assert entry["action"] == "research"
         assert len(entry["subruns"]) == 3
-        assert all(uri.startswith("burr://subruns/") for uri in entry["subrun_uris"])
+        assert all(uri.startswith("theodosia://subruns/") for uri in entry["subrun_uris"])
 
 
 @pytest.mark.asyncio

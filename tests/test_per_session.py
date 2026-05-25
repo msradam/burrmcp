@@ -13,7 +13,7 @@ import pytest
 from coffee_order import build_application
 from fastmcp import Client
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 
 def build_isolated_server(mode: ServingMode = ServingMode.STEP):
@@ -30,12 +30,12 @@ async def test_two_clients_have_independent_state():
             "step",
             {"action": "take_order", "inputs": {"item": "latte", "qty": 1}},
         )
-        state_a = json.loads((await client_a.read_resource("burr://state"))[0].text)
+        state_a = json.loads((await client_a.read_resource("theodosia://state"))[0].text)
 
         async with Client(server) as client_b:
             # Fresh session B: should still be at the entrypoint, no order.
-            state_b = json.loads((await client_b.read_resource("burr://state"))[0].text)
-            next_b = json.loads((await client_b.read_resource("burr://next"))[0].text)
+            state_b = json.loads((await client_b.read_resource("theodosia://state"))[0].text)
+            next_b = json.loads((await client_b.read_resource("theodosia://next"))[0].text)
 
             assert state_a["stage"] == "ordered"
             assert state_a["item"] == "latte"
@@ -49,12 +49,12 @@ async def test_two_clients_have_independent_state():
                 "step",
                 {"action": "take_order", "inputs": {"item": "americano", "qty": 3}},
             )
-            state_b_after = json.loads((await client_b.read_resource("burr://state"))[0].text)
+            state_b_after = json.loads((await client_b.read_resource("theodosia://state"))[0].text)
             assert state_b_after["item"] == "americano"
             assert state_b_after["qty"] == 3
 
         # A's state was not disturbed by B's order.
-        state_a_again = json.loads((await client_a.read_resource("burr://state"))[0].text)
+        state_a_again = json.loads((await client_a.read_resource("theodosia://state"))[0].text)
         assert state_a_again["item"] == "latte"
         assert state_a_again["qty"] == 1
 
@@ -75,7 +75,7 @@ async def test_shared_mode_still_works():
 
     async with Client(server) as client_b:
         # Same server, fresh client; the shared Application carries state from A.
-        state = json.loads((await client_b.read_resource("burr://state"))[0].text)
+        state = json.loads((await client_b.read_resource("theodosia://state"))[0].text)
         assert state["item"] == "latte"
         assert state["stage"] == "ordered"
 

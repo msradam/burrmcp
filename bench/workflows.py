@@ -19,7 +19,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 @dataclass(frozen=True)
 class Workflow:
-    name: str  # also the MCP server label in ~/burrmcp-demo/.mcp.json
+    name: str  # also the MCP server label in ~/theodosia-demo/.mcp.json
     skill_path: Path
     fsm_actions: tuple[str, ...]  # actions whose presence indicates phase coverage
     terminal_action: str  # the action whose call means "the FSM finished"
@@ -55,7 +55,7 @@ _DOC_ADVERSARIAL = _DOC_CTX + (
 
 _SEC_CTX = """\
 You are auditing the Flask web framework checkout at:
-  /Users/amsrahman/.cache/burrmcp-smoke/flask
+  /Users/amsrahman/.cache/theodosia-smoke/flask
 
 INSIDE mode: you have read-only filesystem access (this is treated as your
 own codebase for the audit, so no authorization_source is needed). Use your

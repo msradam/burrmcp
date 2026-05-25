@@ -2,9 +2,9 @@
 
 This is the Burr-native parallelism pattern. Where
 ``parallel_research.py`` fans out by calling ``asyncio.gather`` over
-``spawn_subapp`` (BurrMCP's own primitive), this demo uses
+``spawn_subapp`` (Theodosia's own primitive), this demo uses
 ``burr.core.parallelism.MapStates``, Burr's built-in map-reduce
-action. Both work through BurrMCP unchanged; the point of this demo
+action. Both work through Theodosia unchanged; the point of this demo
 is that Burr's own concurrency primitive comes along for free when
 you ``mount`` an Application.
 
@@ -29,12 +29,12 @@ Caveats / divergence from ``parallel_research``:
 
 * MapStates spawns its own sub-Applications via the parent
   Application's tracker (``"cascade"``), not through
-  ``burrmcp.spawn_subapp``. As a result, the per-task sub-runs do
-  *not* appear under ``burr://subruns`` (that resource only lists
+  ``theodosia.spawn_subapp``. As a result, the per-task sub-runs do
+  *not* appear under ``theodosia://subruns`` (that resource only lists
   spawn_subapp calls). They do show up on disk under the same
   ``LocalTrackingClient`` project directory as the parent run, as
   child app folders, so trace data is preserved, just not surfaced
-  through BurrMCP's subruns resource. The reducer captures every
+  through Theodosia's subruns resource. The reducer captures every
   per-task output into ``state["samples"]`` so callers can inspect
   the fan-out from the parent state directly.
 * MapStates wraps a bare ``@action`` callable through
@@ -64,7 +64,7 @@ from burr.core.application import ApplicationContext
 from burr.core.parallelism import MapStates, RunnableGraph
 from burr.tracking.client import LocalTrackingClient
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 _TRACKER_PROJECT = "burr-map-parallel-demo"
 
@@ -244,7 +244,7 @@ def prepare_inputs(state: State) -> State:
     Builds the per-task input descriptions that ``MapAndReduce``
     will iterate over. The actual fan-out happens inside the
     ``MapStates.states`` generator; this step makes the plan
-    visible in ``burr://history`` so an inspecting client can see
+    visible in ``theodosia://history`` so an inspecting client can see
     what was *about* to be parallelised before it ran.
     """
     if state["status"] != "configured":
@@ -274,7 +274,7 @@ def finalize(state: State) -> State:
 # Wrapper around the MapStates instance so we can flip status to
 # "reduced" after the reducer runs. MapStates' reduce() returns the
 # new state but we want one more hop to record the status transition
-# explicitly in burr://history. Simpler: subclass MapAndReduce and
+# explicitly in theodosia://history. Simpler: subclass MapAndReduce and
 # override reduce to also write status.
 
 
@@ -338,8 +338,8 @@ def build_server():
             "action that runs sample_candidate(prompt, temperature) "
             "across every temperature in state[temperatures] and "
             "reduces by best score. Note: MapStates sub-runs use "
-            "Burr's own tracker cascade, not burrmcp.spawn_subapp, "
-            "so they do not surface under burr://subruns. The "
+            "Burr's own tracker cascade, not theodosia.spawn_subapp, "
+            "so they do not surface under theodosia://subruns. The "
             "per-task outputs are recorded in state[samples] so "
             "callers can inspect the full fan-out from parent state."
         ),

@@ -6,9 +6,9 @@ of using the default untyped state. Everything else, including
 mount(), the four MCP tools in STEP mode, the resources, and the
 session machinery, is unchanged.
 
-What typed state gives you, surfaced through BurrMCP:
+What typed state gives you, surfaced through Theodosia:
 
-* **A real JSON Schema for state.** ``burr://graph`` exports the
+* **A real JSON Schema for state.** ``theodosia://graph`` exports the
   Pydantic model's full JSON schema under ``state_schema``. An MCP
   client introspecting the graph gets typed shape information --
   field names, types, constraints, enums -- without having to
@@ -18,12 +18,12 @@ What typed state gives you, surfaced through BurrMCP:
   validation isn't automatic. The pattern this demo uses: construct
   the Pydantic model from the proposed inputs at the top of each
   write-side action. A ``ValidationError`` surfaces as ``action_error``
-  through the BurrMCP adapter, with the full Pydantic reason. The
+  through the Theodosia adapter, with the full Pydantic reason. The
   caller LLM sees structurally why its inputs were rejected and can
   self-correct, just like with any other action-body refusal.
 * **One source of truth for shape.** The model declaration sits
   alongside the FSM; you don't have to re-state field types in
-  action signatures, in the burr://graph payload, and in the caller
+  action signatures, in the theodosia://graph payload, and in the caller
   LLM's instructions separately.
 
 Domain: a tiny credit-scoring workflow. Three actions:
@@ -48,7 +48,7 @@ from burr.integrations.pydantic import PydanticTypingSystem
 from burr.tracking.client import LocalTrackingClient
 from pydantic import BaseModel, Field
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 _TRACKER_PROJECT = "typed-state-loan-demo"
 
@@ -262,7 +262,7 @@ def build_server():
             "(LoanApplication); every state.update() is validated, "
             "so out-of-range inputs (credit_score outside [300, 850], "
             "debt_to_income outside [0, 2.0]) raise inside the action "
-            "and surface as action_error. burr://graph carries the "
+            "and surface as action_error. theodosia://graph carries the "
             "full Pydantic JSON schema under state_schema so a client "
             "can introspect the typed shape without inferring from "
             "writes."

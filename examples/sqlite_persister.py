@@ -15,7 +15,7 @@ two places:
 1. The factory: ``ApplicationBuilder().with_state_persister(persister)``
    so Burr's ``PersisterHook`` calls ``persister.save(...)`` after every
    step. State lands in a real SQLite file on disk, not in-memory.
-2. The mount: ``mount(..., state_loader=persister)`` so the burrmcp
+2. The mount: ``mount(..., state_loader=persister)`` so the theodosia
    server's ``fork_from_past`` meta-tool resolves through the same
    persister. The canonical "session went away, a new session comes
    back with the same app_id, ``fork_from_past`` restores the state"
@@ -55,7 +55,7 @@ from burr.core.action import Condition
 from burr.core.persistence import BaseStatePersister, PersistedStateData
 from burr.core.state import State as BurrState
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 _TRACKER_PROJECT = "sqlite-persister-demo"
 
@@ -168,7 +168,7 @@ class SQLitePersister(BaseStatePersister):
 
         ``sequence_id=None`` returns the latest row for (partition, app_id),
         matching Burr's documented contract. An unknown ``app_id``
-        returns ``None`` rather than raising; the burrmcp adapter
+        returns ``None`` rather than raising; the theodosia adapter
         translates ``None`` into the ``unknown_past_run`` error.
         """
         if app_id is None:
@@ -276,12 +276,12 @@ _TICK_OPEN = Condition.expr("status == 'started'")
 def _default_db_path() -> str:
     """Fall back to a tempfile-rooted db when no path is passed.
 
-    Real callers should pick a stable location (``~/.burrmcp/...``) so
+    Real callers should pick a stable location (``~/.theodosia/...``) so
     state survives across processes. The tempfile default exists so the
     demo is runnable without any extra setup, and so the doctor command
     can import-and-build the factory cleanly.
     """
-    return str(Path(tempfile.gettempdir()) / "burrmcp-sqlite-persister-demo.db")
+    return str(Path(tempfile.gettempdir()) / "theodosia-sqlite-persister-demo.db")
 
 
 def build_application(db_path: str | None = None):

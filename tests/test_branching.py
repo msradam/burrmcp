@@ -1,7 +1,7 @@
 """Branching FSM: conditional transitions are gated correctly.
 
 The triage example branches out of ``classify`` based on ``severity``.
-These tests verify that ``burr://next`` returns only the branch matching
+These tests verify that ``theodosia://next`` returns only the branch matching
 current state, and that calls to other branches are refused.
 """
 
@@ -26,7 +26,7 @@ def test_next_actions_after_classify_urgent_lists_only_escalate():
     asyncio.run(app.astep(inputs={"subject": "down", "body": "site is 500"}))
     asyncio.run(app.astep(inputs={"severity": "urgent"}))
 
-    from burrmcp.adapter import valid_next_action_names
+    from theodosia.adapter import valid_next_action_names
 
     assert valid_next_action_names(app) == ["escalate"]
 
@@ -38,7 +38,7 @@ def test_next_actions_after_classify_routine_lists_only_queue():
     asyncio.run(app.astep(inputs={"subject": "ask", "body": "how do I X"}))
     asyncio.run(app.astep(inputs={"severity": "routine"}))
 
-    from burrmcp.adapter import valid_next_action_names
+    from theodosia.adapter import valid_next_action_names
 
     assert valid_next_action_names(app) == ["queue"]
 
@@ -50,7 +50,7 @@ def test_next_actions_after_classify_spam_lists_only_drop():
     asyncio.run(app.astep(inputs={"subject": "buy now", "body": "click here"}))
     asyncio.run(app.astep(inputs={"severity": "spam"}))
 
-    from burrmcp.adapter import valid_next_action_names
+    from theodosia.adapter import valid_next_action_names
 
     assert valid_next_action_names(app) == ["drop"]
 

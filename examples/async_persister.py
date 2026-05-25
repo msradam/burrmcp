@@ -10,18 +10,18 @@ This one wires an ASYNC persister:
 * ``PersisterHookAsync(persister)`` is wired manually via
   ``with_hooks(...)`` rather than going through
   ``with_state_persister(async_persister)`` + ``.abuild()``. That
-  keeps the factory sync (BurrMCP's ``mount()`` calls factories
+  keeps the factory sync (Theodosia's ``mount()`` calls factories
   from inside an already-running event loop, so ``asyncio.run`` on
   ``abuild()`` would deadlock) while still exercising the async
   save path.
 
-BurrMCP's adapter drives every step via ``app.astep``, which awaits
+Theodosia's adapter drives every step via ``app.astep``, which awaits
 ``PostRunStepHookAsync`` hooks. So the async persister's
 ``await persister.save(...)`` runs inline on the MCP step path.
 
 Domain: a tiny event log. ``record(event, payload)`` appends to a
 list in state; the async persister awaits a small latency on each
-save. The ``burr://event-log`` resource shows the persister's
+save. The ``theodosia://event-log`` resource shows the persister's
 contents after each step.
 
 Run:
@@ -41,7 +41,7 @@ from burr.core import ApplicationBuilder, State, action
 from burr.core.persistence import AsyncBaseStatePersister, PersistedStateData, PersisterHookAsync
 from burr.core.state import State as BurrState
 
-from burrmcp import ServingMode, mount
+from theodosia import ServingMode, mount
 
 # == async persister =================================================
 
@@ -167,12 +167,12 @@ def build_server():
             "Async event-log FSM. Each record(event, payload) appends "
             "to state; an AsyncEventLogPersister (subclass of "
             "AsyncBaseStatePersister) awaits a small latency to save "
-            "the post-action state. Read burr://event-log for the "
+            "the post-action state. Read theodosia://event-log for the "
             "persister contents."
         ),
     )
 
-    @server.resource("burr://event-log")
+    @server.resource("theodosia://event-log")
     async def _event_log_resource() -> str:
         return json.dumps({"rows": persister.snapshot()}, indent=2, default=str)
 

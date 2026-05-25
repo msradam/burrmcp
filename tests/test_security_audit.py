@@ -252,7 +252,7 @@ async def test_advisory_must_not_be_empty():
         assert "advisory must not be empty" in out["error_message"]
 
 
-# ── audit trail in burr://history ────────────────────────────────
+# ── audit trail in theodosia://history ────────────────────────────────
 
 
 @pytest.mark.asyncio
@@ -263,6 +263,6 @@ async def test_history_records_each_phase():
         await _step(client, "start_audit", target="my-repo", mode="INSIDE")
         await _step(client, "record_context", findings={"stack": "python"})
         await _step(client, "source_review", findings=[])
-        history = json.loads((await client.read_resource("burr://history"))[0].text)
+        history = json.loads((await client.read_resource("theodosia://history"))[0].text)
         actions = [h["action"] for h in history]
         assert actions == ["start_audit", "record_context", "source_review"]

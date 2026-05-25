@@ -1,6 +1,6 @@
 """Lift an existing FastMCP server into a Burr Application.
 
-The shape of ``burrmcp`` so far has been one-way: write a Burr graph,
+The shape of ``theodosia`` so far has been one-way: write a Burr graph,
 mount it as an MCP server. The other direction is the more common
 starting point: someone already has a FastMCP server with a flat list
 of tools, and they want to gain transition enforcement, audit history,
@@ -8,7 +8,7 @@ and per-session isolation without rewriting everything.
 
 This module takes that flat server plus a declaration of the implicit
 state machine and produces a ``burr.core.Application`` ready to pass
-back to ``burrmcp.mount``. The implicit state machine isn't inferred,
+back to ``theodosia.mount``. The implicit state machine isn't inferred,
 it's declared, because guessing reads/writes from parameter names is
 lossy and silently wrong. The user names which tools mutate which
 state keys and which transitions are valid. The library handles the
@@ -47,7 +47,7 @@ Typical pattern:
 What carries over from the original tools:
 
   • Parameter names, types, and defaults (preserved on the wrapped
-    function's signature so burrmcp's later schema generation sees
+    function's signature so theodosia's later schema generation sees
     the same inputs the user already wrote).
   • Docstrings (used as the action's description).
   • Async/sync nature (wrapper preserves it).
@@ -96,7 +96,7 @@ class ToolSpec:
 
     ``validator`` declares an input validator that runs before the
     tool fires. It receives ``(state_dict, inputs)`` and may raise
-    ``burrmcp.ValidationFailed`` to refuse, return a dict to
+    ``theodosia.ValidationFailed`` to refuse, return a dict to
     substitute normalised inputs, or return None to accept the
     originals unchanged. Same shape as the ``input_validators={}``
     mapping on ``mount``; per-tool here takes precedence over the
@@ -128,7 +128,7 @@ def _build_wrapper(
     provided.
 
     The wrapper's ``__signature__`` and ``__annotations__`` are set
-    explicitly because burrmcp's later schema generation reintrospects
+    explicitly because theodosia's later schema generation reintrospects
     them when mounting the resulting Application.
     """
     original_sig = inspect.signature(tool_fn)
@@ -174,9 +174,9 @@ def _build_wrapper(
     # attributes. ``mount`` reads them off each action's ``fn`` to
     # pick up these per-action settings.
     if spec.timeout_seconds is not None:
-        wrapper._burrmcp_timeout_seconds = spec.timeout_seconds  # type: ignore[attr-defined]
+        wrapper._theodosia_timeout_seconds = spec.timeout_seconds  # type: ignore[attr-defined]
     if spec.validator is not None:
-        wrapper._burrmcp_validator = spec.validator  # type: ignore[attr-defined]
+        wrapper._theodosia_validator = spec.validator  # type: ignore[attr-defined]
     return wrapper
 
 
@@ -238,7 +238,7 @@ async def burr_app_from_fastmcp(
 
     Returns:
         A built ``burr.core.Application`` ready to pass to
-        ``burrmcp.mount``.
+        ``theodosia.mount``.
     """
     tool_specs = tool_specs or {}
     initial_state = initial_state or {}

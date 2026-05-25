@@ -1,4 +1,4 @@
-# Observability demo: burrmcp sessions + logs, Rose Pine.
+# Observability demo: theodosia sessions + logs, Rose Pine.
 # Record with: vhs demos/observability.tape
 # Seeds a coffee-order session (one refusal + a clean walk), then shows
 # the terminal observability surface. A fixed prompt and generous settle
@@ -30,7 +30,7 @@ Enter
 Show
 
 # List recent sessions.
-Type "burrmcp sessions ls --project coffee-order-demo --limit 3"
+Type "theodosia sessions ls --project coffee-order-demo --limit 3"
 Sleep 600ms
 Enter
 Sleep 3s
@@ -40,7 +40,7 @@ Enter
 Show
 
 # Full timeline (rich table; red refusal row + green recovery).
-Type "burrmcp sessions show --project coffee-order-demo"
+Type "theodosia sessions show --project coffee-order-demo"
 Sleep 600ms
 Enter
 Sleep 2s
@@ -52,7 +52,7 @@ Enter
 Show
 
 # Compact greppable log, refusals highlighted.
-Type "burrmcp logs --project coffee-order-demo"
+Type "theodosia logs --project coffee-order-demo"
 Sleep 600ms
 Enter
 Sleep 4s

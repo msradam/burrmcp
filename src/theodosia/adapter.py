@@ -10,24 +10,24 @@ One serving mode:
                              FSM, regardless of action count, so the
                              tool listing stays compact while the
                              action namespace lives in step's argument
-                             schema and ``burr://graph``.
+                             schema and ``theodosia://graph``.
 
 The mount registers eight resources:
 
-  • ``burr://graph``:           static description of the FSM topology
+  • ``theodosia://graph``:           static description of the FSM topology
                                 (actions, reads/writes/inputs, edges
                                 with conditions). Read once per session.
-  • ``burr://state``:           current Application state as JSON.
-  • ``burr://next``:            actions reachable from current state.
-  • ``burr://history``:         per-session timeline of every action
+  • ``theodosia://state``:           current Application state as JSON.
+  • ``theodosia://next``:            actions reachable from current state.
+  • ``theodosia://history``:         per-session timeline of every action
                                 attempt (successes + refusals).
-  • ``burr://trace``:           Burr's on-disk LocalTrackingClient log.
-  • ``burr://session``:         tracker coordinates (project, app_id,
+  • ``theodosia://trace``:           Burr's on-disk LocalTrackingClient log.
+  • ``theodosia://session``:         tracker coordinates (project, app_id,
                                 app_dir, partition_key) for locating
                                 this session's data on disk.
-  • ``burr://subruns``:         index of sub-Application runs spawned
+  • ``theodosia://subruns``:         index of sub-Application runs spawned
                                 in this session via ``spawn_subapp``.
-  • ``burr://subruns/{id}``:    full record for one sub-run.
+  • ``theodosia://subruns/{id}``:    full record for one sub-run.
 
 Per-session isolation:
 
@@ -67,7 +67,7 @@ from fastmcp import Context, FastMCP
 from fastmcp.tools.base import ToolResult
 from mcp.types import TextContent
 
-from burrmcp.upstream import UpstreamManager, bind_upstream, reset_upstream
+from theodosia.upstream import UpstreamManager, bind_upstream, reset_upstream
 
 ApplicationFactory = Callable[[], Application]
 ApplicationOrFactory = Application | ApplicationFactory
@@ -81,7 +81,7 @@ class ServingMode(str, Enum):  # noqa: UP042  # (str, Enum) for stable wire seri
     STEP = "step"
     # ``TOOLS`` (one MCP tool per @action, no enforcement) and ``DYNAMIC``
     # (per-session ``tools/list_changed`` visibility) were carved out into
-    # ``burrmcp._experimental.modes`` after STEP became the sole product.
+    # ``theodosia._experimental.modes`` after STEP became the sole product.
     # The enum is preserved (single-member) so callers that pass
     # ``mode=ServingMode.STEP`` keep working.
 
@@ -299,7 +299,7 @@ def _serializable_state(
     objects, Pydantic models, callables). The wire format is JSON, so
     we test each top-level value with strict ``json.dumps`` and fall
     back to ``str(value)`` for anything that fails. The list of coerced
-    keys is surfaced to the client via ``_burrmcp.coerced_keys`` on
+    keys is surfaced to the client via ``_theodosia.coerced_keys`` on
     the state resource so it knows the round-trip is lossy and can
     flag downstream.
 
@@ -318,13 +318,13 @@ def _serializable_state(
     return out, coerced
 
 
-_TRACE_MAX_ENTRIES = 1000  # cap burr://trace response to the last N records
+_TRACE_MAX_ENTRIES = 1000  # cap theodosia://trace response to the last N records
 
-# Function attribute set by ``burrmcp.importing`` (and any other code
+# Function attribute set by ``theodosia.importing`` (and any other code
 # that wants to annotate an action with a per-call timeout). ``mount``
 # reads this off each action's ``fn`` and uses it in preference to the
 # server-wide default.
-_PER_ACTION_TIMEOUT_ATTR = "_burrmcp_timeout_seconds"
+_PER_ACTION_TIMEOUT_ATTR = "_theodosia_timeout_seconds"
 
 
 def _action_timeout(action: Action, server_default: float | None) -> float | None:
@@ -332,7 +332,7 @@ def _action_timeout(action: Action, server_default: float | None) -> float | Non
 
     Per-action override (set by ``ToolSpec.timeout_seconds`` via the
     importer, or by hand-tagging a function with
-    ``fn._burrmcp_timeout_seconds = N``) wins over the server-wide
+    ``fn._theodosia_timeout_seconds = N``) wins over the server-wide
     default. ``None`` at either level disables timeout for that level;
     a numeric override on the action applies even when the server
     default is ``None``.
@@ -399,7 +399,7 @@ def _restore_snapshot(
 
     new_state, coerced = _serializable_state(_public_state(new_app.state.get_all()))
     if coerced:
-        new_state["_burrmcp"] = {"coerced_keys": coerced}
+        new_state["_theodosia"] = {"coerced_keys": coerced}
     valid_next = valid_next_action_names(new_app)
     entry.last_access = time.monotonic()
 
@@ -469,7 +469,7 @@ def _render_action_surface(app: Application) -> str:
     first line of each action's docstring (if any) becomes its summary;
     transitions show source and target, plus a `(when: expr)` clause for
     conditional edges. Inputs are deliberately omitted; they live on the
-    `step` tool's argument schema (or `burr://graph` for full detail).
+    `step` tool's argument schema (or `theodosia://graph` for full detail).
     """
     lines: list[str] = []
     entry = getattr(app, "entrypoint", None)
@@ -537,7 +537,7 @@ def _compute_graph_summary(
     """Build a static description of an Application's graph.
 
     Computed once at mount time and returned as-is by the
-    ``burr://graph`` resource. Includes per-action metadata
+    ``theodosia://graph`` resource. Includes per-action metadata
     (description, reads, writes, required/optional inputs) and the
     full transition table including conditions as printed expressions.
 
@@ -619,7 +619,7 @@ def _compute_graph_summary(
                 "description": (
                     "Rewind the session to the state captured after a "
                     "specific history entry (by ``seq`` from "
-                    "``burr://history``). Lets an agent explore alternate "
+                    "``theodosia://history``). Lets an agent explore alternate "
                     "paths from any checkpoint without losing the audit "
                     "trail. Refuses in shared-app mode."
                 ),
@@ -737,7 +737,7 @@ class InvalidTransitionError(Exception):
     """Raised when a client requests an action that isn't reachable now.
 
     Carries the list of currently valid action names so the client can
-    recover without re-fetching ``burr://next``.
+    recover without re-fetching ``theodosia://next``.
     """
 
     def __init__(self, requested: str, valid: list[str]) -> None:
@@ -785,7 +785,7 @@ class ActionTimeoutError(Exception):
 #: call. Reads inside an action body see their session's entry; used by
 #: ``spawn_subapp`` to record sub-run timelines on the parent session.
 _current_session_entry: contextvars.ContextVar[_SessionEntry | None] = contextvars.ContextVar(
-    "_burrmcp_current_session", default=None
+    "_theodosia_current_session", default=None
 )
 
 #: ContextVar set by the step handler around each ``_step_application``
@@ -795,7 +795,7 @@ _current_session_entry: contextvars.ContextVar[_SessionEntry | None] = contextva
 #: Reads via the public ``current_mcp_context()`` helper return the
 #: current value (or ``None`` outside an action body).
 _current_fastmcp_context: contextvars.ContextVar[Context | None] = contextvars.ContextVar(
-    "_burrmcp_current_fastmcp_context", default=None
+    "_theodosia_current_fastmcp_context", default=None
 )
 
 
@@ -803,7 +803,7 @@ def current_mcp_context() -> Context | None:
     """Return the FastMCP ``Context`` for the currently-dispatching tool call.
 
     Returns ``None`` outside an action body. Inside an action driven via
-    burrmcp's adapter, returns the Context FastMCP injected into the
+    theodosia's adapter, returns the Context FastMCP injected into the
     step handler, so action bodies can call ``ctx.sample(...)``,
     ``ctx.elicit(...)``, ``ctx.report_progress(...)``,
     ``ctx.read_resource(...)``, etc.
@@ -825,7 +825,7 @@ async def spawn_subapp(
     """Run a sub-Application inside an action and record its timeline.
 
     The sub-run is appended to the parent session's subruns dict and
-    surfaced via ``burr://subruns`` and ``burr://subruns/{subrun_id}``.
+    surfaced via ``theodosia://subruns`` and ``theodosia://subruns/{subrun_id}``.
 
     Args:
         sub_application: Built ``burr.core.Application`` to run. Each
@@ -869,7 +869,7 @@ async def spawn_subapp(
         record["final_state"] = final
         record["ended_ts"] = datetime.now(UTC).isoformat()
         # If the sub-Application has its own LocalTrackingClient, surface
-        # its per-step trace on the record so burr://subruns/{id} returns
+        # its per-step trace on the record so theodosia://subruns/{id} returns
         # a populated ``history`` rather than an empty list. Best-effort:
         # a missing tracker, missing file, or read error all just leave
         # ``history`` empty.
@@ -894,7 +894,7 @@ class ValidationFailed(Exception):
 
     The handler catches ``ValidationFailed``, returns a structured
     ``{"error": "validation_failed", "reason": ..., "details": ...}``
-    to the client, and records a refusal in ``burr://history`` with
+    to the client, and records a refusal in ``theodosia://history`` with
     ``refusal_reason: "validation_failed"``. The FSM does not advance.
 
     Use ``details`` to attach structured per-field information (e.g.
@@ -910,9 +910,9 @@ class ValidationFailed(Exception):
 
 # Function attribute that lets hand-written Burr actions declare a
 # validator without going through the importer's ``ToolSpec``. ``mount``
-# reads ``_burrmcp_validator`` off each action's ``fn`` like the
+# reads ``_theodosia_validator`` off each action's ``fn`` like the
 # timeout attribute, so the same escape hatch works for both.
-_PER_ACTION_VALIDATOR_ATTR = "_burrmcp_validator"
+_PER_ACTION_VALIDATOR_ATTR = "_theodosia_validator"
 
 
 def _action_validator(
@@ -1003,7 +1003,7 @@ class _SessionEntry:
     Different sessions still proceed in parallel.
 
     ``subruns`` holds the timelines of any sub-Applications spawned
-    from inside this session's actions via ``burrmcp.spawn_subapp``.
+    from inside this session's actions via ``theodosia.spawn_subapp``.
     Each entry has its own id, label, started/ended timestamps,
     history list, and optional final state. Subrun ids are surfaced
     on the parent action's history entry via the ``subruns`` key so
@@ -1103,7 +1103,7 @@ def _record_history(
     "the action's code raised." When the action spawned sub-runs via
     ``spawn_subapp``, their ids are listed under ``subruns`` so the
     client can correlate the parent entry with the child timelines at
-    ``burr://subruns/{id}``. No-op when ``ctx`` is None.
+    ``theodosia://subruns/{id}``. No-op when ``ctx`` is None.
     """
     if ctx is None:
         return
@@ -1124,7 +1124,7 @@ def _record_history(
         record["error_type"] = error_type
     if subruns:
         record["subruns"] = subruns
-        record["subrun_uris"] = [f"burr://subruns/{sid}" for sid in subruns]
+        record["subrun_uris"] = [f"theodosia://subruns/{sid}" for sid in subruns]
     entry.history.append(record)
     entry.last_access = time.monotonic()
 
@@ -1216,7 +1216,7 @@ def _refusal_payload(
 
 # ── Reactive hinting (auto-hint layer) ─────────────────────────────────────
 #
-# After every step (success or refusal), BurrMCP appends a single ``next_hint``
+# After every step (success or refusal), Theodosia appends a single ``next_hint``
 # string to the response. The hint is generated in two layers:
 #
 #   1. Auto-hint (this module): derived from graph introspection alone -- what
@@ -1250,7 +1250,7 @@ def _auto_hint_success(action: str, valid_next: list[str]) -> str | None:
 def _auto_hint_refusal(refusal: dict[str, Any]) -> str | None:
     """Structural hint after a refusal.
 
-    Maps the BurrMCP refusal taxonomy (invalid_transition / validation_failed
+    Maps the Theodosia refusal taxonomy (invalid_transition / validation_failed
     / action_timeout / action_error) to short, model-readable strings that
     cite the structural reason without claiming to know the domain.
     """
@@ -1521,7 +1521,7 @@ async def _step_application(
         app.get_next_action = original_get_next_action  # type: ignore[method-assign]
     state, coerced = _serializable_state(_public_state(new_state.get_all()))
     if coerced:
-        state["_burrmcp"] = {"coerced_keys": coerced}
+        state["_theodosia"] = {"coerced_keys": coerced}
     return {
         "action": a.name,
         "result": result,
@@ -1587,7 +1587,7 @@ async def _step_streaming_action(
 
     state, coerced = _serializable_state(_public_state(final_state_dict))  # type: ignore[arg-type]
     if coerced:
-        state["_burrmcp"] = {"coerced_keys": coerced}
+        state["_theodosia"] = {"coerced_keys": coerced}
     return {
         "action": a.name,
         "result": final_chunk,
@@ -1662,7 +1662,7 @@ def mount(
             shape is read once at mount time, so factories should
             return Applications with the same graph each call.
         mode: ``ServingMode.STEP`` (the only supported value).
-        name: MCP server name; defaults to ``"burrmcp"``.
+        name: MCP server name; defaults to ``"theodosia"``.
         instructions: Server-level instructions surfaced via the MCP
             spec's server-info ``instructions`` field.
         session_ttl_seconds: Idle TTL for the per-session store. After
@@ -1688,7 +1688,7 @@ def mount(
             inputs, or return None to accept the originals. Async
             validators are supported. ToolSpec-declared validators
             from the importer also work; per-action attribute
-            ``fn._burrmcp_validator`` is the hand-tagged escape hatch.
+            ``fn._theodosia_validator`` is the hand-tagged escape hatch.
         state_loader: Optional Burr ``BaseStateLoader`` (SQLite, S3,
             Postgres, etc.) used by ``fork_from_past``. Resolution order:
             this loader wins; else the current Application's
@@ -1706,25 +1706,25 @@ def mount(
             ``refusal`` parameter) still work.
         external_tools: Experimental, advisory. Prefer ``upstream`` for
             driving other MCP servers. This is the fallback for the case
-            where BurrMCP cannot be in the call path (the agent reaches a
-            server BurrMCP can't, e.g. a separate auth or network
+            where Theodosia cannot be in the call path (the agent reaches a
+            server Theodosia can't, e.g. a separate auth or network
             boundary). Maps an action name to tool names on OTHER MCP
             servers the agent is connected to. Surfaced per-action in
-            ``burr://graph`` and contextually as ``next_external_tools``
+            ``theodosia://graph`` and contextually as ``next_external_tools``
             in each ``step`` response, as advisory guidance only: the
             agent calls those tools on its own connected servers, then
-            ``step()``s. BurrMCP neither executes nor validates them.
+            ``step()``s. Theodosia neither executes nor validates them.
             Being a two-surface design, it relies on the model's
             discipline and works best with capable models. Unknown action
             names are ignored with a warning at mount time.
         upstream: Optional mapping of server name to a ``fastmcp.Client``
             transport spec (a URL string, an mcp-config dict, or a
-            transport object). burrmcp opens an MCP *client* session to
+            transport object). theodosia opens an MCP *client* session to
             each and binds them so action bodies can call their tools via
-            ``burrmcp.call_upstream(server, tool, args)``. Unlike
+            ``theodosia.call_upstream(server, tool, args)``. Unlike
             ``external_tools`` (advisory; the agent calls tools on its own
-            connected servers), ``upstream`` puts burrmcp in the call path:
-            the agent sees only burrmcp's ``step`` tool, the upstream
+            connected servers), ``upstream`` puts theodosia in the call path:
+            the agent sees only theodosia's ``step`` tool, the upstream
             servers are not exposed to it, and every upstream call happens
             inside an action so it advances state by construction. This is
             the single-surface, ledger-honest way to drive any MCP server
@@ -1745,7 +1745,7 @@ def mount(
     # In factory mode each session uses its own ``entry.lock`` instead.
     shared_lock = asyncio.Lock()
 
-    server_name = name or "burrmcp"
+    server_name = name or "theodosia"
     # Normalize the external-tools map: keep only entries whose action
     # name exists in the graph; warn (don't fail) on unknowns so a typo
     # doesn't take the server down.
@@ -1756,19 +1756,19 @@ def mount(
     graph_summary = _compute_graph_summary(shared_app, server_name, external_tools_map)
     graph_summary_json = json.dumps(graph_summary, indent=2)
     # Augment user-supplied instructions with a one-line hint pointing
-    # at burr://graph. Cold-start discoverability without forcing users
+    # at theodosia://graph. Cold-start discoverability without forcing users
     # to write the hint themselves.
     action_surface = _render_action_surface(shared_app)
     discovery_hint = (
-        "Read burr://graph once at start for full per-action metadata "
+        "Read theodosia://graph once at start for full per-action metadata "
         "(reads, writes, required/optional inputs); the listing above is "
-        "the minimum surface. You don't need to keep polling burr://next "
-        "or burr://state, each step response already includes the new "
+        "the minimum surface. You don't need to keep polling theodosia://next "
+        "or theodosia://state, each step response already includes the new "
         "state and valid_next_actions inline. To restart the FSM after "
         "reaching a terminal node or a dead-end branch, call the "
         "reset_session tool. To rewind to a specific earlier point and "
         "explore an alternate path from there, call fork_at(sequence_id) "
-        "with a seq from burr://history. Both are always available."
+        "with a seq from theodosia://history. Both are always available."
     )
     parts = [p for p in (instructions, action_surface, discovery_hint) if p]
     effective_instructions = "\n\n".join(parts)
@@ -1794,13 +1794,13 @@ def mount(
 
     # ── resources ────────────────────────────────────────────────────
 
-    @mcp.resource("burr://graph")
+    @mcp.resource("theodosia://graph")
     async def _graph_resource() -> str:
         """Static description of the Application's FSM topology.
 
         Read once per session. The graph doesn't change after mount;
         a model that has this resource doesn't need to keep polling
-        ``burr://next`` to plan ahead. Each tool response already
+        ``theodosia://next`` to plan ahead. Each tool response already
         carries the current state and the valid next actions, so
         runtime polling is only useful for forensic inspection of an
         already-running session.
@@ -1821,22 +1821,22 @@ def mount(
         """
         return graph_summary_json
 
-    @mcp.resource("burr://state")
+    @mcp.resource("theodosia://state")
     async def _state_resource(ctx: Context) -> str:
         """Current Application state as JSON.
 
         Internal Burr keys (``__PRIOR_STEP``, ``__SEQUENCE_ID``) are
         filtered. Non-JSON-representable values are coerced to strings,
-        with the affected keys listed under ``_burrmcp.coerced_keys``
+        with the affected keys listed under ``_theodosia.coerced_keys``
         so the client knows the round-trip is lossy.
         """
         app, _, _ = _session_app_and_lock(ctx, shared_app, shared_lock, factory, store)
         state, coerced = _serializable_state(_public_state(app.state.get_all()))
         if coerced:
-            state["_burrmcp"] = {"coerced_keys": coerced}
+            state["_theodosia"] = {"coerced_keys": coerced}
         return json.dumps(state, indent=2)
 
-    @mcp.resource("burr://next")
+    @mcp.resource("theodosia://next")
     async def _next_resource(ctx: Context) -> str:
         """Action names reachable from the current state.
 
@@ -1847,7 +1847,7 @@ def mount(
         app, _, _ = _session_app_and_lock(ctx, shared_app, shared_lock, factory, store)
         return json.dumps(valid_next_action_names(app))
 
-    @mcp.resource("burr://history")
+    @mcp.resource("theodosia://history")
     async def _history_resource(ctx: Context) -> str:
         """Timeline of every action attempted in this session.
 
@@ -1862,13 +1862,13 @@ def mount(
         history = store.history(ctx.session_id) if ctx is not None else []
         return json.dumps(history, default=str, indent=2)
 
-    @mcp.resource("burr://subruns")
+    @mcp.resource("theodosia://subruns")
     async def _subruns_resource(ctx: Context) -> str:
         """Index of sub-Application runs spawned in this session.
 
         Each entry has ``id``, ``uri``, ``label``, ``started_ts``,
         ``ended_ts``, and the ``parent_action`` that spawned it. The
-        ``uri`` field is the fully-rendered ``burr://subruns/{id}``
+        ``uri`` field is the fully-rendered ``theodosia://subruns/{id}``
         address, ready to read without constructing it from a template.
         Empty list if no actions in this session called
         ``spawn_subapp``.
@@ -1886,7 +1886,7 @@ def mount(
             index.append(
                 {
                     "id": sid,
-                    "uri": f"burr://subruns/{sid}",
+                    "uri": f"theodosia://subruns/{sid}",
                     "label": record.get("label"),
                     "started_ts": record.get("started_ts"),
                     "ended_ts": record.get("ended_ts"),
@@ -1896,7 +1896,7 @@ def mount(
             )
         return json.dumps(index, default=str, indent=2)
 
-    @mcp.resource("burr://subruns/{subrun_id}")
+    @mcp.resource("theodosia://subruns/{subrun_id}")
     async def _subrun_detail_resource(subrun_id: str, ctx: Context) -> str:
         """Full record for one sub-Application run.
 
@@ -1921,7 +1921,7 @@ def mount(
             )
         return json.dumps(record, default=str, indent=2)
 
-    @mcp.resource("burr://trace")
+    @mcp.resource("theodosia://trace")
     async def _trace_resource(ctx: Context) -> str:
         """Burr's on-disk LocalTrackingClient log for this session's Application.
 
@@ -1935,8 +1935,8 @@ def mount(
         the wire payload bounded. For full traces, read the log file
         directly off disk at the path Burr's tracker writes to.
 
-        This is the cross-reference between burrmcp's in-memory
-        ``burr://history`` (one entry per attempted action, including
+        This is the cross-reference between theodosia's in-memory
+        ``theodosia://history`` (one entry per attempted action, including
         refusals) and Burr's own structured trace format (one entry
         per state transition, full Burr replay shape).
         """
@@ -1950,7 +1950,7 @@ def mount(
                         "This Application has no LocalTrackingClient attached. "
                         "Pass tracker=LocalTrackingClient(project='...') to "
                         "ApplicationBuilder.with_tracker(...) when building "
-                        "the Application to enable burr://trace."
+                        "the Application to enable theodosia://trace."
                     ),
                 },
                 indent=2,
@@ -1959,14 +1959,14 @@ def mount(
             return json.dumps([])
         return json.dumps(_read_trace(path), default=str, indent=2)
 
-    @mcp.resource("burr://session")
+    @mcp.resource("theodosia://session")
     async def _session_resource(ctx: Context) -> str:
         """Tracker coordinates for the current MCP session's Application.
 
         Returns ``{project, app_id, app_dir, partition_key}`` so a client
         (or the agent itself) can locate this session's tracker data on
         disk without guessing. Useful for terminal tooling like
-        ``burrmcp watch <project>`` that tails the LocalTrackingClient
+        ``theodosia watch <project>`` that tails the LocalTrackingClient
         JSONL, and for any out-of-band inspection of
         ``~/.burr/<project>/<app-id>/log.jsonl``.
 
@@ -2020,7 +2020,7 @@ def mount(
                     actions actually allowed right now.
                 inputs: Keyword inputs to the action. Each action
                     declares its own required + optional inputs;
-                    consult ``burr://next`` and the action's docstring
+                    consult ``theodosia://next`` and the action's docstring
                     to see what's expected. Object is the canonical
                     form. A JSON-encoded string is also accepted (some
                     clients serialize nested object arguments that way)
@@ -2178,7 +2178,7 @@ def mount(
 
         Rebuilds the session's Application via the factory, clears any
         sub-runs the session spawned, and appends a ``reset_session``
-        marker entry to ``burr://history``. Prior history entries are
+        marker entry to ``theodosia://history``. Prior history entries are
         preserved, so the audit trail records the reset rather than
         wiping it: ``ran A -> ran B -> reset -> ran A again``.
 
@@ -2217,7 +2217,7 @@ def mount(
             assert new_app is not None
             new_state, coerced = _serializable_state(_public_state(new_app.state.get_all()))
             if coerced:
-                new_state["_burrmcp"] = {"coerced_keys": coerced}
+                new_state["_theodosia"] = {"coerced_keys": coerced}
             valid_next = valid_next_action_names(new_app)
             entry.last_access = time.monotonic()
 
@@ -2257,7 +2257,7 @@ def mount(
     async def fork_at(sequence_id: int, ctx: Context | None = None) -> ToolResult | dict[str, Any]:
         """Rewind the session to the state captured after history[seq=N].
 
-        ``sequence_id`` is the ``seq`` field on a ``burr://history`` entry.
+        ``sequence_id`` is the ``seq`` field on a ``theodosia://history`` entry.
         The session's Application is rebuilt via the factory, then its
         state is overwritten with the snapshot captured at that point,
         and its ``__PRIOR_STEP`` is set to the action name from that
@@ -2593,7 +2593,7 @@ def mount_multi(
       app exposes ``<app>_step``, ``<app>_reset_session``,
       ``<app>_fork_at``, ``<app>_fork_from_past``.
     * Resources keep their scheme but get the namespace inserted:
-      ``burr://graph`` from app ``order`` becomes ``burr://order/graph``.
+      ``theodosia://graph`` from app ``order`` becomes ``theodosia://order/graph``.
 
     Args:
         applications: Mapping of namespace name to Application or
@@ -2609,7 +2609,7 @@ def mount_multi(
         session_ttl_seconds, max_sessions, action_timeout_seconds:
             Forwarded to each sub-application's ``mount()`` call.
 
-    A ``burr://apps`` resource on the parent lists the mounted app
+    A ``theodosia://apps`` resource on the parent lists the mounted app
     names so a connecting agent can discover the namespace surface in
     one read.
     """
@@ -2621,7 +2621,7 @@ def mount_multi(
             f"namespace names must match {_NAMESPACE_RE.pattern!r}; got invalid: {invalid}"
         )
 
-    parent_name = name or "burrmcp-multi"
+    parent_name = name or "theodosia-multi"
     parent_lines: list[str] = []
     if instructions:
         parent_lines.append(instructions)
@@ -2632,7 +2632,7 @@ def mount_multi(
     parent_lines.extend(f"  - {app_name}" for app_name in sorted(applications))
     parent_lines.append(
         "Tools are renamed <app>_<tool>; resources are accessible as "
-        "burr://<app>/<path>. Read `burr://apps` for the live list."
+        "theodosia://<app>/<path>. Read `theodosia://apps` for the live list."
     )
     parent_instructions = "\n\n".join(parent_lines)
 
@@ -2651,7 +2651,7 @@ def mount_multi(
 
     namespace_list = sorted(applications)
 
-    @parent.resource("burr://apps")
+    @parent.resource("theodosia://apps")
     async def _apps_resource() -> str:
         """List the apps mounted on this multi-Application server."""
         return json.dumps({"apps": namespace_list}, indent=2)

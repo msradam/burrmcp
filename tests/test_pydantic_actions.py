@@ -119,7 +119,7 @@ def test_finalize_refuses_on_failed_validation():
 async def test_graph_resource_carries_pydantic_schema_for_order():
     server = build_server()
     async with Client(server) as client:
-        text = (await client.read_resource("burr://graph"))[0].text
+        text = (await client.read_resource("theodosia://graph"))[0].text
         graph = json.loads(text)
         schema = graph["state_schema"]
         assert schema is not None

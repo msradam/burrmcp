@@ -67,7 +67,7 @@ helpers reference ``_session_app_and_lock``, ``valid_next_action_names``,
 ``_step_application``, the exception classes, ``_record_history``,
 ``_action_signature_params``, ``_serializable_state``,
 ``_public_state``, ``_tracker_project``, ``_run_validator``, and
-``_current_session_entry`` from ``burrmcp.adapter``.
+``_current_session_entry`` from ``theodosia.adapter``.
 """
 
 from __future__ import annotations
@@ -80,7 +80,7 @@ from typing import Any
 from burr.core import Action, Application
 from fastmcp import Context, FastMCP
 
-from burrmcp.adapter import (
+from theodosia.adapter import (
     ActionExecutionError,
     ActionTimeoutError,
     ApplicationFactory,
@@ -111,7 +111,7 @@ def _run_action_bare(
     on this path; tools mode opts into that trade-off.
     """
     raise NotImplementedError(
-        "TOOLS mode was carved out of burrmcp.adapter; this helper is preserved "
+        "TOOLS mode was carved out of theodosia.adapter; this helper is preserved "
         "for reference. To revive, restore the original body from git history."
     )
 
