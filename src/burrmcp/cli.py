@@ -76,7 +76,7 @@ _DEFAULT_HELP = "Mount a Burr Application as an MCP server, with rich terminal o
 class _Branding:
     """Per-CLI configuration set by ``build_cli``.
 
-    A downstream package that ships its own command (``mygraph serve``)
+    A downstream package that ships its own command (``my-fsm-mcp serve``)
     stamps its name, bakes in its graph so ``serve``/``doctor`` need no
     target, and points the observability commands at its tracker store.
     A console script is its own process and builds exactly one CLI, so a
@@ -829,18 +829,18 @@ def build_cli(
 
     A package that ships its own MCP graph can expose its own command::
 
-        # mygraph/cli.py
+        # my_fsm_mcp/cli.py
         from burrmcp.cli import build_cli, run
-        from mygraph import build_application
+        from my_fsm_mcp import build_application
 
-        cli = build_cli("mygraph", application=build_application,
+        cli = build_cli("my-fsm-mcp", application=build_application,
                         help="My graph as an MCP server.")
 
         def main() -> int:
             return run(cli)
 
-    Then ``mygraph serve`` (no target needed), ``mygraph doctor``, and
-    ``mygraph sessions ls`` all carry the downstream's name. Sessions are
+    Then ``my-fsm-mcp serve`` (no target needed), ``my-fsm-mcp doctor``, and
+    ``my-fsm-mcp sessions ls`` all carry the downstream's name. Sessions are
     still stored in Burr's tracker format; set ``burr_home`` to match the
     ``storage_dir`` the downstream's ``LocalTrackingClient`` writes to.
 

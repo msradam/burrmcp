@@ -21,6 +21,13 @@ TRACE = Path(__file__).parent / "demo_recorded_trace.txt"
 
 
 def main() -> None:
+    # When recording the hero GIF (a tty), wipe the launch command off
+    # screen and pause briefly so the capture starts on the transcript,
+    # not on a Python invocation. No-op when piped (demo_walk capture).
+    if sys.stdout.isatty():
+        sys.stdout.write("\033[2J\033[3J\033[H")
+        sys.stdout.flush()
+        time.sleep(0.6)
     lines = TRACE.read_text().splitlines(keepends=True)
     for raw in lines:
         sys.stdout.write(raw)

@@ -24,3 +24,6 @@ CLAUDE.md
 # Benchmark run outputs (regenerable; curated sets attach to GitHub releases, not main)
 bench/traces/
 site/
+
+# VHS Screenshot verification frames (regenerable from the .tape files)
+demos/*.png

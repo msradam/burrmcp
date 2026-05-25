@@ -11,7 +11,7 @@ BurrMCP gives an AI agent a stateful, auditable workflow it cannot step outside 
 
 Each Burr `@action` is reachable through one `step(action, inputs)` MCP tool. State lives on the server. The server enforces transitions: if the agent calls an action that isn't reachable from the current state, the response is a structured refusal listing the actions that are reachable. Every step is recorded to a replayable trace.
 
-![demo](demo.gif)
+![demo](demos/demo.gif)
 
 ```python
 from burrmcp import mount
@@ -138,17 +138,17 @@ The agent connects to one server (this one) and sees one tool (`step`). The upst
 A package that ships an MCP graph can expose its own command with `build_cli`, baking in the graph so `serve` needs no target:
 
 ```python
-# mygraph/cli.py
+# my_fsm_mcp/cli.py
 from burrmcp.cli import build_cli, run
-from mygraph import build_application
+from my_fsm_mcp import build_application
 
-cli = build_cli("mygraph", application=build_application, help="My graph as an MCP server.")
+cli = build_cli("my-fsm-mcp", application=build_application, help="My graph as an MCP server.")
 
 def main() -> int:
     return run(cli)
 ```
 
-Then `mygraph serve`, `mygraph doctor`, and `mygraph sessions ls` all carry your name. See [CLI](https://msradam.github.io/burrmcp/cli/).
+Then `my-fsm-mcp serve`, `my-fsm-mcp doctor`, and `my-fsm-mcp sessions ls` all carry your name. See [CLI](https://msradam.github.io/burrmcp/cli/).
 
 ## Examples
 
