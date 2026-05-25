@@ -36,7 +36,7 @@ cd burrmcp
 uv sync
 ```
 
-Python 3.11 through 3.13. Optional extras: `burrmcp[observability]` (OpenTelemetry), `burrmcp[ui]` (Burr web UI), `burrmcp[mellea]`, `burrmcp[all]`.
+Python 3.11 through 3.13. Optional extras: `burrmcp[observability]` (OpenTelemetry), `burrmcp[ui]` (Burr web UI), `burrmcp[all]`.
 
 ## Quickstart
 
