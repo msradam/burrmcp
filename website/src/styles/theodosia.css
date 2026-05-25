@@ -69,15 +69,5 @@
   --thd-canvas-grid-size: 24px 24px;
 }
 
-/* Starlight token overrides — see starlight.css for full mapping */
-:root {
-  --sl-color-bg:         var(--thd-paper);
-  --sl-color-bg-nav:     var(--thd-paper);
-  --sl-color-bg-sidebar: var(--thd-raised);
-  --sl-color-text:       var(--thd-ink);
-  --sl-color-text-accent:var(--thd-pine);
-  --sl-color-accent:     var(--thd-pine);
-  --sl-color-accent-low: var(--thd-pine-tint);
-  --sl-font:             var(--thd-sans);
-  --sl-font-system-mono: var(--thd-mono);
-}
+/* Starlight var mapping is scoped per color mode in theodosia-overrides.css.
+   This file only defines the --thd-* design tokens. */
