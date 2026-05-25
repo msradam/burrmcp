@@ -13,7 +13,7 @@
 
 *An open 1T-parameter model (Kimi K2.6) investigating a live incident on rails: each Grafana query is recorded as evidence, out-of-budget and out-of-phase calls are refused, and the conclusion stays gated until the evidence cross-references. The investigation FSM ([Phoebe](https://github.com/msradam/phoebe)) is the workflow; Theodosia is what makes the model drive it.*
 
-| | |
+| What you get | Why it holds |
 |---|---|
 | **Stays on the rails** | The server enforces the graph. An unreachable action returns a structured refusal listing the ones that are reachable, and the agent self-corrects from it. |
 | **Auditable by default** | Every step, its inputs, the state change, refusals, and timing, recorded to a replayable trace through Burr's tracker and UI. |
@@ -72,6 +72,14 @@ theodosia logs --refusals       # only the steps that were refused
 ```
 
 A downstream package can ship its own command (`my-fsm serve`, `my-fsm doctor`, ...) with `build_cli`.
+
+---
+
+## Observability
+
+Every session is recorded through Burr's tracker. Tail a live run, replay a finished one step by step with its state diffs and timing, or open it in the Burr UI for the transition graph and state inspection. Refusals are recorded too: they appear in the timeline like any other step.
+
+![theodosia logs replaying a session timeline, including a refused step](demos/observability.gif)
 
 ---
 
