@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import typer
-from rich.console import Console
+from rich.console import Console, Group
 from rich.live import Live
 from rich.table import Table
 from rich.text import Text
@@ -205,35 +205,81 @@ def _render_dot(topo: _Topology, *, conditions: bool) -> str:
     return "\n".join(lines)
 
 
-def _print_rich_graph(topo: _Topology, *, conditions: bool) -> None:
-    n = len(topo.actions)
-    header = f"[header]{topo.name}[/]  [muted]·[/]  {n} action(s)"
+def _session_progress(
+    home: Path, project: str | None, app_id: str | None
+) -> tuple[str, str | None, set[str]]:
+    """Resolve a tracked session and return (app_id, current_action, visited)."""
+    log_path, _proj, aid = _resolve_app(home, project, app_id)
+    rows = _read_steps(log_path)
+    advanced = [r for r in rows if r.status != "error"]
+    visited = {r.action for r in advanced}
+    current = advanced[-1].action if advanced else None
+    return aid, current, visited
+
+
+def _graph_renderable(
+    topo: _Topology,
+    *,
+    conditions: bool,
+    current: str | None = None,
+    visited: frozenset[str] | set[str] = frozenset(),
+    session: str | None = None,
+) -> Group:
+    """Build the terminal graph view, optionally annotated with a session.
+
+    When ``current``/``visited`` are given, the current node is highlighted and
+    nodes the session hasn't reached are dimmed.
+    """
+    annotated = current is not None or bool(visited)
+    header = Text()
+    header.append(topo.name, style="header")
+    header.append(f"  ·  {len(topo.actions)} action(s)", style="muted")
     if topo.entry:
-        header += f"  [muted]·[/]  entry: [action]{topo.entry}[/]"
-    console.print(header)
-    console.print("[muted]" + "─" * 52 + "[/]")
+        header.append("  ·  entry: ", style="muted")
+        header.append(topo.entry, style="action")
+    if session:
+        header.append("  ·  session: ", style="muted")
+        header.append(session, style="subtle")
+    if current:
+        header.append("  ·  at: ", style="muted")
+        header.append(current, style="running")
+    lines: list[Text] = [header, Text("─" * 52, style="muted")]
     width = max((len(a) for a in topo.actions), default=0)
-    # Entry first, then declaration order.
     ordered = ([topo.entry] if topo.entry in topo.actions else []) + [
         a for a in topo.actions if a != topo.entry
     ]
     for node in ordered:
         terminal = topo.is_terminal(node)
-        loop = topo.has_self_loop(node)
-        marker = "[ok]▶[/]" if node == topo.entry else ("[err]■[/]" if terminal else " ")
-        loop_tag = " [running]↺[/]" if loop else "  "
-        label = f"{node:<{width}}"
+        if node == current:
+            marker, mstyle = "●", "running"
+        elif node == topo.entry:
+            marker, mstyle = "▶", "ok"
+        elif terminal:
+            marker, mstyle = "■", "err"
+        else:
+            marker, mstyle = " ", "muted"
+        if node == current:
+            name_style = "running"
+        elif annotated and node not in visited:
+            name_style = "muted"
+        else:
+            name_style = "action"
+        line = Text()
+        line.append(f" {marker} ", style=mstyle)
+        line.append(f"{node:<{width}}", style=name_style)
+        line.append(" ↺" if topo.has_self_loop(node) else "  ", style="running")
         if terminal:
-            console.print(f" {marker} [action]{label}[/]{loop_tag} [muted](terminal)[/]")
-            continue
-        targets = []
-        for to, cond in topo.out_edges(node):
-            piece = to
-            if conditions and cond:
-                piece += f" [muted]\\[{cond}][/]"
-            targets.append(piece)
-        edge_str = " [muted]·[/] ".join(targets)
-        console.print(f" {marker} [action]{label}[/]{loop_tag} [subtle]→[/] {edge_str}")
+            line.append("  (terminal)", style="muted")
+        else:
+            line.append("  → ", style="subtle")
+            for i, (to, cond) in enumerate(topo.out_edges(node)):
+                if i:
+                    line.append(" · ", style="muted")
+                line.append(to, style="subtle")
+                if conditions and cond:
+                    line.append(f" [{cond}]", style="muted")
+        lines.append(line)
+    return Group(*lines)
 
 
 # == serve / doctor / ui ==============================================
@@ -383,12 +429,30 @@ def render(
     conditions: Annotated[
         bool, typer.Option("--conditions", help="Show transition conditions on edges.")
     ] = False,
+    watch: Annotated[
+        bool,
+        typer.Option(
+            "--watch", help="Live-render, highlighting the current node as a session runs."
+        ),
+    ] = False,
+    app_id: Annotated[
+        str | None,
+        typer.Option("--app-id", help="Tracked session to annotate (defaults to most recent)."),
+    ] = None,
+    project: Annotated[
+        str | None, typer.Option("--project", "-p", help="Project of the session to annotate.")
+    ] = None,
+    burr_home: Annotated[
+        Path | None, typer.Option("--burr-home", help="Tracker storage root. Defaults to ~/.burr.")
+    ] = None,
 ) -> None:
     """Render the mounted state machine as a diagram.
 
-    Default is a terminal view of the graph. ``--mermaid`` and ``--dot``
-    emit diagram source for docs (Mermaid renders on GitHub; DOT feeds
-    Graphviz). Reads the graph statically, no server or graphviz needed.
+    Default is a static terminal view. ``--mermaid`` / ``--dot`` emit diagram
+    source for docs. Pass ``--watch`` (or ``--app-id`` / ``--project``) to
+    annotate the graph with a tracked session: the current node is highlighted
+    and nodes the run hasn't reached are dimmed. Reads the graph statically, no
+    server or Graphviz needed.
     """
     server_name = _BRANDING.server_name or _BRANDING.prog_name
     topo = _topology(target, app_dir or [], server_name)
@@ -396,10 +460,34 @@ def render(
         raise SystemExit("choose one of --mermaid / --dot, not both")
     if mermaid:
         print(_render_mermaid(topo, conditions=conditions))
-    elif dot:
+        return
+    if dot:
         print(_render_dot(topo, conditions=conditions))
-    else:
-        _print_rich_graph(topo, conditions=conditions)
+        return
+
+    annotate = watch or app_id is not None or project is not None
+    if not annotate:
+        console.print(_graph_renderable(topo, conditions=conditions))
+        return
+
+    home = _resolve_home(burr_home)
+
+    def frame() -> Group:
+        aid, current, visited = _session_progress(home, project, app_id)
+        return _graph_renderable(
+            topo, conditions=conditions, current=current, visited=visited, session=aid
+        )
+
+    if not watch:
+        console.print(frame())
+        return
+    try:
+        with Live(frame(), console=console, refresh_per_second=4, screen=False) as live:
+            while True:
+                time.sleep(0.5)
+                live.update(frame())
+    except KeyboardInterrupt:
+        console.print("[dim](stopped)[/]")
 
 
 # == sessions: tracker-store inspection ==============================
