@@ -27,9 +27,13 @@ theme:
     code: JetBrains Mono
   features:
     - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.instant.progress
     - navigation.tracking
+    - navigation.tabs
     - navigation.sections
     - navigation.top
+    - navigation.path
     - navigation.footer
     - content.code.copy
     - content.code.annotate
