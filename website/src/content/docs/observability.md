@@ -8,6 +8,8 @@ MCP session writes a JSONL log under `~/.burr`. Three surfaces read it: the
 `theodosia://` MCP resources (for the agent), the `theodosia` CLI (for the terminal),
 and the Burr web UI (for replay).
 
+![theodosia logs replaying a session timeline, including a refused step](/theodosia/observability.gif)
+
 ## For the agent: `theodosia://` resources
 
 | URI | Returns |
