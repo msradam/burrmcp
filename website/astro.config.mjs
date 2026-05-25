@@ -2,6 +2,7 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import starlightClientMermaid from '@pasqal-io/starlight-client-mermaid';
+import starlightThemeRosePine from 'starlight-theme-rose-pine';
 
 // https://astro.build/config
 export default defineConfig({
@@ -14,7 +15,13 @@ export default defineConfig({
 			social: [
 				{ icon: 'github', label: 'GitHub', href: 'https://github.com/msradam/theodosia' },
 			],
-			plugins: [starlightClientMermaid()],
+			plugins: [
+				starlightThemeRosePine({
+					dark: { flavor: 'main', accent: 'iris' },
+					light: { flavor: 'dawn', accent: 'iris' },
+				}),
+				starlightClientMermaid(),
+			],
 			sidebar: [
 				{ label: 'Home', slug: 'index' },
 				{ label: 'Architecture', slug: 'architecture' },
