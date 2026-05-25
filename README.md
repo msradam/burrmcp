@@ -30,9 +30,9 @@ More: [IBM IT-Bench + MAST](https://huggingface.co/blog/ibm-research/itbenchandm
 
 ### Early results
 
-On [Grafana's o11y-bench](https://o11ybench.ai/) investigation set (5 tasks, Pass^3, 15 trials), the [Phoebe](https://github.com/msradam/phoebe) SRE-investigation FSM driven through Theodosia scored a mean of **0.765** with Kimi K2.6 (open weights, via Together), versus **0.717** for the same model with the raw Grafana toolset and no FSM. The Kimi result is submitted to the [o11y-bench leaderboard](https://huggingface.co/datasets/grafanalabs/o11y-bench-leaderboard).
+On five [o11y-bench](https://o11ybench.ai/) tasks (four investigation-category plus one PromQL task), Pass^3, the [Phoebe](https://github.com/msradam/phoebe) SRE-investigation FSM driven through Theodosia scored a mean of **0.765** with Kimi K2.6 (open weights, via Together), versus **0.717** for the same model with the raw Grafana toolset and no FSM. Same model, same tasks: the rails help.
 
-> **Caveat: these are early numbers, not a clean head-to-head yet.** The FSM run is clean (15/15, 0 errors). The raw-tools baseline (0.717) is from an earlier run that had 2 errored trials (13/15 clean), and a re-run hit local Docker environment issues. A clean rerun of the full comparison is pending; treat the gap as indicative, not final.
+> **Caveat: a partial run, not a leaderboard-comparable number.** This is 5 tasks; o11y-bench's full investigation category is 11, so these numbers are not directly comparable to the leaderboard's per-category scores. The FSM run is clean (15/15, 0 errors); the raw-tools baseline (0.717) is from an earlier run with 2 errored trials (13/15 clean), and a re-run hit local Docker issues. A clean, full-category run is pending. Treat the FSM-vs-raw gap as indicative, not final.
 
 ---
 
