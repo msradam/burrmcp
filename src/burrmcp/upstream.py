@@ -77,8 +77,7 @@ def _extract(result: Any) -> Any:
         return sc
     content = getattr(result, "content", None)
     if content:
-        parts = [getattr(c, "text", None) for c in content]
-        parts = [p for p in parts if p]
+        parts = [t for c in content if (t := getattr(c, "text", None))]
         if parts:
             text = "\n".join(parts)
             try:

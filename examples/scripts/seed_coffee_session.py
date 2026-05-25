@@ -17,8 +17,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from coffee_order import build_server  # noqa: E402
-from fastmcp import Client  # noqa: E402
+from coffee_order import build_server
+from fastmcp import Client
 
 _SLOW = "--slow" in sys.argv
 

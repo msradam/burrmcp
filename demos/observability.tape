@@ -1,20 +1,26 @@
 # Observability demo: burrmcp sessions + logs, Rose Pine.
 # Record with: vhs demos/observability.tape
 # Seeds a coffee-order session (one refusal + a clean walk), then shows
-# the terminal observability surface.
+# the terminal observability surface. A fixed prompt and generous settle
+# time keep the recording legible.
 
 Output demos/observability.gif
 
+Set Shell "bash"
 Set Theme "rose-pine"
 Set FontSize 13
 Set Width 1180
-Set Height 840
+Set Height 900
 Set Padding 22
 Set TypingSpeed 28ms
 
-# Activate the venv + seed a session off-camera.
+# Suppress the venv prompt, set a fixed one, seed a session off-camera.
 Hide
-Type "source .venv/bin/activate"
+Type "export VIRTUAL_ENV_DISABLE_PROMPT=1"
+Enter
+Type "source .venv/bin/activate >/dev/null 2>&1 || true"
+Enter
+Type `export PS1="(burr-mcp) > "`
 Enter
 Type "python examples/scripts/seed_coffee_session.py >/dev/null 2>&1"
 Enter
@@ -28,13 +34,18 @@ Type "burrmcp sessions ls --project coffee-order-demo --limit 3"
 Sleep 600ms
 Enter
 Sleep 3s
+Type "clear"
+Enter
 
 # Full timeline (rich table; red refusal row + green recovery).
 Type "burrmcp sessions show --project coffee-order-demo"
 Sleep 600ms
 Enter
-Sleep 4s
+Sleep 2s
 Screenshot demos/observability_show.png
+Sleep 2s
+Type "clear"
+Enter
 
 # Compact greppable log, refusals highlighted.
 Type "burrmcp logs --project coffee-order-demo"

@@ -1501,12 +1501,14 @@ async def _step_application(
                 ctx=ctx,
                 timeout_seconds=timeout_seconds,
             )
+        # astep is typed Optional, but the monkey-patched get_next_action
+        # guarantees a non-None return for the client-named action.
         if timeout_seconds is not None:
-            a, result, new_state = await asyncio.wait_for(
+            a, result, new_state = await asyncio.wait_for(  # type: ignore[misc]
                 app.astep(inputs=inputs), timeout=timeout_seconds
             )
         else:
-            a, result, new_state = await app.astep(inputs=inputs)
+            a, result, new_state = await app.astep(inputs=inputs)  # type: ignore[misc]
     except (InvalidTransitionError, ActionExecutionError, ActionTimeoutError):
         raise
     except TimeoutError as exc:
@@ -1583,7 +1585,7 @@ async def _step_streaming_action(
     except Exception as exc:
         raise ActionExecutionError(action_name, exc) from exc
 
-    state, coerced = _serializable_state(_public_state(final_state_dict))
+    state, coerced = _serializable_state(_public_state(final_state_dict))  # type: ignore[arg-type]
     if coerced:
         state["_burrmcp"] = {"coerced_keys": coerced}
     return {
@@ -1979,7 +1981,7 @@ def mount(
         try:
             from burr.tracking.client import LocalTrackingClient
         except ImportError:
-            LocalTrackingClient = None  # type: ignore[assignment]
+            LocalTrackingClient = None  # type: ignore[assignment,misc]
         tracker = getattr(app, "_tracker", None)
         if LocalTrackingClient is not None and isinstance(tracker, LocalTrackingClient):
             project = tracker.project_id
