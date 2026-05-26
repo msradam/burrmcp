@@ -22,12 +22,6 @@ real recorded runs. For where rails help and where they do not, see the
 run in; they do not make the model smarter.
 :::
 
-## The pattern in one line
-
-Free-ranging, the model can stop whenever it likes, and on the hard
-investigations it stops *before* it answers. On rails, `conclude` is a required
-terminal action gated behind evidence, so trailing off is not an available move.
-
 ## Case 1: root-cause analysis
 
 Task: find the root cause of a checkout slowdown.
