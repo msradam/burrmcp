@@ -40,6 +40,7 @@ export default defineConfig({
 						{ label: 'Security model', slug: 'security-model' },
 						{ label: 'Research foundation', slug: 'research-foundation' },
 						{ label: 'Case study', slug: 'case-study' },
+						{ label: 'Benchmark', slug: 'benchmark' },
 					],
 				},
 				{

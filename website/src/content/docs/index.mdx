@@ -70,6 +70,11 @@ fixes buy about 15.6%, a state machine to enforce termination up to 53%, and
 Theodosia is that state machine, on the wire. The rails fix the structure without
 limiting the model: it keeps its full toolset and chooses freely within each step.
 
+It shows up in the numbers. On Grafana [o11y-bench](https://o11ybench.ai/), the
+same model (Kimi K2.6) scored **0.75** driving a Theodosia workflow versus
+**0.68** running free, on the full investigation category, Pass^3, same grader.
+[See the benchmark.](/theodosia/benchmark/)
+
 <LinkButton href="/theodosia/authoring/" icon="right-arrow">Build your first graph</LinkButton>
 <LinkButton href="/theodosia/architecture/" variant="secondary">How it works</LinkButton>
 <LinkButton href="/theodosia/examples/" variant="minimal">See real agents</LinkButton>
