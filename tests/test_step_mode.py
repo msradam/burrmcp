@@ -68,6 +68,31 @@ async def test_step_refuses_unknown_action():
 
 
 @pytest.mark.asyncio
+async def test_unknown_action_steers_like_invalid_transition():
+    # A hallucinated action name is the refusal a weaker model hits most.
+    # It must carry the same steering fields an invalid_transition does
+    # from the same state, so the model can recover from the response alone.
+    server = build_server(ServingMode.STEP)
+    async with Client(server) as client:
+        unknown = (
+            await client.call_tool("step", {"action": "definitely_not_an_action"})
+        ).structured_content
+        invalid = (
+            await client.call_tool("step", {"action": "pay", "inputs": {"amount": 9.0}})
+        ).structured_content
+
+    assert unknown["error"] == "unknown_action"
+    assert invalid["error"] == "invalid_transition"
+    # Same reachable set from the same (entry) state.
+    assert unknown["valid_next_actions"] == invalid["valid_next_actions"] == ["take_order"]
+    # Full steering surface present, not just known_actions.
+    assert "take_order" in unknown["known_actions"]
+    assert unknown["message"]
+    assert unknown["next_hint"]
+    assert "take_order" in unknown["next_hint"]
+
+
+@pytest.mark.asyncio
 async def test_state_resource_reflects_progress():
     server = build_server(ServingMode.STEP)
     async with Client(server) as client:
