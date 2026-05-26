@@ -19,11 +19,18 @@ jobs:
       - name: SBOM (CycloneDX, runtime dependencies)
         run: |
           uv export --no-dev --no-emit-project --format requirements-txt -o requirements.txt
-          uvx cyclonedx-py requirements requirements.txt -o dist/theodosia.cdx.json
+          mkdir -p sbom
+          uvx cyclonedx-py requirements requirements.txt -o sbom/theodosia.cdx.json
+      # dist/ holds only the wheel + sdist; the publish step uploads everything
+      # in it, so the SBOM must live elsewhere or PyPI rejects it.
       - uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/
+      - uses: actions/upload-artifact@v7
+        with:
+          name: sbom
+          path: sbom/
 
   publish:
     needs: build
