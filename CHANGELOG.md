@@ -6,6 +6,8 @@ versioning.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-25
+
 ### Added
 - Tamper-evident audit ledger: every step and refusal is hash-chained into a
   `ledger.jsonl` next to the session's tracker log. `theodosia verify` recomputes
