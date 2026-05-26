@@ -38,6 +38,7 @@ export default defineConfig({
 						{ label: 'Refusals and recovery', slug: 'refusals' },
 						{ label: 'Sessions and forking', slug: 'sessions' },
 						{ label: 'Security model', slug: 'security-model' },
+						{ label: 'Research foundation', slug: 'research-foundation' },
 					],
 				},
 				{
