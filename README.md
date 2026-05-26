@@ -39,15 +39,7 @@ forced it to commit, and it reached the correct root cause. o11y-bench's own
 grader is the witness, on one free-ranging run: *"There is no final response
 message in the transcript, it ends with tool calls and thinking blocks."* Three
 grader-verified pairs are in the [case study](https://msradam.github.io/theodosia/case-study/).
-
-The aggregate agrees. On o11y-bench's full 11-task investigation category, Pass^3,
-the same Kimi K2.6 scored **0.75** driving Phoebe through Theodosia versus **0.68**
-on the raw Grafana toolset, 33 trials per arm. Same model, same tasks,
-same grader: the structure, not a bigger model, is the difference. This is not a
-model-versus-model claim (Phoebe is a purpose-built investigation agent); the
-honest comparison is same-model. Details, scope, and method are on the
-[benchmark page](https://msradam.github.io/theodosia/benchmark/), and the design
-rationale (with what rails do not fix) is in the
+The design rationale, including what rails do not fix, is in the
 [research foundation](https://msradam.github.io/theodosia/research-foundation/).
 
 ---
@@ -119,7 +111,6 @@ Full docs at **[msradam.github.io/theodosia](https://msradam.github.io/theodosia
 | [Observability](https://msradam.github.io/theodosia/observability/) | The `theodosia://` resources, the CLI, the Burr UI, OpenTelemetry |
 | [Security model](https://msradam.github.io/theodosia/security-model/) | The agent trust boundary: what Theodosia enforces, and what it does not |
 | [Case study](https://msradam.github.io/theodosia/case-study/) | Same model, on rails vs free-ranging: where the rails make the agent finish, grader-verified |
-| [Benchmark](https://msradam.github.io/theodosia/benchmark/) | o11y-bench investigation results: same model, 0.75 on rails vs 0.68 free, with method and scope |
 | [Research foundation](https://msradam.github.io/theodosia/research-foundation/) | The published evidence behind the design, and what rails do not fix |
 | [Driving other MCP servers](https://msradam.github.io/theodosia/upstream/) | `upstream`: a Burr action calling tools on other MCP servers |
 | [CLI](https://msradam.github.io/theodosia/cli/) | `serve` / `doctor` / `render` / `sessions` / `watch` / `logs`, and `build_cli` |
