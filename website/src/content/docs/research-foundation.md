@@ -46,8 +46,8 @@ This is the architectural core, and it is the best-supported claim in the
 literature. Kambhampati's LLM-Modulo framework argues that LLMs are strong
 *generators* and unreliable *verifiers*, so soundness has to come from an
 external checker in a generate-test loop, never from the model judging itself.
-The empirics are stark and specific. In Valmeekam et al., GPT-4 used as a plan
-verifier scored 61% accuracy with an 84% false-positive rate: it waved through
+In Valmeekam et al., GPT-4 used as a plan verifier scored 61% accuracy with an
+84% false-positive rate: it waved through
 38 of 45 invalid plans. A GPT-4 generate-then-self-critique loop reached 55%,
 while the same generator paired with an external sound verifier reached 88%.
 Self-critiquing did not help; it hurt.
