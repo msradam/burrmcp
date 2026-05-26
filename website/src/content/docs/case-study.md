@@ -1,107 +1,66 @@
 ---
 title: 'Case study: the rails make the agent finish'
-description: 'Same model, same incidents, run two ways. Free-ranging it often never delivers an answer; on rails it commits to a conclusion. The benchmark grader is the witness.'
+description: 'One incident task, the same model run two ways. Free-ranging it never delivered an answer on any of three runs; on rails the conclude gate forced a correct conclusion. The benchmark grader is the witness.'
 ---
 
-The same model (Kimi K2.6) was given the same incident-investigation tasks two
-ways: once free-ranging with the raw Grafana toolset, and once driving
+The same model (Kimi K2.6) was given one incident-investigation task two ways:
+free-ranging with the raw Grafana toolset, and driving
 [Phoebe](https://github.com/msradam/phoebe), an SRE-investigation state machine
-served through Theodosia. One failure mode shows up again and again in the
-free-ranging runs: the model investigates, gathers plenty of telemetry, and then
-never produces an answer. On rails, the `conclude` action is a gate, so the model
-has to commit.
+served through Theodosia. Free-ranging, the model investigated and then never
+produced an answer, on all three runs. On rails, the `conclude` action is a
+gate, so the model had to commit, and it reached the correct root cause.
 
 The quotes below are from [o11y-bench](https://o11ybench.ai/)'s own grader, not
 from us.
 
 :::note[Scope]
-This is a failure-mode case study on selected tasks, not a leaderboard result. It
-shows one specific thing the rails fix (an agent that never terminates), with
-real recorded runs. For where rails help and where they do not, see the
-[research foundation](research-foundation.md). Rails constrain the order steps
-run in; they do not make the model smarter.
+This is a single illustrative case: one task, and the one failure mode it shows.
+It is not a benchmark result. An aggregate comparison across the full
+investigation category is pending a clean benchmark run. Rails constrain the
+order steps run in; they do not make the model smarter. For where rails help and
+where they do not, see the [research foundation](research-foundation.md).
 :::
 
-## Case 1: root-cause analysis
+## The task: root-cause a checkout slowdown
 
-Task: find the root cause of a checkout slowdown.
-
-**Free-ranging (score 0.15).** Forty tool calls across metrics, logs, and traces,
-then nothing. The grader:
+**Free-ranging (all three runs scored 0.15).** The model ran many tool calls
+across metrics, logs, and traces, then stopped without a conclusion. All three
+runs failed the same way. The grader on one run:
 
 > "There is no final response message in the transcript, it ends with tool calls
 > and thinking blocks, so there is no characterization of the slowdown presented
 > to the user."
 
-It passed exactly one of five checks: "did at least two observability pulls." All
-three runs of this task failed the same way.
+Each run passed exactly one of five checks, that it did at least two
+observability pulls. It never delivered an answer.
 
-**On rails (score 1.0).** Nineteen tool calls, then the `conclude` gate, then a
-committed answer:
+**On rails (scored 1.0).** Driving Phoebe, the model reached the `conclude`
+gate and committed:
 
-> "The checkout slowdown was driven by order-service, where database connection
-> timeouts began occurring around six hours ago. This was isolated to
-> order-service; payment-service, user-service, and api-gateway showed no
-> significant latency elevation."
+> "The checkout sluggishness six hours ago was caused by intermittent database
+> connection timeouts in order-service ... while payment-service and
+> user-service stayed around 0.05 s, confirming the problem is isolated."
 
-It cited p95 latency spiking to 10s, the "database connection timeout" log
-pattern, and a representative failing trace. Five of five checks passed.
-
-## Case 2: blast radius
-
-Task: state the combined 5xx error share and which service is primary.
-
-**Free-ranging (score 0.0).** Seventeen tool calls, no conclusion. The grader:
-
-> "There is no final response message in the transcript where the assistant
-> communicates the combined 5xx share to the user ... the transcript ends during
-> the assistant's internal analysis before delivering conclusions to the user."
-
-**On rails (score 1.0).** It concluded with the right number and the right
-structure:
-
-> "The combined 5xx share for payment-service and order-service together is 4.75%."
-
-The grader confirmed 4.75% matches the canonical value (0.047535), that
-payment-service was correctly named primary (7.17% vs 3.86%), and order-service
-correctly called spillover. Four of four checks passed.
-
-## Case 3: triage (the consistency angle)
-
-Task: triage which services are impacted and how.
-
-**Free-ranging.** Across three runs: 0.0, 0.78, 1.0. Two of the three never
-finished. The grader on one:
-
-> "The transcript contains no final response to the user; it ends mid-analysis
-> with tool results and thinking blocks."
-
-And on another: "the final response text is cut off mid-sentence and never
-completes."
-
-**On rails.** Across three runs: 0.78, 0.78, 0.78. Not a perfect score, it missed
-the exact 5xx share figure, but it answered every single time: named
-payment-service and order-service, separated primary from cascade, cited
-timestamps, and gave next steps. The grader passed seven of its eight checks. The
-free-ranging agent was a coin flip that often never answered; on rails it finished
-on every run.
+It cited p95 latency spiking to 10s, the database-connection-timeout log
+pattern, and a representative failing trace ID. All five checks passed.
 
 ## Why
 
 Theodosia serves Phoebe's graph so the agent drives it one transition at a time,
 and `conclude` is gated: it cannot fire until the verify phase has a confirming
-probe. The agent literally cannot end the session by trailing off. That single
-structural constraint is the difference between forty tool calls and no answer,
-and nineteen tool calls and a correct root cause, with the same model underneath.
+probe. The agent cannot end the session by trailing off. On this task, that
+single structural constraint is the difference between many tool calls and no
+answer, and a committed, correct root cause, with the same model underneath.
 
-This is the failure the literature names (agents that do not recognize when to
-terminate; see the [research foundation](research-foundation.md)), shown on real
-tasks with the benchmark's own grader as the witness.
+This is the failure the literature names, agents that do not recognize when to
+terminate (see the [research foundation](research-foundation.md)), shown on a
+real task with the benchmark's own grader as the witness. It is one case; the
+aggregate across the category is pending a clean run.
 
 ## The receipts
 
-These are distilled from the actual recorded runs (tool sequences, final answers
-or their absence, and the grader's per-check verdicts): see
+Distilled from the actual recorded run (the tool sequence, the absent or
+committed final answer, and the grader's per-check verdicts): see
 [`bench/case_studies/evidence.json`](https://github.com/msradam/phoebe/blob/main/bench/case_studies/evidence.json)
 in the Phoebe repo. Model: Kimi K2.6 via Together. Harness:
 [o11y-bench](https://o11ybench.ai/) investigation category.

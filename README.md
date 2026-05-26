@@ -30,16 +30,16 @@ More: [IBM IT-Bench + MAST](https://huggingface.co/blog/ibm-research/itbenchandm
 
 ### What the rails do, shown
 
-The clearest evidence is a [case study](https://msradam.github.io/theodosia/case-study/):
-the same model (Kimi K2.6) on the same [o11y-bench](https://o11ybench.ai/) incident
-tasks, run free-ranging with the raw Grafana toolset versus on rails through
-[Phoebe](https://github.com/msradam/phoebe). Free-ranging, it repeatedly
-investigated and then never produced an answer. On rails, the `conclude` gate
-forced it to commit, and it reached the correct root cause. o11y-bench's own
-grader is the witness, on one free-ranging run: *"There is no final response
-message in the transcript, it ends with tool calls and thinking blocks."* Three
-grader-verified pairs are in the [case study](https://msradam.github.io/theodosia/case-study/).
-The design rationale, including what rails do not fix, is in the
+A [case study](https://msradam.github.io/theodosia/case-study/) shows one case
+concretely: the same model (Kimi K2.6) on one [o11y-bench](https://o11ybench.ai/)
+incident task, run free-ranging with the raw Grafana toolset versus on rails
+through [Phoebe](https://github.com/msradam/phoebe). Free-ranging, on all three
+runs it investigated and then never produced an answer. On rails, the `conclude`
+gate forced it to commit, and it reached the correct root cause. o11y-bench's own
+grader is the witness: *"There is no final response message in the transcript, it
+ends with tool calls and thinking blocks."* This is a single illustrative case;
+an aggregate comparison across the category is pending a clean benchmark run. The
+design rationale, including what rails do not fix, is in the
 [research foundation](https://msradam.github.io/theodosia/research-foundation/).
 
 ---
