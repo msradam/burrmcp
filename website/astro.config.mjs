@@ -39,6 +39,7 @@ export default defineConfig({
 						{ label: 'Sessions and forking', slug: 'sessions' },
 						{ label: 'Security model', slug: 'security-model' },
 						{ label: 'Research foundation', slug: 'research-foundation' },
+						{ label: 'Case study', slug: 'case-study' },
 					],
 				},
 				{
