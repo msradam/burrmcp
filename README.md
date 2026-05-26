@@ -13,7 +13,7 @@
 
 ![A real Kimi K2.6 run driven through a gated SRE incident investigation by Theodosia](demos/hero.gif)
 
-*An open 1T-parameter model (Kimi K2.6) investigating a live incident on rails: each Grafana query is recorded as evidence, out-of-budget and out-of-phase calls are refused, and the conclusion stays gated until the evidence cross-references. The investigation FSM ([Phoebe](https://github.com/msradam/phoebe)) is the workflow; Theodosia is what makes the model drive it.*
+*An open 1T-parameter model (Kimi K2.6) investigating a live incident on rails: each Grafana query is recorded as evidence, out-of-phase calls are refused, and the conclusion stays gated until the evidence cross-references. The investigation FSM ([Phoebe](https://github.com/msradam/phoebe)) is the workflow; Theodosia is what makes the model drive it.*
 
 | What you get | Why it holds |
 |---|---|
@@ -30,11 +30,25 @@ Current LLM agents fail at procedural work in nameable, structural ways: they sk
 
 More: [IBM IT-Bench + MAST](https://huggingface.co/blog/ibm-research/itbenchandmast) · [MAST, UC Berkeley](https://arxiv.org/abs/2503.13657) · [Microsoft AIOpsLab](https://www.microsoft.com/en-us/research/blog/aiopslab-building-ai-agents-for-autonomous-clouds/) · [Grafana o11y-bench](https://o11ybench.ai/)
 
-### Early results
+### What the rails do, shown
 
-On five [o11y-bench](https://o11ybench.ai/) tasks (four investigation-category plus one PromQL task), Pass^3, the [Phoebe](https://github.com/msradam/phoebe) SRE-investigation FSM driven through Theodosia scored a mean of **0.765** with Kimi K2.6 (open weights, via Together), versus **0.717** for the same model with the raw Grafana toolset and no FSM. Same model, same tasks: the rails help.
+The clearest evidence is a [case study](https://msradam.github.io/theodosia/case-study/):
+the same model (Kimi K2.6) on the same [o11y-bench](https://o11ybench.ai/) incident
+tasks, run free-ranging with the raw Grafana toolset versus on rails through
+[Phoebe](https://github.com/msradam/phoebe). Free-ranging, it repeatedly
+investigated and then never produced an answer. On rails, the `conclude` gate
+forced it to commit, and it reached the correct root cause. o11y-bench's own
+grader is the witness, on one free-ranging run: *"There is no final response
+message in the transcript, it ends with tool calls and thinking blocks."* Three
+grader-verified pairs are in the [case study](https://msradam.github.io/theodosia/case-study/).
 
-> **Caveat: a partial run, not a leaderboard-comparable number.** This is 5 tasks; o11y-bench's full investigation category is 11, so these numbers are not directly comparable to the leaderboard's per-category scores. The FSM run is clean (15/15, 0 errors); the raw-tools baseline (0.717) is from an earlier run with 2 errored trials (13/15 clean), and a re-run hit local Docker issues. A clean, full-category run is pending. Treat the FSM-vs-raw gap as indicative, not final.
+A full head-to-head aggregate on o11y-bench's 11-task investigation category is
+still being finalized. A first complete run is in hand, but it used an earlier
+Phoebe configuration that over-gated exploration (since fixed), so a clean re-run
+is pending and no aggregate number is published until it lands. Treat the case
+study as the load-bearing evidence; the aggregate is pending. The design
+rationale (and what rails do not fix) is in the
+[research foundation](https://msradam.github.io/theodosia/research-foundation/).
 
 ---
 
@@ -104,6 +118,8 @@ Full docs at **[msradam.github.io/theodosia](https://msradam.github.io/theodosia
 | [What works through mount()](https://msradam.github.io/theodosia/compatibility/) | Typed state, persistence, hooks, parallelism, sub-applications, telemetry |
 | [Observability](https://msradam.github.io/theodosia/observability/) | The `theodosia://` resources, the CLI, the Burr UI, OpenTelemetry |
 | [Security model](https://msradam.github.io/theodosia/security-model/) | The agent trust boundary: what Theodosia enforces, and what it does not |
+| [Case study](https://msradam.github.io/theodosia/case-study/) | Same model, on rails vs free-ranging: where the rails make the agent finish, grader-verified |
+| [Research foundation](https://msradam.github.io/theodosia/research-foundation/) | The published evidence behind the design, and what rails do not fix |
 | [Driving other MCP servers](https://msradam.github.io/theodosia/upstream/) | `upstream`: a Burr action calling tools on other MCP servers |
 | [CLI](https://msradam.github.io/theodosia/cli/) | `serve` / `doctor` / `render` / `sessions` / `watch` / `logs`, and `build_cli` |
 
