@@ -67,7 +67,14 @@ theodosia sessions tail [app-id]      # live-tail a running session
 theodosia watch [app-id]              # alias for `sessions tail`
 theodosia logs [app-id]               # compact one-line-per-step, greppable
 theodosia logs --refusals --plain     # only steps that errored, pipe-friendly
+theodosia verify [app-id]             # check the tamper-evident ledger; nonzero if broken
 ```
+
+`theodosia verify` recomputes the session's hash-chained `ledger.jsonl` (written
+next to the tracker log, one entry per step and refusal) and names the exact line
+if anything was edited, reordered, or deleted after the fact. It exits nonzero on
+tampering, so it drops into CI or a cron audit. See the
+[security model](security-model.md) for what the chain does and does not prove.
 
 `app-id` defaults to the most-recently-touched session and accepts a uuid prefix.
 `--home` points at a tracker root other than the default `~/.theodosia` (Burr's
