@@ -1,13 +1,11 @@
 # Theodosia
 
-[![PyPI](https://img.shields.io/pypi/v/theodosia.svg)](https://pypi.org/project/theodosia/)
-[![Python](https://img.shields.io/pypi/pyversions/theodosia.svg)](https://pypi.org/project/theodosia/)
-[![CI](https://github.com/msradam/theodosia/actions/workflows/ci.yml/badge.svg)](https://github.com/msradam/theodosia/actions/workflows/ci.yml)
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/msradam/theodosia/badge)](https://scorecard.dev/viewer/?uri=github.com/msradam/theodosia)
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![Docs](https://img.shields.io/badge/docs-msradam.github.io%2Ftheodosia-573e8a.svg)](https://msradam.github.io/theodosia/)
-[![Built on Apache Burr](https://img.shields.io/badge/built%20on-Apache%20Burr-573e8a.svg)](https://github.com/apache/burr)
-[![Built on FastMCP](https://img.shields.io/badge/built%20on-FastMCP-c4a7e7.svg)](https://github.com/jlowin/fastmcp)
+[![PyPI](https://img.shields.io/pypi/v/theodosia?style=flat-square&color=573e8a&logo=pypi&logoColor=white)](https://pypi.org/project/theodosia/)
+[![tests](https://img.shields.io/github/actions/workflow/status/msradam/theodosia/ci.yml?branch=main&style=flat-square&label=tests)](https://github.com/msradam/theodosia/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache%202.0-573e8a?style=flat-square)](LICENSE)
+[![Docs](https://img.shields.io/badge/docs-theodosia-573e8a?style=flat-square&logo=astro&logoColor=white)](https://msradam.github.io/theodosia/)
+[![Built on Apache Burr](https://img.shields.io/badge/built%20on-Apache%20Burr-c4a7e7?style=flat-square)](https://github.com/apache/burr)
+[![Built on FastMCP](https://img.shields.io/badge/built%20on-FastMCP-c4a7e7?style=flat-square)](https://github.com/jlowin/fastmcp)
 
 **Theodosia puts an AI agent on rails.** You define a workflow once as a [Burr](https://burr.dagworks.io/) state machine, and Theodosia serves it over [MCP](https://modelcontextprotocol.io/) so the agent can only take the next allowed step, with every step recorded and replayable. The model can be wrong; the model cannot lie about state.
 
