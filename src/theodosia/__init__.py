@@ -25,6 +25,7 @@ from theodosia.adapter import (
     spawn_subapp,
 )
 from theodosia.importing import ToolSpec, burr_app_from_fastmcp
+from theodosia.ledger import HashChainedLedger, verify_ledger
 from theodosia.upstream import (
     UpstreamError,
     UpstreamManager,
@@ -47,6 +48,7 @@ def tracker(project: str, storage_dir: str = "~/.theodosia", **kwargs: Any):
 
 
 __all__ = [
+    "HashChainedLedger",
     "ServingMode",
     "ToolSpec",
     "UpstreamError",
@@ -60,4 +62,5 @@ __all__ = [
     "mount_multi",
     "spawn_subapp",
     "tracker",
+    "verify_ledger",
 ]
