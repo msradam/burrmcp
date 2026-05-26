@@ -67,6 +67,7 @@ from fastmcp import Context, FastMCP
 from fastmcp.tools.base import ToolResult
 from mcp.types import TextContent
 
+from theodosia.ledger import HashChainedLedger
 from theodosia.upstream import UpstreamManager, bind_upstream, reset_upstream
 
 ApplicationFactory = Callable[[], Application]
@@ -1113,6 +1114,7 @@ def _record_history(
     error_message: str | None = None,
     error_type: str | None = None,
     subruns: list[str] | None = None,
+    app: Application | None = None,
 ) -> None:
     """Append one timeline entry to this session's history.
 
@@ -1146,8 +1148,30 @@ def _record_history(
         record["subrun_uris"] = [f"theodosia://subruns/{sid}" for sid in subruns]
     entry.history.append(record)
     entry.last_access = time.monotonic()
-    if refused and entry.application is not None:
-        _append_refusal_sidecar(entry.application, record)
+    # In factory mode the session app is entry.application; in shared-app mode it
+    # lives outside the entry, so the caller passes it. Either way the durable
+    # artifacts need the app that actually owns the tracker.
+    durable_app = app if app is not None else entry.application
+    if durable_app is not None:
+        if refused:
+            _append_refusal_sidecar(durable_app, record)
+        _append_ledger(durable_app, record)
+
+
+def _append_ledger(app: Application, record: dict[str, Any]) -> None:
+    """Chain one attempt (step or refusal) onto the session's tamper-evident
+    ledger, next to the tracker log.
+
+    Unlike ``refusals.jsonl`` (refusals only, for ``theodosia logs --refusals``),
+    the ledger covers every attempt and is hash-chained, so ``theodosia verify``
+    can detect any after-the-fact edit. No-op when the Application has no local
+    tracker.
+    """
+    log_path = _tracker_log_path(app)
+    if log_path is None:
+        return
+    with contextlib.suppress(OSError):
+        HashChainedLedger(log_path.parent / "ledger.jsonl").append(record)
 
 
 def _append_refusal_sidecar(app: Application, record: dict[str, Any]) -> None:
@@ -2126,6 +2150,7 @@ def mount(
                     valid_next_actions=valid,
                     refused=True,
                     refusal_reason="unknown_action",
+                    app=app,
                 )
                 headline = f"Step {seq}: {action} ✗ unknown_action"
                 await _emit_log(ctx, headline)
@@ -2179,6 +2204,7 @@ def mount(
                     action=action,
                     inputs=inputs or {},
                     state_after=None,
+                    app=app,
                     **hist_kwargs,
                 )
                 headline = _refusal_headline(
@@ -2222,6 +2248,7 @@ def mount(
                 state_after=out["state"],
                 valid_next_actions=out["valid_next_actions"],
                 subruns=new_subruns or None,
+                app=app,
             )
             headline = _success_headline(seq, action, out["valid_next_actions"])
             await _emit_log(ctx, headline)
@@ -2300,6 +2327,7 @@ def mount(
             inputs={},
             state_after=new_state,
             valid_next_actions=valid_next,
+            app=new_app,
         )
 
         headline = f"Session reset → {new_app.entrypoint}"
@@ -2424,6 +2452,7 @@ def mount(
             inputs={"sequence_id": sequence_id},
             state_after=new_state,
             valid_next_actions=valid_next,
+            app=new_app,
         )
 
         headline = f"Forked to seq={sequence_id} ({target_action})"
@@ -2605,6 +2634,7 @@ def mount(
             inputs={"app_id": app_id, "sequence_id": sequence_id},
             state_after=new_state,
             valid_next_actions=valid_next,
+            app=new_app,
         )
 
         headline = f"Resumed app_id={app_id} seq={sequence_id}"

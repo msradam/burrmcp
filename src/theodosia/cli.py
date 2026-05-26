@@ -1099,6 +1099,47 @@ def _version_callback(value: bool) -> None:
     raise typer.Exit()
 
 
+def verify(
+    app_id: Annotated[
+        str | None,
+        typer.Argument(help="App id (full uuid or prefix). Defaults to most recent."),
+    ] = None,
+    project: Annotated[
+        str | None,
+        typer.Option("--project", "-p", help="Project name. Defaults to most recent."),
+    ] = None,
+    home: Annotated[
+        Path | None,
+        typer.Option("--home", help="Tracker storage root. Defaults to ~/.theodosia."),
+    ] = None,
+) -> None:
+    """Verify a session's tamper-evident ledger. Exits nonzero if the chain is broken.
+
+    Every step and refusal is hash-chained into ``ledger.jsonl`` next to the
+    session's tracker log. This recomputes the chain and names the exact line
+    where any after-the-fact edit, reorder, or deletion broke it.
+    """
+    from theodosia.ledger import verify_ledger
+
+    home = _resolve_home(home)
+    log_path, proj, aid = _resolve_app(home, project, app_id)
+    ledger_path = log_path.parent / "ledger.jsonl"
+    if not ledger_path.exists():
+        err_console.print(
+            f"[err]No ledger for[/] {proj}/{aid} [muted](no ledger.jsonl; "
+            "the session ran without a local tracker)[/]"
+        )
+        raise typer.Exit(code=1)
+    ok, problems = verify_ledger(ledger_path)
+    if ok:
+        console.print(f"[ok]✓ ledger intact[/]  {proj}/{aid}")
+        return
+    err_console.print(f"[err]✗ ledger TAMPERED[/]  {proj}/{aid}")
+    for p in problems:
+        err_console.print(f"  [err]{p}[/]")
+    raise typer.Exit(code=1)
+
+
 def build_cli(
     prog_name: str = "theodosia",
     *,
@@ -1175,6 +1216,7 @@ def build_cli(
     cli.command()(ui)
     cli.command()(watch)
     cli.command()(logs)
+    cli.command()(verify)
 
     @cli.callback()
     def _root(
