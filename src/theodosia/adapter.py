@@ -107,11 +107,20 @@ class _StepSuccess(pydantic.BaseModel):
 
 
 class _StepUnknownAction(pydantic.BaseModel):
-    """Refusal: requested action name is not in the FSM."""
+    """Refusal: requested action name is not in the FSM.
+
+    Carries the same steering fields as ``_StepInvalidTransition``
+    (``valid_next_actions`` + ``message``, plus a ``next_hint`` appended
+    by the reactive-hint layer) so a model that hallucinated a name can
+    recover from the response alone. ``known_actions`` is retained for
+    spotting typos against the full namespace.
+    """
 
     error: typing.Literal["unknown_action"]
     requested: str
     known_actions: list[str]
+    valid_next_actions: list[str]
+    message: str
 
 
 class _StepInvalidTransition(pydantic.BaseModel):
@@ -174,7 +183,7 @@ def _step_response_schema() -> dict[str, Any]:
             "app_id, tracker_project, optionally streamed/chunks). When "
             "`error` is set, the response is a structured refusal; check "
             "`error` to interpret the rest:\n"
-            "  - unknown_action: requested + known_actions\n"
+            "  - unknown_action: requested + known_actions + valid_next_actions + message\n"
             "  - invalid_transition: requested + valid_next_actions + message\n"
             "  - validation_failed: requested + reason + details + valid_next_actions\n"
             "  - action_timeout: requested + timeout_seconds + message + valid_next_actions\n"
@@ -240,7 +249,17 @@ def _step_response_schema() -> dict[str, Any]:
             },
             "message": {
                 "type": "string",
-                "description": "Human-readable message (invalid_transition, action_timeout).",
+                "description": (
+                    "Human-readable message (unknown_action, invalid_transition, action_timeout)."
+                ),
+            },
+            "next_hint": {
+                "type": "string",
+                "description": (
+                    "Directional steering string appended after every step and "
+                    "refusal: cites what just happened and the reachable actions "
+                    "now. Present on success and on every refusal."
+                ),
             },
             "reason": {
                 "type": "string",
@@ -1273,9 +1292,9 @@ def _auto_hint_success(action: str, valid_next: list[str]) -> str | None:
 def _auto_hint_refusal(refusal: dict[str, Any]) -> str | None:
     """Structural hint after a refusal.
 
-    Maps the Theodosia refusal taxonomy (invalid_transition / validation_failed
-    / action_timeout / action_error) to short, model-readable strings that
-    cite the structural reason without claiming to know the domain.
+    Maps the Theodosia refusal taxonomy (unknown_action / invalid_transition /
+    validation_failed / action_timeout / action_error) to short, model-readable
+    strings that cite the structural reason without claiming to know the domain.
     """
     kind = refusal.get("error")
     requested = refusal.get("requested") or "?"
@@ -1283,6 +1302,8 @@ def _auto_hint_refusal(refusal: dict[str, Any]) -> str | None:
     head = ", ".join(valid[:6]) if valid else "(none)"
     more = f" (+{len(valid) - 6} more)" if len(valid) > 6 else ""
 
+    if kind == "unknown_action":
+        return f"{requested!r} is not an action. Reachable now: {head}{more}."
     if kind == "invalid_transition":
         return (
             f"Action {requested!r} is not reachable from the current state. "
@@ -2063,6 +2084,38 @@ def mount(
             # the ctx.info headline matches the recorded seq.
             seq = len(store.history(ctx.session_id)) if ctx is not None else 0
             if action not in action_map:
+                # A hallucinated action name is the refusal a weaker model
+                # is most likely to hit. Steer it the same way an
+                # invalid_transition does: resolve the session's current
+                # Application, report what's reachable now, and run the
+                # reactive-hint path so the response is self-correcting on
+                # its own. ``known_actions`` stays for spotting typos.
+                app, _, _ = _session_app_and_lock(ctx, shared_app, shared_lock, factory, store)
+                valid = valid_next_action_names(app)
+                response: dict[str, Any] = {
+                    "error": "unknown_action",
+                    "requested": action,
+                    "known_actions": action_names,
+                    "valid_next_actions": valid,
+                    "message": (
+                        f"unknown action {action!r}. Reachable actions from the "
+                        f"current state: {valid}."
+                    ),
+                }
+                state_for_hint, _ = _serializable_state(_public_state(app.state.get_all()))
+                hint = _compose_next_hint(
+                    state=state_for_hint,
+                    valid_next=valid,
+                    last_action=action,
+                    refusal=response,
+                    domain_callback=next_hint,
+                )
+                if hint:
+                    response = response | {"next_hint": hint}
+                if external_tools_map:
+                    net = _next_external_tools(external_tools_map, valid)
+                    if net:
+                        response = response | {"next_external_tools": net}
                 _record_history(
                     store,
                     ctx,
@@ -2070,18 +2123,13 @@ def mount(
                     action=action,
                     inputs=inputs or {},
                     state_after=None,
-                    valid_next_actions=action_names,
+                    valid_next_actions=valid,
                     refused=True,
                     refusal_reason="unknown_action",
                 )
-                body = {
-                    "error": "unknown_action",
-                    "requested": action,
-                    "known_actions": action_names,
-                }
                 headline = f"Step {seq}: {action} ✗ unknown_action"
                 await _emit_log(ctx, headline)
-                return _step_tool_result(body, headline)
+                return _step_tool_result(response, headline)
             app, lock, entry = _session_app_and_lock(ctx, shared_app, shared_lock, factory, store)
             effective_timeout = _action_timeout(action_map[action], action_timeout_seconds)
             effective_validator = _action_validator(action_map[action], input_validators)
