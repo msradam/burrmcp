@@ -13,6 +13,15 @@ export default defineConfig({
 			title: 'Theodosia',
 			description: 'Mount Burr state-machine Applications as MCP servers.',
 			customCss: ['./src/styles/theodosia.css', './src/styles/theodosia-overrides.css'],
+			head: [
+				{
+					// Default to dark for first-time visitors (no stored preference).
+					// The theme toggle still works and overrides this on click.
+					tag: 'script',
+					content:
+						"if(!localStorage.getItem('starlight-theme')){localStorage.setItem('starlight-theme','dark');document.documentElement.dataset.theme='dark';}",
+				},
+			],
 			social: [
 				{ icon: 'github', label: 'GitHub', href: 'https://github.com/msradam/theodosia' },
 			],

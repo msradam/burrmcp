@@ -45,19 +45,33 @@ h1#_top,
    surface; gray-1 dark → gray-7 near-bg). This both kills the warm-cream cast
    and restores legible sidebar contrast (links use --sl-color-gray-2). */
 :root[data-theme="light"] {
-  --sl-color-white: var(--thd-ink);       /* #0a0a0a - page title, strong text */
-  /* The text colour on a solid-accent surface (active sidebar/TOC item). Must
-     be true white here: remapping --sl-color-white above would otherwise leave
-     it near-black, making the current-page item dark-on-purple = invisible. */
+  /* Light mode is its own register: cool, crisp "enterprise", white content,
+     cool slate neutrals, deep purple as a single restrained accent. Deliberately
+     distinct from the warm Rose Pine dark theme, not a washed-out copy of it.
+     The warm base surface/ink tokens are overridden cool here so any direct
+     --thd-* use in light mode stays coherent. */
+  --thd-paper:  #ffffff;
+  --thd-sheet:  #ffffff;
+  --thd-raised: #f2f5f8;                   /* sidebar / raised - cool light slate */
+  --thd-edge:   #e3e8ee;
+  --thd-rule:   #d3dae2;
+  --thd-ink:    #0d1117;                   /* primary text - cool near-black */
+  --thd-subtle: #2f3742;                   /* body */
+  --thd-muted:  #6b7280;                   /* captions, meta - cool slate */
+  --thd-pine-tint: #eef1f5;                /* cool neutral fill (inline-code, pills, hover), not lavender */
+
+  --sl-color-white: var(--thd-ink);        /* darkest text - page title, strong text */
+  /* Text on a solid-accent surface (active sidebar/TOC item) must stay true
+     white, or the current-page item renders dark-on-purple = invisible. */
   --sl-color-text-invert: #ffffff;
-  --sl-color-gray-1: #1c1c1a;
-  --sl-color-gray-2: #343432;              /* sidebar links - dark, readable */
-  --sl-color-gray-3: #565654;              /* secondary text */
-  --sl-color-gray-4: var(--thd-muted);     /* #7a7a76 - captions/meta */
-  --sl-color-gray-5: #c9c9c4;              /* borders, dim */
-  --sl-color-gray-6: #ededea;              /* faint panel bg */
-  --sl-color-gray-7: var(--thd-raised);    /* #f5f5f3 */
-  --sl-color-black: var(--thd-paper);      /* #fafafa - page bg */
+  --sl-color-gray-1: #1c2128;
+  --sl-color-gray-2: #2f3742;              /* sidebar links - dark, readable */
+  --sl-color-gray-3: #4a5260;              /* secondary text */
+  --sl-color-gray-4: var(--thd-muted);     /* captions/meta */
+  --sl-color-gray-5: #cbd1d9;              /* borders, dim */
+  --sl-color-gray-6: #e9edf2;              /* faint panel bg */
+  --sl-color-gray-7: var(--thd-raised);    /* cool light slate */
+  --sl-color-black: var(--thd-paper);      /* crisp white page bg */
 
   --sl-color-bg: var(--thd-paper);
   --sl-color-bg-nav: var(--thd-paper);
