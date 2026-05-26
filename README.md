@@ -24,7 +24,7 @@
 
 ## Why this shape works
 
-LLM agents fail at procedural work in predictable ways: they skip steps, stop too early or not at all, and declare success without verifying. IBM Research found prompt-level fixes buy about 15.6%, a state machine to enforce termination up to 53%, and [recommends finite state machines outright](https://huggingface.co/blog/ibm-research/itbenchandmast). Theodosia is that state machine, served over the wire. It removes the structural failures, not reasoning errors inside a valid step: the agent keeps its full toolset (including other MCP servers via `upstream`) and chooses freely within each step.
+LLM agents fail at procedural work in predictable ways: they skip steps, stop too early or not at all, and declare success without verifying. Research on why multi-agent systems fail ([MAST](https://arxiv.org/abs/2503.13657), Cemri et al.) finds the interventions that held came from architecture, external verification and a termination-enforcing state machine, not prompt tweaks. Theodosia is that state machine, served over the wire. It removes the structural failures, not reasoning errors inside a valid step: the agent keeps its full toolset (including other MCP servers via `upstream`) and chooses freely within each step.
 
 More: [IBM IT-Bench + MAST](https://huggingface.co/blog/ibm-research/itbenchandmast) · [MAST, UC Berkeley](https://arxiv.org/abs/2503.13657) · [Microsoft AIOpsLab](https://www.microsoft.com/en-us/research/blog/aiopslab-building-ai-agents-for-autonomous-clouds/) · [Grafana o11y-bench](https://o11ybench.ai/)
 

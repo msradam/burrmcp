@@ -17,8 +17,8 @@ The short version, in three claims:
 
 ## The failures are structural
 
-MAST (Cemri et al., 2025) is the first empirical taxonomy of why multi-agent
-LLM systems fail. It is built from over 200 annotated traces across seven
+MAST (Cemri et al., 2025) is the first taxonomy of why multi-agent
+LLM systems fail. It is built from 200 annotated traces across seven
 frameworks, with high inter-annotator agreement (Cohen's kappa 0.88).
 
 It names fourteen failure modes in three categories: specification issues,
@@ -30,24 +30,29 @@ exactly what an enforced state machine removes:
 - FM-3.2, no or incomplete verification
 - FM-3.3, incorrect verification
 
-IBM Research and UC Berkeley applied MAST to enterprise IT tasks in IT-Bench.
-They report the contrast that motivates this design. Prompt-level
-interventions capped at roughly 15.6% improvement. Architectural
-interventions, including enforcing stricter state machines for termination,
-reached roughly 53%, about 3.4 times more effective. Their recommendations
-match the Theodosia thesis: never let the model grade its own homework,
-require hard evidence before exit, use deterministic state machines for
-termination.
+The MAST team's intervention studies point the same way. In the paper,
+adding a verification step to a multi-agent coding system (ChatDev, on the
+ProgramDev task) yielded a +15.6% improvement in task success, and improving
+role specifications added +9.4%. In a follow-up write-up co-published by IBM
+and UC Berkeley, a combined architectural intervention (a summarizer agent to
+fix context loss plus a stricter state machine to enforce termination) reached
+up to a 53% improvement. The pattern is directional: the gains that held came
+from architecture (external verification, a termination-enforcing state
+machine), not prompt tweaks.
 
-One attribution note. The 15.6% vs 53% framing is from the IBM and UC
-Berkeley write-up, not the MAST paper itself. The MAST paper's own
-intervention case studies report smaller tactical gains and conclude that
-more substantial, structural improvements are needed.
+Two cautions on those numbers. They are not observability or IT-Bench results:
+the 15.6% is the ChatDev/ProgramDev coding study in the paper, and the 53% is a
+combined intervention reported in the MAST team's follow-up blog, not the
+peer-reviewed paper and not attributable to the state machine alone. And the
+work is UC-Berkeley-led (Cemri et al.), co-published with IBM, not an IBM
+Research result.
 
-Microsoft's AIOpsLab found the same shape from the reliability side. The
-best agent cleared about 59% of operations tasks, and more steps did not
-help. Agents plateaued or regressed into repetitive error loops, and misread
-normal system activity as faults. More autonomy made the problem worse.
+Microsoft's AIOpsLab found the same shape from the reliability side. The best
+agent reached at most about 59% aggregate accuracy (at a 20-step limit), and
+for several agents more steps did not help: accuracy plateaued and some
+regressed into repetitive error loops, repeating the same failed command many
+times. Agents also misread normal system activity as faults, reporting
+incidents on no-fault cases.
 
 ## A verifier has to sit outside the thing it verifies
 
@@ -62,15 +67,16 @@ Valmeekam et al. measured it. GPT-4 used as a plan verifier scored 61%
 accuracy with an 84% false-positive rate: it waved through 38 of 45 invalid
 plans. A GPT-4 generate-then-self-critique loop reached 55%. The same
 generator paired with an external sound verifier (VAL) reached 88%.
-Self-critiquing did not help. It hurt.
+Self-critiquing failed to help reliably and badly underperformed the external
+verifier.
 
 DeepMind's "Large Language Models Cannot Self-Correct Reasoning Yet" (Huang
 et al., ICLR 2024) shows that intrinsic self-correction, with no external
-signal, does not improve accuracy and often degrades it. Gains reported
-elsewhere leaked from oracle labels telling the model when to stop. The
-methods that do reliably help (Reflexion, ReAct) all lean on an *external*
-signal: test results, tool output, environment state. The purely
-introspective variant is the weak case.
+signal, does not improve accuracy and often degrades it. It draws the line at
+external feedback: the gains it could find came from outside the model, and it
+attributes prior reported self-correction gains, including Reflexion's, to
+oracle labels (telling the model when to stop) rather than to genuine intrinsic
+self-correction. The purely introspective variant is the weak case.
 
 Scope matters here. This evidence is strongest where legality is *formally
 decidable*, which is exactly the regime of FSM transition legality. The claim
@@ -82,16 +88,19 @@ citations support.
 
 The failures Theodosia targets persist at the frontier.
 
-On the tau-bench family, even the strongest models pass under half the tasks
-and are inconsistent across repeated runs (pass^k drops steeply). The
-failures are policy adherence and consistency under repetition, not missing
-intelligence, and they have not scaled away.
+On the tau-bench family, the best model passes about 61% of retail tasks and
+about 35% of airline tasks at pass^1, and is inconsistent across repeated runs:
+pass^8 falls below 25% on retail. The failures center on policy adherence and
+consistency under repetition, alongside reasoning over complex databases and
+compound requests, and they have not scaled away.
 
-"Capable but Unreliable" (Feb 2026) measures the mechanism. Each off-policy
-tool call raises the probability that the next one is off-policy by 22.7
-points: a self-reinforcing drift. The paper argues for external,
-state-machine-like path constraints. That is the structural case for an
-enforced graph, stated independently of any one benchmark.
+"Capable but Unreliable: Canonical Path Deviation as a Causal Mechanism of
+Agent Failure in Long-Horizon Tasks" (Lee, 2026) measures one mechanism. An
+off-canonical tool call at one step raises the probability that the next step
+is also off-canonical by 22.7 points, more than doubling the baseline rate: a
+self-reinforcing drift away from the task's canonical path. The paper's own
+remedy is runtime monitoring and restart, so we cite it for the drift
+mechanism, not as an endorsement of this design.
 
 ## Theodosia is constrained decoding, lifted to the action level
 
@@ -166,5 +175,5 @@ self-correction.
 - Yao et al., *ReAct*, arXiv:2210.03629. <https://arxiv.org/abs/2210.03629>
 - Shinn et al., *Reflexion*, arXiv:2303.11366. <https://arxiv.org/abs/2303.11366>
 - *τ-bench*, arXiv:2406.12045. <https://arxiv.org/abs/2406.12045>
-- *Capable but Unreliable*, arXiv:2602.19008. <https://arxiv.org/abs/2602.19008>
+- Lee, *Capable but Unreliable: Canonical Path Deviation as a Causal Mechanism of Agent Failure in Long-Horizon Tasks*, arXiv:2602.19008. <https://arxiv.org/abs/2602.19008>
 - *Guiding LLMs The Right Way* (constrained decoding), arXiv:2403.06988. <https://arxiv.org/abs/2403.06988>

@@ -64,9 +64,10 @@ advance the state.
 ## Why this shape works
 
 LLM agents fail at procedural work in structural ways: they skip steps, stop too
-early, or declare success without verifying. IBM Research found prompt-level
-fixes buy about 15.6%, a state machine to enforce termination up to 53%, and
-[recommends finite state machines outright](https://huggingface.co/blog/ibm-research/itbenchandmast).
+early, or declare success without verifying. Research on why multi-agent systems
+fail ([MAST](https://arxiv.org/abs/2503.13657), Cemri et al.) finds the
+interventions that held came from architecture, external verification and a
+termination-enforcing state machine, not prompt tweaks.
 Theodosia is that state machine, on the wire. The rails fix the structure without
 limiting the model: it keeps its full toolset and chooses freely within each step.
 See it concretely in the [case study](/theodosia/case-study/): the same model on
