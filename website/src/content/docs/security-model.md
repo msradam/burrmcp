@@ -26,9 +26,14 @@ of Theodosia is to make those failures safe and visible rather than silent.
   about state" is a property, not a slogan.
 - **Boundary validation.** Inputs are coerced to the declared schema, and
   optional `input_validators` reject bad inputs before the action body runs.
-- **An honest record.** Every attempt, including refusals, is recorded to the
-  per-session history and Burr's tracker, so the trail reflects what the agent
-  tried, not its own account.
+- **An honest, verifiable record.** Every attempt, including refusals, is
+  recorded to the per-session history and Burr's tracker, so the trail reflects
+  what the agent tried, not its own account. Each attempt is also hash-chained
+  into a `ledger.jsonl` next to the tracker log; `theodosia verify <session>`
+  recomputes the chain and names the exact line if any entry was edited,
+  reordered, or deleted after the fact. The chain proves integrity (the record
+  was not altered), not confidentiality (it is not encrypted) and not origin (a
+  signature over the head would add non-repudiation; the chain alone does not).
 
 ## What Theodosia does not do
 

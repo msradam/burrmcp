@@ -77,6 +77,7 @@ theodosia doctor module:app     # statically validate the graph; exits nonzero f
 theodosia sessions show <id>    # full timeline: per-step state diff + timing
 theodosia watch                 # live-tail a running session
 theodosia logs --refusals       # only the steps that were refused
+theodosia verify                # check the session's tamper-evident ledger
 ```
 
 A downstream package can ship its own command (`my-fsm serve`, `my-fsm doctor`, ...) with `build_cli`.

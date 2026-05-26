@@ -7,6 +7,14 @@ versioning.
 ## [Unreleased]
 
 ### Added
+- Tamper-evident audit ledger: every step and refusal is hash-chained into a
+  `ledger.jsonl` next to the session's tracker log. `theodosia verify` recomputes
+  the chain and names the exact line if any entry was altered, reordered, or
+  deleted. `HashChainedLedger` and `verify_ledger` are public. The chain proves
+  integrity, not confidentiality or origin.
+- `unknown_action` refusals now carry the same steering fields as
+  `invalid_transition` (`valid_next_actions`, `message`, `next_hint`), so a model
+  that hallucinates an action name can recover from the response alone.
 - Continuous integration: lint (ruff), type-check (mypy), and the test suite run
   on every push and pull request across Python 3.11 to 3.13.
 - Security scanning: bandit (SAST), pip-audit (dependency vulnerabilities), and
