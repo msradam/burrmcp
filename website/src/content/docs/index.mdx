@@ -47,9 +47,10 @@ advance the state.
     refusal listing the ones that are reachable, and the agent self-corrects
     from it.
   </Card>
-  <Card title="Auditable by default" icon="seti:clock">
-    Every step, its inputs, the state change, refusals, and timing are recorded
-    to a replayable trace through Burr's tracker and UI.
+  <Card title="Auditable and replayable" icon="seti:clock">
+    Every step, its inputs, the state change, refusals, and timing are recorded.
+    Replay any session step by step and fork from any past state, through Burr's
+    tracker and UI.
   </Card>
   <Card title="One portable contract" icon="random">
     Drive the same graph from your own Python or hand it to an external LLM over
@@ -70,9 +71,11 @@ interventions that held came from architecture, external verification and a
 termination-enforcing state machine, not prompt tweaks.
 Theodosia is that state machine, on the wire. The rails fix the structure without
 limiting the model: it keeps its full toolset and chooses freely within each step.
-See it concretely in the [case study](/theodosia/case-study/): the same model on
-the same incident tasks, run free-ranging versus on rails, with the benchmark's
-own grader as the witness.
+On the same incident tasks the rails did not cost accuracy; what they add is that
+the agent finishes the ones it would otherwise abandon, and that every run is a
+replayable, forkable record a free-ranging agent at the same accuracy cannot give
+you. See it concretely in the [case study](/theodosia/case-study/): the same model
+run free-ranging versus on rails, with the benchmark's own grader as the witness.
 
 <LinkButton href="/theodosia/authoring/" icon="right-arrow">Build your first graph</LinkButton>
 <LinkButton href="/theodosia/architecture/" variant="secondary">How it works</LinkButton>

@@ -16,7 +16,7 @@
 | What you get | Why it holds |
 |---|---|
 | **Stays on the rails** | The server enforces the graph. An unreachable action returns a structured refusal listing the ones that are reachable, and the agent self-corrects from it. |
-| **Auditable by default** | Every step, its inputs, the state change, refusals, and timing are recorded to a replayable trace through Burr's tracker and UI. |
+| **Auditable and replayable** | Every step, its inputs, the state change, refusals, and timing are recorded. Replay any session step by step (`theodosia sessions show`, the Burr UI) and fork from any past state. |
 | **One portable contract** | Drive the same graph from your own Python or hand it to an external LLM over MCP. The workflow is a versioned artifact, not tied to either. |
 | **Built on mature parts** | Apache Burr is the workflow engine; FastMCP is the MCP layer. Theodosia is the thin layer that makes one drive the other. |
 
@@ -30,16 +30,22 @@ More: [IBM IT-Bench + MAST](https://huggingface.co/blog/ibm-research/itbenchandm
 
 ### What the rails do, shown
 
-A [case study](https://msradam.github.io/theodosia/case-study/) shows one case
-concretely: the same model (Kimi K2.6) on one [o11y-bench](https://o11ybench.ai/)
-incident task, run free-ranging with the raw Grafana toolset versus on rails
-through [Phoebe](https://github.com/msradam/phoebe). Free-ranging, on all three
-runs it investigated and then never produced an answer. On rails, the `conclude`
-gate forced it to commit, and it reached the correct root cause. o11y-bench's own
-grader is the witness: *"There is no final response message in the transcript, it
-ends with tool calls and thinking blocks."* This is a single illustrative case;
-an aggregate comparison across the category is pending a clean benchmark run. The
-design rationale, including what rails do not fix, is in the
+Two grader-verified cases ([case study](https://msradam.github.io/theodosia/case-study/)):
+the same model (Kimi K2.6) on [o11y-bench](https://o11ybench.ai/) incident tasks,
+run free-ranging with the raw Grafana toolset versus on rails through
+[Phoebe](https://github.com/msradam/phoebe). Free-ranging, it trails off without
+an answer, on one task across all three runs, on another it solves it twice and
+abandons it once. On rails, the `conclude` gate forces a committed, correct
+conclusion every time. o11y-bench's own grader is the witness: *"There is no
+final response message in the transcript, it ends with tool calls and thinking
+blocks."*
+
+On these tasks the rails did not cost accuracy; what they added is that the agent
+finished the ones it would otherwise abandon, and that every run is a recorded,
+replayable, forkable artifact (every step, input, state change, and refusal) that
+a free-ranging agent at the same accuracy cannot hand you. A full aggregate
+across the category is pending a clean benchmark run; the design rationale,
+including what rails do not fix, is in the
 [research foundation](https://msradam.github.io/theodosia/research-foundation/).
 
 ---
