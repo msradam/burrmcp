@@ -10,6 +10,33 @@ and the Burr web UI (for replay).
 
 ![theodosia logs replaying a session timeline, including a refused step](/theodosia/observability.gif)
 
+## A run is a replayable artifact
+
+The point of recording every step is that a finished run is not a transcript you
+reconstruct, it is something you can replay. `theodosia sessions show <id>` rebuilds
+the full post-mortem timeline, each step's action, the state diff it produced,
+refusals, and timing:
+
+```
+ seq  action               state change
+  0   start_investigation  incident set, phase=triage, datasources discovered
+  1   record_probe         findings=[1], backends=[prometheus]
+  2   record_probe         findings=[2], backends=[prometheus, loki]
+  3   advance_phase        phase=verify
+  4   conclude ✓ (terminal) primary_service=…, root_cause=…
+```
+
+Three ways to use it: replay a finished run step by step (above), live-tail a
+running one (`theodosia watch`), or open the Burr UI for the transition graph and
+time-travel over the state. And because state is persisted, you can **fork from any
+recorded step** with `fork_at(seq)` (or `fork_from_past` across sessions) and
+continue down a different path. Refusals are recorded like any other step, so the
+timeline shows not just what the agent did but what it was stopped from doing.
+
+This is what an enforced, audited workflow buys over a free-ranging agent at the
+same accuracy: not a chat log, but a replayable, forkable record of the run with
+proof of which steps the server enforced.
+
 ## For the agent: `theodosia://` resources
 
 | URI | Returns |

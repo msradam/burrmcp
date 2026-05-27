@@ -96,9 +96,23 @@ A downstream package can ship its own command (`my-fsm serve`, `my-fsm doctor`, 
 
 ---
 
-## Observability
+## Observability and replay
 
-Every session is recorded through Burr's tracker. Tail a live run, replay a finished one step by step with its state diffs and timing, or open it in the Burr UI for the transition graph and state inspection. Refusals are recorded too: they appear in the timeline like any other step.
+A run is not a chat log you have to reconstruct, it is a **replayable artifact**. Every session is recorded through Burr's tracker, so you can replay any finished run step by step, with its state diffs, refusals, and timing:
+
+```bash
+theodosia sessions show <session-id>
+```
+```
+ seq  action               state change
+  0   start_investigation  incident set, phase=triage, datasources discovered
+  1   record_probe         findings=[1], backends=[prometheus]
+  2   record_probe         findings=[2], backends=[prometheus, loki]
+  3   advance_phase        phase=verify
+  4   conclude ✓ (terminal) primary_service=…, root_cause=…
+```
+
+Tail a live run (`theodosia watch`), open it in the Burr UI for the transition graph and time-travel, or **fork from any past state** (`fork_at`) to branch the investigation and try a different path. Refusals are recorded too, they appear in the timeline like any other step. A free-ranging agent at the same accuracy hands you a transcript; this hands you the run, replayable and forkable, with proof of which steps were enforced.
 
 ![theodosia logs replaying a session timeline, including a refused step](demos/observability.gif)
 
