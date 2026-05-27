@@ -19,8 +19,8 @@ CLAUDE.md
 # Agent-generated scratch docs from bench runs (written to cwd by SKILL-arm agents)
 /auth-*.md
 /decision-doc*.md
-# Machine-local MCP/client config
-.claude/settings.json
+# Machine-local agent/client state (settings, local overrides, task locks)
+.claude/
 # Benchmark run outputs (regenerable; curated sets attach to GitHub releases, not main)
 bench/traces/
 site/
