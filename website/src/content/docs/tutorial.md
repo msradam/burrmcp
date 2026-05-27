@@ -16,6 +16,14 @@ safety interlocks, the same shape real robots use, and they map exactly onto
 what Theodosia enforces. Every output below is from a real run against the
 [Together](https://www.together.ai/) API, refusals included.
 
+One thing to hold onto before you start: because every piece here speaks MCP,
+none of the specific tools are load-bearing. Use any coding model to write the
+graph and any agent or MCP client to drive it. This guide picks a Qwen coder to
+write the state machine and [fast-agent](https://fast-agent.ai) (running Claude
+haiku) to drive it, but you could swap in GPT, Gemini, a local model, Claude
+Code, Cursor, or your own loop and change nothing about the rover. The choices
+below are examples, not requirements.
+
 What you need:
 
 - Python 3.11 to 3.13.
@@ -490,10 +498,13 @@ As expected, deploy_sample_arm is not valid. The only valid action is power_on.
 {'action': 'power_on'}
 ```
 
-The model is Claude haiku here, but nothing about the rover knows that. Swap in
-any model fast-agent supports, or point Claude Code or Cursor at the same
-`theodosia serve` command in their `.mcp.json`. The workflow, the gates, and the
-recorded session are identical no matter who drives.
+The model is Claude haiku here, but nothing about the rover knows that, and it
+has nothing to do with the Qwen coder that wrote the graph. The two are
+unrelated; mix and match freely. Swap in any model fast-agent supports, point
+Claude Code or Cursor at the same `theodosia serve` command in their `.mcp.json`,
+or keep the hand-rolled loop from Step 5. The workflow, the gates, and the
+recorded session are identical no matter who drives, because the contract is the
+MCP server, not the client.
 
 ## Step 6: Read the recorded session
 
