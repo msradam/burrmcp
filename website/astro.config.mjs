@@ -36,6 +36,7 @@ export default defineConfig({
 				{
 					label: 'Start',
 					items: [
+						{ label: 'Build your own agent', slug: 'tutorial' },
 						{ label: 'Authoring a graph', slug: 'authoring' },
 						{ label: 'Examples', slug: 'examples' },
 					],
