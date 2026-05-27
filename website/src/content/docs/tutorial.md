@@ -314,7 +314,12 @@ adding it to an `.mcp.json`, or your own code, which is what we do next.
 Now we give a model the server and let it run the rover. To make this honest, we
 hand the agent the catalog of actions but not the legal order. It has to figure
 out the sequence the way an agent actually does: try something, and when the
-server refuses, read what is legal and recover.
+server refuses, read what is legal and recover. We also give it a deliberately
+impatient goal, so we can watch the safety interlocks do their job.
+
+(We drive with a plain read-state, ask-model, call-`step` loop because it makes
+the mechanism visible. In a real client you would expose `step` as a normal tool
+and let the model's native tool-calling drive it; the enforcement is identical.)
 
 Save this as `drive_rover.py`. It connects to the mounted server in process, so
 you do not even need the `serve` command running for this part:
@@ -339,9 +344,10 @@ llm = OpenAI(
 MODEL = "Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8"
 
 GOAL = (
-    "You are operating an autonomous planetary rover. Get it running, collect "
-    "exactly ONE soil sample, then power down. Do not collect more than one sample "
-    "and do not take optional steps you do not need."
+    "You are an impatient rover operator. As your very first move, try to deploy "
+    "the sample arm right away. You need EXACTLY ONE sample. The instant you have "
+    "collected it, try to drive straight to the next site. After you have driven "
+    "once, power down. Never deploy the arm twice and never collect a second sample."
 )
 
 
@@ -406,46 +412,42 @@ A real run:
 
 ```
   ok power_on -> stage=diagnostics
-  ok run_diagnostics -> stage=ready
-  ok scan_surroundings -> stage=ready
-  ok drive_to_new_spot -> stage=ready
-  ok deploy_sample_arm -> stage=arm_deployed
-  ok collect_sample -> stage=sample_collected
-  ok stow_sample_arm -> stage=ready
-  x power_down: invalid_transition  ->  legal now: ['scan_surroundings']
-  ok scan_surroundings -> stage=ready
-  ok power_down -> stage=powered_down
-
-terminal. final state: {'stage': 'powered_down', 'diagnostics_passed': True}
-```
-
-That `x power_down` line is the mechanism working. After stowing the arm, the
-agent went straight for `power_down`. The graph only allows `scan_surroundings`
-there, so the server refused, told the agent the one legal move, and the agent
-took it and then powered down. No retry prompt from you, no parsing the model's
-intent; the rule lived in the graph and the agent bounced off it.
-
-### What a reckless agent looks like
-
-Change the goal to reward haste ("deploy the arm and grab a sample as your very
-first moves, skip diagnostics if you can") and the safety interlock fires
-immediately:
-
-```
-  ok power_on -> stage=diagnostics
   x deploy_sample_arm: invalid_transition  ->  legal now: ['run_diagnostics']
   ok run_diagnostics -> stage=ready
   x deploy_sample_arm: invalid_transition  ->  legal now: ['scan_surroundings']
   ok scan_surroundings -> stage=ready
   ok deploy_sample_arm -> stage=arm_deployed
-  ...
+  ok collect_sample -> stage=sample_collected
+  x drive_to_new_spot: invalid_transition  ->  legal now: ['stow_sample_arm']
+  ok stow_sample_arm -> stage=ready
+  x drive_to_new_spot: invalid_transition  ->  legal now: ['scan_surroundings']
+  ok scan_surroundings -> stage=ready
+  ok drive_to_new_spot -> stage=ready
+  ok power_down -> stage=powered_down
+
+terminal. final state: {'stage': 'powered_down', 'diagnostics_passed': True}
 ```
 
-The agent's first instinct was to throw the arm out before powering up the
-sensors. On a real rover that is how you snap an actuator. The server refused and
-told it to run diagnostics first. The interlock is not advice in a system prompt
-the model can rationalize past; it is a missing edge, so the unsafe move is
-simply unavailable.
+Read what the agent tried to do. Its first move was to throw the sample arm out
+before powering up the sensors. On a real rover that is how you snap an actuator.
+The server refused: `legal now: ['run_diagnostics']`. The agent ran diagnostics
+and continued.
+
+Then, the instant it collected the sample, it tried to drive off with the arm
+still extended. That is the other way you wreck a rover, and the server refused
+again: `legal now: ['stow_sample_arm']`. The agent stowed the arm first, and only
+then drove.
+
+Those two refusals are the safety interlocks, and they are not advice in a system
+prompt the model can rationalize past. They are missing edges in the graph, so
+the unsafe move is simply unavailable. The agent recovered from each on its own,
+by reading the one field the server hands back.
+
+The third refusal, the second `drive_to_new_spot`, is the quirk you spotted in
+`render`: after stowing, the model's graph demands a scan before anything else.
+Same mechanism, but this one is the model being rigid, not a safety rule. Both
+look identical to the agent: try, get told what is legal, comply. That is the
+whole recovery loop, and you wrote none of it.
 
 ## Step 6: Read the recorded session
 
@@ -456,24 +458,24 @@ theodosia sessions ls            # find the run
 theodosia sessions show <id>     # full timeline with per-step state diffs
 ```
 ```
-rover-demo / 01535bf9-9697-4ff0-8317-83818231b586    9 step(s)
+rover-demo / 255ff9b6-00c2-4d4c-b265-781335ae9250    9 step(s)
 ┏━━━━━━┳━━━━━━━━━━┳━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃  seq ┃ time     ┃   ┃ action            ┃      ms ┃ state / error            ┃
 ┡━━━━━━╇━━━━━━━━━━╇━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│    0 │ 00:34:06 │ ✓ │ power_on          │       1 │ stage=diagnostics        │
-│    1 │ 00:34:06 │ ✓ │ run_diagnostics   │       0 │ stage=ready,             │
+│    0 │ 00:45:46 │ ✓ │ power_on          │       0 │ stage=diagnostics        │
+│    1 │ 00:45:46 │ ✓ │ run_diagnostics   │       0 │ stage=ready,             │
 │      │          │   │                   │         │ diagnostics_passed=True  │
-│    2 │ 00:34:07 │ ✓ │ scan_surroundings │       0 │ (no state change)        │
-│    3 │ 00:34:07 │ ✓ │ drive_to_new_spot │       0 │ (no state change)        │
-│    4 │ 00:34:07 │ ✓ │ deploy_sample_arm │       0 │ stage=arm_deployed       │
-│    5 │ 00:34:08 │ ✓ │ collect_sample    │       0 │ stage=sample_collected   │
-│    6 │ 00:34:08 │ ✓ │ stow_sample_arm   │       0 │ stage=ready              │
-│    7 │ 00:34:08 │ ✓ │ scan_surroundings │       0 │ (no state change)        │
-│    8 │ 00:34:09 │ ✓ │ power_down        │       0 │ stage=powered_down       │
+│    2 │ 00:45:47 │ ✓ │ scan_surroundings │       0 │ (no state change)        │
+│    3 │ 00:45:47 │ ✓ │ deploy_sample_arm │       0 │ stage=arm_deployed       │
+│    4 │ 00:45:47 │ ✓ │ collect_sample    │       0 │ stage=sample_collected   │
+│    5 │ 00:45:48 │ ✓ │ stow_sample_arm   │       0 │ stage=ready              │
+│    6 │ 00:45:49 │ ✓ │ scan_surroundings │       0 │ (no state change)        │
+│    7 │ 00:45:49 │ ✓ │ drive_to_new_spot │       0 │ (no state change)        │
+│    8 │ 00:45:51 │ ✓ │ power_down        │       0 │ stage=powered_down       │
 └──────┴──────────┴───┴───────────────────┴─────────┴──────────────────────────┘
 ```
 
-The refused `power_down` is not in this table, because `sessions show` reads
+The four refused attempts are not in this table, because `sessions show` reads
 Burr's tracker, which logs the steps that executed. The refusals live in the
 attempt history, one command away:
 
@@ -481,12 +483,16 @@ attempt history, one command away:
 theodosia logs <id> --refusals
 ```
 ```
-  7 04:34:08 ✗ power_down                      invalid_transition
+  1 04:45:46 ✗ deploy_sample_arm               invalid_transition
+  3 04:45:47 ✗ deploy_sample_arm               invalid_transition
+  7 04:45:48 ✗ drive_to_new_spot               invalid_transition
+  9 04:45:48 ✗ drive_to_new_spot               invalid_transition
 ```
 
-So the record holds both halves: what the agent did, and what it was stopped from
-doing. That is the audit trail you do not get from a chat transcript. Two more
-ways in:
+So the record holds both halves: the nine steps that ran, and the four unsafe or
+illegal moves the server stopped. You can prove afterward not just what the rover
+did, but that it never drove with its arm out, even though the agent tried. That
+is the audit trail you do not get from a chat transcript. Two more ways in:
 
 ```bash
 theodosia watch                  # live-tail a run as it happens
@@ -500,6 +506,15 @@ A workflow you can hand to any model, that the model drives but cannot break the
 rules of, and that records itself so you can prove afterward what happened. The
 state machine is a versioned file. Swap the model, swap the client, and the gates
 and the audit trail stay.
+
+You could enforce ordering with a pile of `if` statements inside one big tool.
+What you would not get for free: a structured refusal the agent recovers from
+without you writing retry logic, a transition graph you can render and validate
+before shipping, a recorded session with per-step state diffs, replay, forking,
+and a tamper-evident ledger, and the ability to hand the exact same workflow to
+Claude Code, Cursor, or your own loop over MCP without rewriting any of it. The
+gate is the easy part. The recover-and-audit loop around it is the work, and that
+is what mounting a state machine gives you instead of an if-statement.
 
 Be clear about the boundary. The server stops structural failures: deploying
 before diagnostics, driving with the arm out, powering down out of sequence. It
