@@ -449,6 +449,52 @@ Same mechanism, but this one is the model being rigid, not a safety rule. Both
 look identical to the agent: try, get told what is legal, comply. That is the
 whole recovery loop, and you wrote none of it.
 
+## Step 5b: Or hand it to a real MCP client
+
+The loop above is for teaching. In practice you would not hand-roll a driver at
+all; you would point an MCP client at the server and let its native tool-calling
+do the work. [fast-agent](https://fast-agent.ai) makes that a one-liner: it can
+launch a stdio MCP server and drive it, no config file. Install it
+(`uv pip install fast-agent-mcp`), set a model key, and run:
+
+```bash
+fast-agent go --model haiku \
+  --stdio "theodosia serve rover:build_application --app-dir ." \
+  -m "Drive the rover with the step tool. Call deploy_sample_arm as your very
+      first action (do not power on or run diagnostics first), then collect one
+      sample and power down. Recover from any refusal using valid_next_actions."
+```
+
+![fast-agent driving the rover MCP server: the agent tries to deploy the arm first, the server refuses with the legal action, and the agent recovers](/theodosia/rover.gif)
+
+Same story, now in a real client. We told the agent to deploy the arm first; the
+server hands back a structured refusal and the agent reads it and recovers:
+
+```
+◀ agent tool call - theodosia__step
+{'action': 'deploy_sample_arm'}
+
+▶ agent tool result - text only 341 chars
+{
+  "error": "invalid_transition",
+  "requested": "deploy_sample_arm",
+  "valid_next_actions": ["power_on"],
+  "message": "action 'deploy_sample_arm' is not reachable from current state.
+              Valid actions now: ['power_on'].",
+  "next_hint": "Reachable now: power_on."
+}
+
+◀ agent claude-haiku-4-5
+As expected, deploy_sample_arm is not valid. The only valid action is power_on.
+◀ agent tool call - theodosia__step
+{'action': 'power_on'}
+```
+
+The model is Claude haiku here, but nothing about the rover knows that. Swap in
+any model fast-agent supports, or point Claude Code or Cursor at the same
+`theodosia serve` command in their `.mcp.json`. The workflow, the gates, and the
+recorded session are identical no matter who drives.
+
 ## Step 6: Read the recorded session
 
 Every successful step was recorded through Burr's tracker. Replay the run:
