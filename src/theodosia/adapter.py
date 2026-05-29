@@ -762,6 +762,44 @@ def _action_inputs(action: Action) -> tuple[list[str], list[str]]:
     return list(raw or []), []
 
 
+def _coerce_pydantic_inputs(action: Action, inputs: dict[str, Any]) -> dict[str, Any]:
+    """Coerce dict input values into their declared Pydantic model type.
+
+    A typed action ``foo(state, order: OrderInput)`` receives ``order`` as a
+    plain dict over MCP. Without coercion the action body would have to call
+    ``OrderInput(**order)`` itself. With it, the body sees the typed object
+    its signature annotated. Non-Pydantic inputs and non-dict values are
+    passed through unchanged so this is safe for primitive-typed inputs and
+    for clients that already construct the model.
+    """
+    fn = getattr(action, "fn", None)
+    if fn is None or not inputs:
+        return inputs
+    try:
+        hints = typing.get_type_hints(fn)
+    except Exception:
+        return inputs
+    out = dict(inputs)
+    for name, value in list(out.items()):
+        ann = hints.get(name)
+        if ann is None or not isinstance(ann, type):
+            continue
+        if not issubclass(ann, pydantic.BaseModel):
+            continue
+        if isinstance(value, ann):
+            continue
+        if not isinstance(value, dict):
+            continue
+        try:
+            out[name] = ann(**value)
+        except pydantic.ValidationError:
+            # Let Burr raise the user-visible validation error so the action
+            # body sees the dict and can decide whether to reject; the
+            # action_error refusal path then carries the full message.
+            continue
+    return out
+
+
 def _input_schemas(action: Action) -> dict[str, dict[str, Any]]:
     """Return a JSON-schema-ish description of each input parameter.
 
@@ -1693,6 +1731,12 @@ async def _step_application(
     target_action = app.graph.get_action(action_name)
     if target_action is None:
         raise InvalidTransitionError(action_name, valid)
+
+    # Coerce dict-valued inputs into their declared Pydantic model types so
+    # the action body receives the typed object it annotated. Without this
+    # the action signature says ``order: OrderInput`` but the body sees a
+    # plain dict.
+    inputs = _coerce_pydantic_inputs(target_action, inputs)
     is_streaming = bool(getattr(target_action, "streaming", False))
     original_get_next_action = app.get_next_action
     app.get_next_action = lambda: target_action  # type: ignore[method-assign]

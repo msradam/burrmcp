@@ -70,9 +70,12 @@ forms it does not.
 
 ## Observability
 
-Every mounted server with a `LocalTrackingClient` writes a per-session JSONL log
-under `~/.burr`. These commands read it directly, so they work against any
-session, including one running right now in another process.
+A mounted server that wires `theodosia.tracker(project="...")` writes a
+per-session JSONL log under `~/.theodosia` (the path the CLI reads by default).
+If you use Burr's `LocalTrackingClient(project="...")` directly, sessions write
+to `~/.burr` and you must pass `--home ~/.burr` to the commands below. The
+commands work against any session, including one running right now in another
+process.
 
 ```bash
 theodosia sessions ls                 # recent sessions, most recent first

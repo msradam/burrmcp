@@ -27,11 +27,11 @@ resources, so a tools-only client reaches everything below.
 
 | URI | Returns |
 |---|---|
-| `theodosia://graph` | Static FSM topology: actions, transitions, and the state schema (including the Pydantic JSON schema when typed state is used). |
+| `theodosia://graph` | Static FSM topology: actions, transitions, each action's required and optional inputs plus their JSON schemas (`input_schemas`, with full Pydantic `model_json_schema()` for typed inputs), and the state schema (the Pydantic JSON schema when typed state is used). |
 | `theodosia://state` | The current state for this session. |
 | `theodosia://next` | The actions reachable from the current state. |
 | `theodosia://history` | The per-session attempt timeline, including refusals and forks. |
-| `theodosia://subruns`, `theodosia://subruns/{id}` | Sub-application index and a sub-run's full timeline (for `spawn_subapp`). |
+| `theodosia://subruns`, `theodosia://subruns/{id}` | Sub-application index and a sub-run's full timeline. Appears only when the FSM uses `theodosia.spawn_subapp(...)`. |
 | `theodosia://trace` | Burr's `LocalTrackingClient` JSONL, mirrored for the agent. |
 | `theodosia://session` | Tracker coordinates: project, `app_id`, app directory, partition key. |
 

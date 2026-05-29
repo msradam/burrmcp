@@ -153,6 +153,9 @@ The agent then calls `step` with the parameter name as the outer key:
 {"action": "take_order", "inputs": {"order": {"item": "mocha", "qty": 2}}}
 ```
 
+Theodosia coerces that dict into an `OrderInput` instance before invoking
+the action, so the body receives the typed object its signature declared.
+
 Common trap: calling `step("take_order", {"item": "mocha"})` (without the
 `order` wrapper) raises `missing required inputs: {'order'}`. The input keys
 are parameter names, not the fields of the typed model.

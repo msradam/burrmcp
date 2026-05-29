@@ -6,6 +6,22 @@ versioning.
 
 ## [Unreleased]
 
+### Fixed (round 5: fourth exploration audit)
+- **Typed inputs are now actually typed.** Pydantic-annotated action
+  parameters previously received plain dicts at runtime, contradicting
+  the JSON schema Theodosia advertised. `mount()` now coerces dict
+  values to the declared Pydantic model before invoking the action,
+  matching the `input_schemas` advertised at `theodosia://graph`. The
+  `authoring.md` example with `order.model_dump()` now runs.
+- **`cli.md` observability section** said sessions write to `~/.burr` by
+  default; corrected to `~/.theodosia` (the path the CLI reads by
+  default), with the `~/.burr` path noted as the Burr-first alternative.
+  Resolves the contradiction with `authoring.md` and `observability.md`.
+- **`tools.md` graph row** now mentions `input_schemas` so a reader looking
+  at the resource catalog learns about typed-input discoverability.
+- **`tools.md` subruns row** notes the resource only appears when the
+  FSM uses `spawn_subapp`, not unconditionally.
+
 ### Fixed (round 4: third exploration audit)
 - **Typed-input discoverability.** `theodosia://graph` now carries an
   `input_schemas` field per action: for Pydantic-typed inputs it surfaces
