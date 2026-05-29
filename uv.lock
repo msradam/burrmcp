@@ -72,6 +72,25 @@ wheels = [
 ]
 
 [[package]]
+name = "anthropic"
+version = "0.105.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "anyio" },
+    { name = "distro" },
+    { name = "docstring-parser" },
+    { name = "httpx" },
+    { name = "jiter" },
+    { name = "pydantic" },
+    { name = "sniffio" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/46/46/47581b8c689c743ceabf6a0f9ff48472160900ce802d26c0fb50423997b3/anthropic-0.105.2.tar.gz", hash = "sha256:0e26b90841c2dced7cc6e98d21d5517d0be33f1876b8e779f478202e28bcaa07", size = 853789, upload-time = "2026-05-29T00:21:14.104Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/83/75/be0c357e33a5a56c8f9db5b4212f886138d2bf59c0952d858f6b75d710ef/anthropic-0.105.2-py3-none-any.whl", hash = "sha256:e53ed5f6bf36fb1ecb9b25d8634cfd30e02fab9fb3374a0c2d5c585874757230", size = 837507, upload-time = "2026-05-29T00:21:15.528Z" },
+]
+
+[[package]]
 name = "antlr4-python3-runtime"
 version = "4.13.2"
 source = { registry = "https://pypi.org/simple" }
@@ -2779,10 +2798,14 @@ dependencies = [
 
 [package.optional-dependencies]
 all = [
+    { name = "anthropic" },
     { name = "apache-burr", extra = ["opentelemetry", "start"] },
     { name = "mellea" },
     { name = "opentelemetry-api" },
     { name = "opentelemetry-sdk" },
+]
+claude = [
+    { name = "anthropic" },
 ]
 mellea = [
     { name = "mellea" },
@@ -2813,6 +2836,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "anthropic", marker = "extra == 'claude'", specifier = ">=0.40" },
     { name = "apache-burr", extras = ["opentelemetry"], marker = "extra == 'observability'", specifier = ">=0.42,<0.43" },
     { name = "apache-burr", extras = ["start"], marker = "extra == 'ui'", specifier = ">=0.42,<0.43" },
     { name = "apache-burr", extras = ["tracking"], specifier = ">=0.42,<0.43" },
@@ -2821,12 +2845,13 @@ requires-dist = [
     { name = "opentelemetry-api", marker = "extra == 'observability'", specifier = ">=1.20" },
     { name = "opentelemetry-sdk", marker = "extra == 'observability'", specifier = ">=1.20" },
     { name = "pydantic", specifier = ">=2,<3" },
+    { name = "theodosia", extras = ["claude"], marker = "extra == 'all'" },
     { name = "theodosia", extras = ["mellea"], marker = "extra == 'all'" },
     { name = "theodosia", extras = ["observability"], marker = "extra == 'all'" },
     { name = "theodosia", extras = ["ui"], marker = "extra == 'all'" },
     { name = "typer", specifier = ">=0.12,<1.0" },
 ]
-provides-extras = ["observability", "ui", "mellea", "all"]
+provides-extras = ["observability", "ui", "mellea", "claude", "all"]
 
 [package.metadata.requires-dev]
 dev = [

@@ -95,6 +95,33 @@ class _Branding:
 _BRANDING = _Branding()
 
 
+# == Burr UI deep links ===============================================
+
+# Burr's web UI route shape (mid-2026): /project/<project>/<partition_key>/<app_id>
+# The UI treats the literal string "null" as the no-partition sentinel.
+_BURR_UI_DEFAULT_HOST = "localhost"
+_BURR_UI_DEFAULT_PORT = 7241
+
+
+def _burr_ui_url(
+    project: str,
+    app_id: str,
+    partition_key: str | None = None,
+    *,
+    host: str | None = None,
+    port: int | None = None,
+) -> str:
+    """Burr UI deep link for one tracked session.
+
+    Honors ``BURR_UI_HOST`` / ``BURR_UI_PORT`` env overrides so users running
+    the UI behind a tunnel or on a non-default port still get clickable links.
+    """
+    h = host or os.environ.get("BURR_UI_HOST", _BURR_UI_DEFAULT_HOST)
+    p = port or int(os.environ.get("BURR_UI_PORT", _BURR_UI_DEFAULT_PORT))
+    pk = partition_key or "null"
+    return f"http://{h}:{p}/project/{project}/{pk}/{app_id}"
+
+
 # == target import (shared by serve + doctor) =========================
 
 
@@ -1086,11 +1113,24 @@ def sessions_show(
     as_json: Annotated[
         bool, typer.Option("--json", help="Emit JSON instead of a rich table.")
     ] = False,
+    open_ui: Annotated[
+        bool,
+        typer.Option(
+            "--open",
+            help="Open this session in the Burr UI (http://localhost:7241) in the default browser.",
+        ),
+    ] = False,
 ) -> None:
     """Full post-mortem timeline of one session."""
     home = _resolve_home(home)
     log_path, proj, aid = _resolve_app(home, project, app_id)
     rows = _read_steps(log_path)
+    ui_url = _burr_ui_url(proj, aid)
+
+    if open_ui:
+        import webbrowser
+
+        webbrowser.open(ui_url)
 
     if as_json:
         console.print_json(
@@ -1099,6 +1139,7 @@ def sessions_show(
                     "project": proj,
                     "app_id": aid,
                     "log_path": str(log_path),
+                    "burr_ui_url": ui_url,
                     "steps": [r.__dict__ for r in rows],
                 }
             )
@@ -1107,6 +1148,7 @@ def sessions_show(
 
     if not rows:
         console.print(f"[dim]No steps recorded yet at {log_path}[/]")
+        console.print(f"[muted]Burr UI:[/] [link={ui_url}]{ui_url}[/]")
         return
 
     table = _build_steps_table(
@@ -1116,6 +1158,7 @@ def sessions_show(
         title_suffix=f"  {len(rows)} step(s)",
     )
     console.print(table)
+    console.print(f"[muted]Burr UI:[/] [link={ui_url}]{ui_url}[/]")
 
 
 # == sessions tail / watch ===========================================
@@ -1641,6 +1684,11 @@ def status(
         print(json.dumps(payload, indent=2))
         return
 
+    ui_host = os.environ.get("BURR_UI_HOST", _BURR_UI_DEFAULT_HOST)
+    ui_port = int(os.environ.get("BURR_UI_PORT", _BURR_UI_DEFAULT_PORT))
+    ui_root = f"http://{ui_host}:{ui_port}/"
+    payload["burr_ui_url"] = ui_root
+
     _print_status_header(payload)
     if not payload["storage_exists"]:
         console.print()
@@ -1657,6 +1705,7 @@ def status(
         return
     console.print()
     console.print(_build_status_table(payload["projects"]))
+    console.print(f"\n[muted]Burr UI:[/] [link={ui_root}]{ui_root}[/]")
 
 
 def verify(

@@ -6,6 +6,22 @@ versioning.
 
 ## [Unreleased]
 
+### Added (Burr UI deep links from CLI)
+
+- ``theodosia sessions show <id>`` now prints a clickable Burr UI URL
+  under the steps table (``http://localhost:7241/project/<project>/<partition_key>/<app_id>``),
+  rendered as a rich link so terminals that honor OSC 8 will ⌘-click into
+  the replay. ``--open`` opens it in the default browser.
+- ``theodosia status`` prints the Burr UI root URL at the bottom.
+- Both honor ``BURR_UI_HOST`` and ``BURR_UI_PORT`` env overrides for
+  users running the UI behind a tunnel or on a non-default port.
+- ``--json`` output for both commands now carries the URL under
+  ``burr_ui_url``.
+
+This stays in scope: we don't ship a Theodosia UI. We point at Burr's,
+which is what ``theodosia ui`` already launches. Deep links make the
+"Burr UI is the untold half of the pitch" point one click away.
+
 ### Added (doing-it-justice pass: streaming, hooks, annotations, drive_claude)
 
 The Burr + FastMCP pairing exposes more depth than `mount()` was making
@@ -19,7 +35,7 @@ visible. This pass surfaces it.
   built Application or a factory.
 - **Streaming actions surface chunks as MCP progress notifications.**
   ``@streaming_action(.pydantic)`` was already wired in
-  ``_step_streaming_action`` — the chunks fan out via
+  ``_step_streaming_action``. The chunks fan out via
   ``ctx.report_progress(...)`` and the response carries
   ``streamed: True`` plus ``chunks: N``. Newly covered by an explicit
   ``tests/test_streaming_progress.py`` regression so the bridge cannot
