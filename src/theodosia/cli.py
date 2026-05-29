@@ -752,6 +752,8 @@ def _status_text(status: str) -> Text:
         return Text("✓", style="ok")
     if status == "error":
         return Text("✗", style="err")
+    if status == "empty":
+        return Text("∅", style="muted")
     return Text("•", style="running")
 
 
@@ -846,7 +848,9 @@ def sessions_ls(
             size = log.stat().st_size if log.exists() else 0
             rows = _read_steps(log) if size > 0 else []
             last_action = rows[-1].action if rows else "(empty)"
-            last_status = rows[-1].status if rows else "running"
+            # An empty tracker dir means the session was created but never
+            # took a step. Calling that "running" is wrong; it's idle.
+            last_status = rows[-1].status if rows else "empty"
             entries.append(
                 {
                     "app_id": a.name,

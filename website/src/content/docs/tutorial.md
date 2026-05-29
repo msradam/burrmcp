@@ -119,7 +119,7 @@ Follow this exact shape:
         )
 
     if __name__ == "__main__":
-        mount(build_application(), name="rover").run()
+        mount(build_application, name="rover").run()
 
 Rules:
 - Use a `stage` field in state to gate transitions with Condition.expr.
@@ -248,7 +248,7 @@ def build_application():
 
 
 if __name__ == "__main__":
-    mount(build_application(), name="rover").run()
+    mount(build_application, name="rover").run()
 ```
 
 Look at what the rules became. There is no transition from `power_on` straight

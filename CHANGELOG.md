@@ -6,6 +6,21 @@ versioning.
 
 ## [Unreleased]
 
+### Fixed (round 6: fifth exploration audit)
+- **Personas reference page.** New `website/src/content/docs/personas.md`
+  documents the PERSONA.md format, the `personas=` mounting shapes
+  (directory / file / dict), the MCP prompt namespace
+  (`theodosia/persona/<name>`), the single-brace `{state.x}` placeholder
+  syntax (versus the Jinja-style `{{ ... }}` reviewers tend to reach for),
+  the full placeholder table, and a runnable example. Previously the only
+  mention of personas was a one-liner in `authoring.md`'s Assembly snippet.
+- **`tutorial.md`** passed `build_application()` (a built `Application`)
+  to `mount()`, contradicting `authoring.md` which insists on the factory
+  form for per-session state isolation. All three spots fixed.
+- **`theodosia status`** marked empty tracker directories as `running`
+  when they had zero recorded steps. Now reports `empty` with a `∅`
+  glyph, distinguishing "still running" from "never ran a step".
+
 ### Fixed (round 5: fourth exploration audit)
 - **Typed inputs are now actually typed.** Pydantic-annotated action
   parameters previously received plain dicts at runtime, contradicting
