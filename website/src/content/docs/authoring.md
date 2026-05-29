@@ -110,6 +110,14 @@ finds your runs with no extra flags. If you instead wire Burr's native tracker
 point the CLI at it: `theodosia sessions ls --home ~/.burr -p incident`. Pick
 one and stay consistent.
 
+## Trap 3: `Condition.expr` reads pre-step state
+
+A transition's condition is evaluated against the state of the source action
+*before* that action's writes land. If an action sets `borderline = True` in
+its body, the next *outgoing* transition can gate on `borderline == True`, but
+the transition *into* that action cannot. Concretely: write the gate-deciding
+field in action N's body, then gate the N → N+1 edge on it.
+
 ## Typed inputs
 
 Action functions can declare inputs with Pydantic models or built-in types.

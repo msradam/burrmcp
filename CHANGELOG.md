@@ -6,6 +6,47 @@ versioning.
 
 ## [Unreleased]
 
+### Fixed (round 13: three parallel sim-agent audits)
+
+Three doc-only audits ran in parallel (SRE incident triage, content
+moderation, PR review with real stdio MCP upstream over HTTP). All three
+named the typed-input gap as their #1 blocker. Other findings collated.
+
+- **Pydantic typed-input coercion now handles `Optional[Model]` and
+  `Model | None`**. Previously the coercion only fired when the annotation
+  was a bare `BaseModel` subclass; `Optional[OrderInput]` silently skipped
+  and the action body received a dict, crashing on `dict.model_dump()`.
+  The check now unwraps `Optional` / `Union[X, None]` (and bare `T | None`)
+  via `typing.get_origin/args`.
+- **Pydantic shape errors now surface as `validation_failed`, not
+  `action_error`.** Previously the coercion caught `ValidationError` and
+  silently passed the raw dict through to the action body, which then
+  crashed with an opaque `AttributeError`. The handler now raises
+  `ValidationFailed` carrying per-field Pydantic errors so the wire
+  response is a clean `validation_failed` refusal the LLM can recover from.
+  Regression test in `tests/test_pydantic_validation_failed.py`.
+- **`Assembly.to_yaml()` round-trips callable workflows.** Previously a
+  factory callable raised `yaml.RepresenterError` because PyYAML cannot
+  represent a function. `to_yaml` now resolves a callable workflow to its
+  `module:attr` dotted-path automatically, or raises a clear `ValueError`
+  if the function has no resolvable import (e.g. a closure or
+  ``__main__``). A built `Application` still cannot round-trip; the new
+  error message says so directly.
+- **`call_upstream` unwraps single-key `{"result": ...}` envelopes.**
+  FastMCP wraps scalar tool returns this way; action bodies previously
+  had to unwrap manually, contradicting `upstream.md`'s "calls return the
+  tool's structured result" promise. Dict / list returns pass through
+  unchanged.
+- **`theodosia report` flags a possibly-stale terminal state.** When the
+  terminal action body is sync and Burr's `post_run_step` records pre-step
+  state in the tracker, the report now prefaces the "Final state" block
+  with a note explaining the snapshot is one step behind and pointing at
+  `theodosia://state` / `async def` as recovery paths. Detected via
+  `__PRIOR_STEP` mismatch on the terminal row.
+- **`authoring.md` documents Trap 3**: `Condition.expr` evaluates against
+  pre-step state, so a field written in action N gates the N → N+1 edge,
+  not the N-1 → N edge.
+
 ### Fixed (round 12: sync action timeout actually preempts)
 - **`action_timeout_seconds` now preempts sync action bodies.** Previously
   a sync body (`time.sleep`, blocking HTTP, tight CPU loop) blocked the

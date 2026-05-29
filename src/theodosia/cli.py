@@ -547,6 +547,7 @@ class StepRow:
     status: str  # "ok" | "error" | "running"
     error_summary: str | None
     state_summary: dict[str, Any]
+    state_raw: dict[str, Any] | None = None  # full state dict including __PRIOR_STEP
 
 
 def _read_refusals(log_path: Path) -> list[StepRow]:
@@ -580,6 +581,24 @@ def _read_refusals(log_path: Path) -> list[StepRow]:
                 )
             )
     return rows
+
+
+def _terminal_state_may_be_stale(steps: list[StepRow]) -> bool:
+    """Heuristic for the Burr astep+sync-action staleness on the terminal row.
+
+    Burr records pre-step state in ``end_entry`` when the action body is sync.
+    For non-terminal rows the CLI scans forward; the terminal row has no
+    forward entry, so its state stays stale if the body was sync. Detect by
+    checking whether ``__PRIOR_STEP`` in the row's snapshot names the row's
+    action (true post-state) or the previous action (stale pre-state).
+    """
+    if not steps:
+        return False
+    last = steps[-1]
+    raw = getattr(last, "state_raw", None)
+    if raw is None:
+        return False
+    return raw.get("__PRIOR_STEP") != last.action
 
 
 def _read_steps(log_path: Path) -> list[StepRow]:
@@ -662,6 +681,7 @@ def _read_steps(log_path: Path) -> list[StepRow]:
                     status="error",
                     error_summary=err_first_line[:140],
                     state_summary=state_view,
+                    state_raw=state,
                 )
             )
         else:
@@ -674,6 +694,7 @@ def _read_steps(log_path: Path) -> list[StepRow]:
                     status="ok",
                     error_summary=None,
                     state_summary=state_view,
+                    state_raw=state,
                 )
             )
     return rows
@@ -1306,16 +1327,22 @@ def _render_session_report(
     if steps:
         final_state = steps[-1].state_summary
         if final_state:
-            lines.extend(
-                (
-                    "## Final state",
-                    "",
-                    "```json",
-                    json.dumps(final_state, indent=2, default=str),
-                    "```",
-                    "",
+            lines.append("## Final state")
+            lines.append("")
+            if _terminal_state_may_be_stale(steps):
+                lines.append(
+                    "> Note: the terminal action's post-state cannot be read back "
+                    "from Burr's tracker when the action body is sync (Burr fires "
+                    "`post_run_step` with pre-action state in that case). The "
+                    "snapshot below is one step behind for a sync terminal; for "
+                    "the true post-action state read `theodosia://state` from a "
+                    "live session or write the action body `async def`."
                 )
-            )
+                lines.append("")
+            lines.append("```json")
+            lines.append(json.dumps(final_state, indent=2, default=str))
+            lines.append("```")
+            lines.append("")
 
     if not steps and not refusals:
         lines.extend(("_(no steps or refusals recorded at this session yet)_", ""))

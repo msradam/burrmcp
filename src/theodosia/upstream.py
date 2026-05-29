@@ -134,9 +134,17 @@ async def call_upstream(server: str, tool: str, args: dict[str, Any] | None = No
 
 
 def _extract(result: Any) -> Any:
-    """Pull a JSON-able payload out of an MCP CallToolResult."""
+    """Pull a JSON-able payload out of an MCP CallToolResult.
+
+    FastMCP wraps scalar tool returns (str, int, bool) in a single-key
+    ``{"result": <value>}`` envelope under ``structured_content``. Unwrap
+    that single-key envelope so action bodies see the bare value, not the
+    envelope. Tools returning dicts / lists pass through unchanged.
+    """
     sc = getattr(result, "structured_content", None)
     if sc is not None:
+        if isinstance(sc, dict) and set(sc) == {"result"}:
+            return sc["result"]
         return sc
     content = getattr(result, "content", None)
     if content:

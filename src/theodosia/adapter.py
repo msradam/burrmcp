@@ -764,6 +764,29 @@ def _action_inputs(action: Action) -> tuple[list[str], list[str]]:
     return list(raw or []), []
 
 
+def _pydantic_model_in_annotation(ann: Any) -> type | None:
+    """Return the Pydantic model class in ``ann``, unwrapping ``Optional`` / ``Union``.
+
+    Returns the model class for ``OrderInput``, ``Optional[OrderInput]``,
+    ``Union[OrderInput, None]``, and ``OrderInput | None``. Returns ``None``
+    for any annotation that doesn't carry exactly one Pydantic model.
+    """
+    if ann is None:
+        return None
+    if isinstance(ann, type) and issubclass(ann, pydantic.BaseModel):
+        return ann
+    origin = typing.get_origin(ann)
+    if origin is None:
+        return None
+    args = [a for a in typing.get_args(ann) if a is not type(None)]
+    if len(args) != 1:
+        return None
+    inner = args[0]
+    if isinstance(inner, type) and issubclass(inner, pydantic.BaseModel):
+        return inner
+    return None
+
+
 def _coerce_pydantic_inputs(action: Action, inputs: dict[str, Any]) -> dict[str, Any]:
     """Coerce dict input values into their declared Pydantic model type.
 
@@ -773,6 +796,12 @@ def _coerce_pydantic_inputs(action: Action, inputs: dict[str, Any]) -> dict[str,
     its signature annotated. Non-Pydantic inputs and non-dict values are
     passed through unchanged so this is safe for primitive-typed inputs and
     for clients that already construct the model.
+
+    When a dict cannot validate as the declared model, raises
+    ``ValidationFailed`` so the wire shape carries a clean
+    ``validation_failed`` refusal with per-field details, rather than letting
+    the action body crash with an ``AttributeError`` that surfaces as a
+    generic ``action_error``.
     """
     fn = getattr(action, "fn", None)
     if fn is None or not inputs:
@@ -783,10 +812,8 @@ def _coerce_pydantic_inputs(action: Action, inputs: dict[str, Any]) -> dict[str,
         return inputs
     out = inputs.copy()
     for name, value in list(out.items()):
-        ann = hints.get(name)
-        if ann is None or not isinstance(ann, type):
-            continue
-        if not issubclass(ann, pydantic.BaseModel):
+        ann = _pydantic_model_in_annotation(hints.get(name))
+        if ann is None:
             continue
         if isinstance(value, ann):
             continue
@@ -794,11 +821,20 @@ def _coerce_pydantic_inputs(action: Action, inputs: dict[str, Any]) -> dict[str,
             continue
         try:
             out[name] = ann(**value)
-        except pydantic.ValidationError:
-            # Let Burr raise the user-visible validation error so the action
-            # body sees the dict and can decide whether to reject; the
-            # action_error refusal path then carries the full message.
-            continue
+        except pydantic.ValidationError as exc:
+            raise ValidationFailed(
+                f"input {name!r} does not match {ann.__name__}: {exc.error_count()} error(s)",
+                details={
+                    "param": name,
+                    "model": ann.__name__,
+                    "errors": exc.errors(include_url=False, include_input=False),
+                },
+            ) from exc
+        except TypeError as exc:
+            raise ValidationFailed(
+                f"input {name!r} cannot be constructed as {ann.__name__}: {exc}",
+                details={"param": name, "model": ann.__name__, "errors": [str(exc)]},
+            ) from exc
     return out
 
 
