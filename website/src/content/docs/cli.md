@@ -80,7 +80,9 @@ process.
 ```bash
 theodosia status                      # one-shot snapshot of tracker + recent projects
 theodosia sessions ls                 # recent sessions, most recent first
-theodosia sessions show <app-id>      # full timeline: per-step state diff + timing
+theodosia sessions show <app-id>      # full timeline: per-step state diff + timing; prints Burr UI URL
+theodosia sessions show <app-id> --open  # also open the Burr UI replay in the default browser
+theodosia sessions diff <a> <b>       # cross-session: action path divergence + final-state diff
 theodosia sessions tail [app-id]      # live-tail a running session
 theodosia watch [app-id]              # alias for `sessions tail`
 theodosia logs [app-id]               # compact one-line-per-step, greppable
@@ -92,7 +94,17 @@ theodosia report <app-id>             # markdown post-mortem; optional webhook d
 `theodosia status` and `theodosia status --json` give a project / session
 inventory at a glance: how many sessions per project, the latest `app_id`
 and step count, and a `last_status` of `ok` / `error` / `empty` (a session
-that was created but never took a step) / `running` (mid-flight).
+that was created but never took a step) / `running` (mid-flight). Both
+`status` and `sessions show` print a Burr UI URL pointing at the relevant
+project / session; set `BURR_UI_HOST` and `BURR_UI_PORT` to override the
+default `localhost:7241` if your UI runs behind a tunnel or on a custom
+port.
+
+`theodosia sessions diff <a> <b>` takes two app ids (full uuid or prefix)
+and prints where they diverged (common action-path prefix + each session's
+continuation) plus a key-by-key state diff at the final step. Useful for
+post-incident analysis ("how did this run go wrong compared to a known
+good one?"). `--json` for scripted consumption.
 
 `theodosia verify` recomputes the session's hash-chained `ledger.jsonl` (written
 next to the tracker log, one entry per step and refusal) and names the exact line

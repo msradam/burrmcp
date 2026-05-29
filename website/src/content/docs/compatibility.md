@@ -23,7 +23,7 @@ from this table has not been exercised yet.
 | Async actions (`async def @action`) | Yes | `parallel_research`, `mellea_qiskit_migration` |
 | Sub-Application composition | Yes; `theodosia://subruns` indexes `spawn_subapp` calls | `incident_response`, `subgraphs` |
 | OpenTelemetry (`OpenTelemetryBridge`) | Yes | `with_otel` |
-| User-defined lifecycle hooks (`PreRunStepHook` / `PostRunStepHook` / etc.) | Yes; via `ApplicationBuilder.with_hooks(...)` | `pipeline_hooks` |
+| User-defined lifecycle hooks (`PreRunStepHook` / `PostRunStepHook` / etc.) | Yes; attach via `mount(..., hooks=[hook1, hook2])` or via `ApplicationBuilder.with_hooks(...)` in your factory | `pipeline_hooks` |
 | Async hooks + envelope hooks (`PreRunStepHookAsync`, `PostApplicationCreateHook`, `PreRunExecuteCallHookAsync`, etc.) | Yes; `await`ed around each action; envelope hooks wrap every execute boundary including MCP `step` | `async_hooks` |
 | `@streaming_action.pydantic` + streaming hooks (`PreStartStreamHook`, `PostStreamItemHook`, `PostEndStreamHook`) | Yes; chunks typed by `stream_type`, hooks fire when streaming actions are driven via MCP `step` (adapter uses `app.astream_result`) | `streaming_hooks` |
 | Span tracing hooks (`PreStartSpanHook`, `PostEndSpanHook`, `DoLogAttributeHook`) via the `__tracer` parameter | Yes; user-defined hook captures sub-span trees and attribute logs alongside `OpenTelemetryBridge` | `custom_telemetry`, `with_otel` |
@@ -34,7 +34,7 @@ from this table has not been exercised yet.
 | FastMCP `ctx.sample` from inside an action body | Yes; `theodosia.current_mcp_context()` returns the FastMCP `Context` so actions can delegate LLM work to the connected agent's model | `caller_sample` |
 | FastMCP `ctx.elicit` from inside an action body | Yes; action bodies can pop interactive user confirmation prompts mid-step for safety-rail gates | `elicit_confirm` |
 | Output schema on the `step` tool | Yes; clients see a typed response contract (discriminator `error` + per-shape fields) in the MCP tool listing | always-on |
-| FastMCP middleware (timing, structured logging, rate limiting, custom) | Yes; mounted server is a regular FastMCP server, so `server.add_middleware(...)` after `mount(...)` works | `with_middleware` |
+| FastMCP middleware (timing, structured logging, rate limiting, custom) | Yes; attach via `mount(..., middleware=[mw1, mw2])` or via `server.add_middleware(...)` after `mount()` returns | `with_middleware` |
 | `with_graph(Graph)` / `with_graphs(...)` (reusable graph fragments) | Yes; same `Graph` object embedded in multiple Applications | `subgraph_composition` |
 | Class-based `Action` subclasses (escape from `@action`) | Yes; one class, configured instances | `class_action` |
 | Hamilton driver inside an action body | Yes (no special integration) | `hamilton_features` |

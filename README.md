@@ -95,15 +95,17 @@ A smaller example, the same mechanism: an agent ordering coffee, refused when it
 
 The vocabulary you meet, in roughly the order you reach for it. Every Theodosia server in `STEP` mode exposes the same four MCP tools regardless of FSM complexity, and a fixed set of `theodosia://` resources for inspection.
 
-- **`mount(application)`**: wraps a Burr `Application` (or factory) as a FastMCP server. Returns the server; call `.run()` to serve, or pass to FastMCP's in-memory `Client` for tests.
-- **The four-tool surface**: every mounted server exposes `step(action, inputs)`, `reset_session`, `fork_at(sequence_id)`, and `fork_from_past(app_id, sequence_id)`. The action namespace lives in `step`'s argument schema; FSM complexity changes the schema, not the tool count. FastMCP's `ResourcesAsTools` transform adds two more (`list_resources`, `read_resource`) for clients that don't implement native `resources/read`; the architectural surface is still four.
+- **`mount(application, *, hooks=[...], middleware=[...], upstream=..., personas=...)`**: wraps a Burr `Application` (or factory) as a FastMCP server. Returns the server; call `.run()` to serve, or pass to FastMCP's in-memory `Client` for tests. The optional kwargs forward Burr `LifecycleAdapter` instances, FastMCP `Middleware` instances, upstream MCP clients, and PERSONA.md identity layers without making you reach into the underlying objects.
+- **The four-tool surface**: every mounted server exposes `step(action, inputs)`, `reset_session`, `fork_at(sequence_id)`, and `fork_from_past(app_id, sequence_id)`, each carrying FastMCP `ToolAnnotations` (`destructiveHint`, `idempotentHint`, `openWorldHint`) so capable clients can render the right confirmations. The action namespace lives in `step`'s argument schema; FSM complexity changes the schema, not the tool count. FastMCP's `ResourcesAsTools` transform adds two more (`list_resources`, `read_resource`) for clients that don't implement native `resources/read`; the architectural surface is still four.
 - **Structured refusals**: `invalid_transition`, `unknown_action`, `validation_failed`, `action_timeout`, `action_error`, plus the fork refusals `cannot_fork_to_refusal`, `unknown_past_run`, and `no_tracker` when the session has no persister or tracker wired. Every refusal carries `valid_next_actions` so the agent self-corrects from the response.
 - **`theodosia://` resources**: `graph`, `state`, `next`, `history`, `subruns`, `trace`, `session`. The agent reads state from these instead of guessing.
 - **`upstream`**: a Burr action body calling tools on other MCP servers via `call_upstream(server, tool, args)`. The agent never sees those servers; only Theodosia's `step`.
 - **`Persona`**: PERSONA.md identity layer mounted as MCP prompts. Same FSM, different actor; same audit trail. Frame-aware placeholders (`{state.x}`, `{action.name}`) interpolate against the live session.
 - **`Assembly`**: a frozen bundle of a workflow plus its personas, upstream config, instructions, and metadata. `Assembly(...).serve()` mounts; `from_yaml` loads from disk.
 - **`fork_at` / `fork_from_past`**: branch any run at any past sequence id. Replay the prefix, diverge from the chosen point.
-- **Hooks**: Burr's `with_hooks(...)` runs around every action: pre/post step, pre/post stream, pre/post application execute, plus persister hooks. Everything Burr supports here works through `mount()` unchanged.
+- **Hooks**: Burr's lifecycle adapters (`PreRunStepHook`, `PostRunStepHook`, `PreStartStreamHook`, persister hooks, etc.) attach via `mount(..., hooks=[hook1, hook2])` or via `ApplicationBuilder.with_hooks(...)` in your factory. Either path works.
+- **Middleware**: FastMCP `Middleware` instances attach via `mount(..., middleware=[mw1, mw2])`. Use for OpenTelemetry spans, rate limiting, structured logging, per-call metrics.
+- **`drive_claude(server, anthropic, *, prompt, ...)`**: one-line glue between a mounted server and the Anthropic SDK. Lists the FSM's tools, injects `theodosia://graph` / `state` / `next` into the system prompt, loops turn-by-turn until terminal or `max_turns`. Optional `[claude]` extra.
 
 ## What this is not
 
@@ -122,9 +124,12 @@ theodosia serve module:app                       # mount as MCP server (stdio, d
 theodosia serve module:app --transport http --port 8000   # serve over HTTP instead
 theodosia render module:app                      # draw the state machine in the terminal (--mermaid / --dot)
 theodosia doctor module:app                      # statically validate the graph; exits nonzero for CI
-theodosia sessions show <id>                     # full timeline: per-step state diff + timing
+theodosia sessions show <id>                     # full timeline: per-step state diff + timing; prints Burr UI URL
+theodosia sessions show <id> --open              # also open the Burr UI replay in the browser
+theodosia sessions diff <a> <b>                  # cross-session: action path divergence + final-state diff
 theodosia watch                                  # live-tail a running session
 theodosia logs --refusals                        # only the steps that were refused
+theodosia status                                 # tracker storage + recent activity snapshot
 theodosia verify                                 # check the session's tamper-evident ledger
 theodosia primer                                 # 30-second offline tour, no API key needed
 theodosia ui                                     # open the Burr UI (auto-bootstraps via uvx, or install `theodosia[ui]`)
@@ -163,7 +168,7 @@ Full docs at **[msradam.github.io/theodosia](https://msradam.github.io/theodosia
 | Section | What it covers |
 |---|---|
 | [Authoring a graph](https://msradam.github.io/theodosia/authoring/) | Build a Burr Application from scratch and serve it, with the traps newcomers hit |
-| [Examples](https://msradam.github.io/theodosia/examples/) | Standalone agents built with Theodosia (Phoebe, triage, deploy-gate, coffee) and the in-repo FSMs |
+| [Examples](https://msradam.github.io/theodosia/examples/) | Standalone agents built with Theodosia (Phoebe, triage, deploy-gate, coffee) and the in-repo FSMs. New here? Start with [examples/CURATED.md](examples/CURATED.md). |
 | [Architecture](https://msradam.github.io/theodosia/architecture/) | The four-tool surface, structured refusals, how `mount()` drives Burr |
 | [What works through mount()](https://msradam.github.io/theodosia/compatibility/) | Typed state, persistence, hooks, parallelism, sub-applications, telemetry |
 | [Observability](https://msradam.github.io/theodosia/observability/) | The `theodosia://` resources, the CLI, the Burr UI, OpenTelemetry |
