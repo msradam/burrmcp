@@ -579,7 +579,15 @@ def _read_refusals(log_path: Path) -> list[StepRow]:
 
 
 def _read_steps(log_path: Path) -> list[StepRow]:
-    """Pair begin/end entries from a Burr tracker JSONL into rows."""
+    """Pair begin/end entries from a Burr tracker JSONL into rows.
+
+    Works around Burr's sync-action staleness: when an ``@action`` body is
+    sync, ``post_run_step`` (the source of ``end_entry``) fires with
+    pre-step state. We detect this per-row by checking ``__PRIOR_STEP`` in
+    the recorded state. If it does not match the row's action, we scan
+    forward for the entry whose ``__PRIOR_STEP`` does match. That entry's
+    state is the true post-step state for this row.
+    """
     begins: dict[int, dict] = {}
     ends: dict[int, dict] = {}
     if not log_path.exists():
@@ -600,6 +608,21 @@ def _read_steps(log_path: Path) -> list[StepRow]:
                 begins[seq] = rec
             elif rec.get("type") == "end_entry":
                 ends[seq] = rec
+
+    def _post_state(seq: int, action_name: str) -> dict[str, Any]:
+        e = ends.get(seq)
+        if e is None:
+            return {}
+        candidate = e.get("state") or {}
+        if candidate.get("__PRIOR_STEP") == action_name:
+            return candidate
+        # Scan forward for the entry whose __PRIOR_STEP names this action.
+        for later_seq in sorted(s for s in ends if s > seq):
+            later_state = ends[later_seq].get("state") or {}
+            if later_state.get("__PRIOR_STEP") == action_name:
+                return later_state
+        # Last action with no forward entry; the recorded state is the best we have.
+        return candidate
     rows: list[StepRow] = []
     for seq in sorted(begins):
         b = begins[seq]
@@ -620,7 +643,8 @@ def _read_steps(log_path: Path) -> list[StepRow]:
             continue
         duration_ms = _duration_ms(started, e.get("end_time", ""))
         exc = e.get("exception")
-        state = e.get("state") or {}
+        action_name = b.get("action", "?")
+        state = _post_state(seq, action_name)
         state_view = {k: v for k, v in state.items() if not k.startswith("__")}
         if exc:
             err_first_line = _exception_summary(str(exc))

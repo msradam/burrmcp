@@ -191,7 +191,17 @@ class UpstreamManager:
         from fastmcp import Client
 
         client = Client(_as_transport(self._configs[server]))
-        await client.__aenter__()
+        try:
+            await client.__aenter__()
+        except RuntimeError as exc:
+            if "fileno" in str(exc):
+                raise UpstreamError(
+                    f"upstream {server!r} (stdio subprocess) cannot connect from an "
+                    "in-memory FastMCP Client. Either drive the parent server over "
+                    "stdio/http/sse (any real transport), or substitute "
+                    "``theodosia.testing.FakeUpstream`` for unit tests."
+                ) from exc
+            raise
         self._clients[server] = client
         return client
 

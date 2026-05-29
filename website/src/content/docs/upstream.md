@@ -64,6 +64,18 @@ instead of the built-in manager.
 filesystem MCP server this way: list files, read a candidate, flag findings,
 report. The agent only ever calls `step`.
 
+## A note on stdio upstreams + in-memory clients
+
+If you drive your Theodosia server through FastMCP's in-memory `Client(server)`
+(common in tests and notebook exploration) and your `upstream` is a stdio
+subprocess (`{"command": "...", "args": [...]}`), the subprocess client raises
+`Client failed to connect: fileno` because the in-memory transport has no real
+file descriptor to hand to the child process. Theodosia rewrites this into a
+clear `UpstreamError` directing you to either drive the parent over a real
+transport (stdio / http / sse) or substitute `FakeUpstream` for the test. For
+production `theodosia serve` runs the upstream stdio path works because the
+parent itself runs over a real transport.
+
 ## Testing with `FakeUpstream`
 
 `theodosia.testing.FakeUpstream` is an in-process stand-in for upstream MCP

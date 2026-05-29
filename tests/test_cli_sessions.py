@@ -86,6 +86,52 @@ def test_read_steps_flags_errors(tmp_path):
     assert "ValueError: bad" in (rows[0].error_summary or "")
 
 
+def test_read_steps_resolves_stale_sync_action_state(tmp_path):
+    """Burr's astep records pre-step state for sync action bodies. The CLI
+    detects this via __PRIOR_STEP and scans forward for the true post-state.
+
+    Without the workaround, row 0's state would appear empty and row 1's
+    state would show what row 0 actually produced (off-by-one).
+    """
+    log = tmp_path / "log.jsonl"
+    _write_log(
+        log,
+        [
+            _begin(0, "start"),
+            # Stale: end_entry for seq=0 carries pre-start state. No __PRIOR_STEP.
+            _end(0, "start", {}),
+            _begin(1, "done"),
+            # Stale: end_entry for seq=1 carries pre-done state (= post-start).
+            _end(1, "done", {"item": "latte", "stage": "started", "__PRIOR_STEP": "start"}),
+        ],
+    )
+    rows = _read_steps(log)
+    # Row 0 (start) should resolve to the post-start state we found via forward scan.
+    assert rows[0].state_summary == {"item": "latte", "stage": "started"}
+    # Row 1 (done) has no forward entry to scan to; falls back to its own
+    # (stale) recorded state. This is a known Burr-tracker limitation for
+    # the terminal action with a sync body.
+
+
+def test_read_steps_async_action_state_is_kept_as_is(tmp_path):
+    """When the action body is async, end_entry already carries post-step
+    state (__PRIOR_STEP matches the row's action). No forward scan needed.
+    """
+    log = tmp_path / "log.jsonl"
+    _write_log(
+        log,
+        [
+            _begin(0, "start"),
+            _end(0, "start", {"stage": "ordered", "__PRIOR_STEP": "start"}),
+            _begin(1, "pay"),
+            _end(1, "pay", {"stage": "paid", "__PRIOR_STEP": "pay"}),
+        ],
+    )
+    rows = _read_steps(log)
+    assert rows[0].state_summary == {"stage": "ordered"}
+    assert rows[1].state_summary == {"stage": "paid"}
+
+
 def test_read_steps_marks_unfinished_running(tmp_path):
     log = tmp_path / "log.jsonl"
     _write_log(log, [_begin(0, "in_flight")])

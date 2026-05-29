@@ -6,6 +6,22 @@ versioning.
 
 ## [Unreleased]
 
+### Fixed (round 3: second exploration audit)
+- **`theodosia sessions show` state diff was off by one.** Burr records
+  pre-step state for sync action bodies via `post_run_step`, so the on-disk
+  tracker carries each row's pre-state, not its post-state. The CLI now
+  detects this per-row via `__PRIOR_STEP` and scans forward for the entry
+  whose `__PRIOR_STEP` names the row's action. That entry's state is the
+  true post-step state. Async action bodies (which record correctly) are
+  detected the same way and used as-is, so the fix does not regress them.
+  The terminal action remains stale because no forward entry exists; this
+  is a Burr-tracker limit. Regression test in `tests/test_cli_sessions.py`.
+- **`call_upstream` to a stdio subprocess from an in-memory client** now
+  raises a clear `UpstreamError` explaining the in-memory-transport-has-no-fd
+  reason and pointing at `FakeUpstream` for tests. Previously the user saw
+  `RuntimeError: Client failed to connect: fileno` with no path forward.
+  Doc note added to `upstream.md`.
+
 ### Fixed (round 2: exploration audit)
 - **Personas were unreachable from MCP clients.** `get_prompt` returned
   `Missing required arguments: {'ctx'}` because the persona handler
