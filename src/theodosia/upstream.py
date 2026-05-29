@@ -197,8 +197,18 @@ def _as_transport(config: Any) -> Any:
     A bare ``{"command": ..., "args": [...]}`` becomes a ``StdioTransport``
     so upstream tool names are not namespaced the way an mcp-config dict
     would prefix them.
+
+    ``log_file`` defaults to ``sys.__stderr__`` (the real, unwrapped stderr
+    with a real ``.fileno()``). FastMCP wraps ``sys.stderr`` in a ``StringIO``
+    inside a running server for protocol cleanliness, and ``mcp.client.stdio``
+    calls ``.fileno()`` on whatever stderr it gets when starting the upstream
+    subprocess. Without this default the subprocess opener crashes with
+    ``io.UnsupportedOperation: fileno`` and ``mount(upstream={...})`` is dead
+    on arrival. Users can override per-config with ``{"log_file": Path(...)}``.
     """
     if isinstance(config, dict) and "command" in config and "mcpServers" not in config:
+        import sys
+
         from fastmcp.client.transports import StdioTransport
 
         return StdioTransport(
@@ -206,6 +216,7 @@ def _as_transport(config: Any) -> Any:
             args=list(config.get("args") or []),
             env=config.get("env"),
             cwd=config.get("cwd"),
+            log_file=config.get("log_file", sys.__stderr__),
         )
     return config
 
@@ -237,10 +248,13 @@ class UpstreamManager:
         except RuntimeError as exc:
             if "fileno" in str(exc):
                 raise UpstreamError(
-                    f"upstream {server!r} (stdio subprocess) cannot connect from an "
-                    "in-memory FastMCP Client. Either drive the parent server over "
-                    "stdio/http/sse (any real transport), or substitute "
-                    "``theodosia.testing.FakeUpstream`` for unit tests."
+                    f"upstream {server!r} (stdio subprocess) could not start: the "
+                    "stderr it inherited has no real file descriptor. By default "
+                    "Theodosia points the subprocess at ``sys.__stderr__``; this "
+                    "branch fires when that has also been replaced. Override via "
+                    "``{'log_file': pathlib.Path('/some/file')}`` in the config, "
+                    "or pass a pre-built ``UpstreamManager`` for full control, "
+                    "or substitute ``theodosia.testing.FakeUpstream`` in tests."
                 ) from exc
             raise
         self._clients[server] = client
