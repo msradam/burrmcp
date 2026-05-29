@@ -1951,6 +1951,56 @@ def _has_local_tracker(app: Application) -> bool:
     return isinstance(getattr(app, "_tracker", None), LocalTrackingClient)
 
 
+def _resolve_assembly_workflow(workflow: Any) -> Any:
+    """Turn an Assembly's ``workflow`` field into a built Application or factory."""
+    if not isinstance(workflow, str):
+        return workflow
+    import importlib
+
+    module_name, _, attr = workflow.partition(":")
+    return getattr(importlib.import_module(module_name), attr)
+
+
+def _mount_from_assembly(asm: Any, **kw: Any) -> FastMCP:
+    """Recurse into ``mount`` with the Assembly's fields, letting explicit kwargs win."""
+    workflow = _resolve_assembly_workflow(asm.workflow)
+    return mount(
+        workflow,
+        mode=kw["mode"],
+        name=kw["name"] if kw["name"] is not None else asm.name,
+        instructions=kw["instructions"] if kw["instructions"] is not None else asm.instructions,
+        include_default_instructions=kw["include_default_instructions"]
+        if not kw["include_default_instructions"]
+        else asm.include_default_instructions,
+        personas=kw["personas"] if kw["personas"] is not None else asm.personas,
+        default_persona=kw["default_persona"]
+        if kw["default_persona"] is not None
+        else asm.default_persona,
+        session_ttl_seconds=kw["session_ttl_seconds"],
+        max_sessions=kw["max_sessions"],
+        action_timeout_seconds=kw["action_timeout_seconds"],
+        input_validators=kw["input_validators"],
+        state_loader=kw["state_loader"],
+        next_hint=kw["next_hint"],
+        external_tools=kw["external_tools"],
+        upstream=kw["upstream"] if kw["upstream"] is not None else asm.upstream,
+    )
+
+
+def _silence_fastmcp_loggers() -> None:
+    """Quiet FastMCP's per-call DEBUG output unless THEODOSIA_VERBOSE is set.
+
+    FastMCP's notification log is useful when wiring a new client but noisy
+    in normal use. ``THEODOSIA_VERBOSE=1`` restores it.
+    """
+    if os.environ.get("THEODOSIA_VERBOSE"):
+        return
+    for _noisy in ("fastmcp", "mcp", "FastMCP"):
+        _lg = logging.getLogger(_noisy)
+        if _lg.level < logging.WARNING:
+            _lg.setLevel(logging.WARNING)
+
+
 def mount(
     application: ApplicationOrFactory | Any,
     *,
@@ -1969,37 +2019,6 @@ def mount(
     external_tools: dict[str, list[str]] | None = None,
     upstream: dict[str, Any] | None = None,
 ) -> FastMCP:
-    # If the first positional is an Assembly, unpack it; explicit kwargs override
-    # the assembly's fields.
-    from theodosia.assembly import Assembly
-
-    if isinstance(application, Assembly):
-        asm = application
-        workflow = asm.workflow
-        if isinstance(workflow, str):
-            import importlib
-
-            module_name, _, attr = workflow.partition(":")
-            workflow = getattr(importlib.import_module(module_name), attr)
-        return mount(
-            workflow,
-            mode=mode,
-            name=name if name is not None else asm.name,
-            instructions=instructions if instructions is not None else asm.instructions,
-            include_default_instructions=include_default_instructions
-            if not include_default_instructions
-            else asm.include_default_instructions,
-            personas=personas if personas is not None else asm.personas,
-            default_persona=default_persona if default_persona is not None else asm.default_persona,
-            session_ttl_seconds=session_ttl_seconds,
-            max_sessions=max_sessions,
-            action_timeout_seconds=action_timeout_seconds,
-            input_validators=input_validators,
-            state_loader=state_loader,
-            next_hint=next_hint,
-            external_tools=external_tools,
-            upstream=upstream if upstream is not None else asm.upstream,
-        )
     """Return a FastMCP server that exposes ``application`` per ``mode``.
 
     Args:
@@ -2101,15 +2120,28 @@ def mount(
             ``fastmcp.Client`` speaks every transport. Sessions open
             lazily on first use and stay open for the server's lifetime.
     """
-    # FastMCP's per-call DEBUG output ("Sending INFO to client: Step N...")
-    # is useful when wiring a new client but noisy in normal use. Silence it
-    # by default; set THEODOSIA_VERBOSE=1 to keep it.
-    if not os.environ.get("THEODOSIA_VERBOSE"):
-        for _noisy in ("fastmcp", "mcp", "FastMCP"):
-            _lg = logging.getLogger(_noisy)
-            if _lg.level < logging.WARNING:
-                _lg.setLevel(logging.WARNING)
+    from theodosia.assembly import Assembly
 
+    if isinstance(application, Assembly):
+        return _mount_from_assembly(
+            application,
+            mode=mode,
+            name=name,
+            instructions=instructions,
+            include_default_instructions=include_default_instructions,
+            personas=personas,
+            default_persona=default_persona,
+            session_ttl_seconds=session_ttl_seconds,
+            max_sessions=max_sessions,
+            action_timeout_seconds=action_timeout_seconds,
+            input_validators=input_validators,
+            state_loader=state_loader,
+            next_hint=next_hint,
+            external_tools=external_tools,
+            upstream=upstream,
+        )
+
+    _silence_fastmcp_loggers()
     shared_app, factory = _resolve(application)
     # Per-session store keyed by ctx.session_id; populated lazily on
     # the first tool call. Lives in closure scope so it's tied to this

@@ -234,6 +234,59 @@ def _session_progress(
     return aid, current, visited
 
 
+def _graph_header(topo: _Topology, *, current: str | None, session: str | None) -> Text:
+    header = Text()
+    header.append(topo.name, style="header")
+    header.append(f"  ·  {len(topo.actions)} action(s)", style="muted")
+    if topo.entry:
+        header.append("  ·  entry: ", style="muted")
+        header.append(topo.entry, style="action")
+    if session:
+        header.append("  ·  session: ", style="muted")
+        header.append(session, style="subtle")
+    if current:
+        header.append("  ·  at: ", style="muted")
+        header.append(current, style="running")
+    return header
+
+
+def _graph_node_marker(
+    node: str, topo: _Topology, current: str | None, terminal: bool
+) -> tuple[str, str]:
+    if node == current:
+        return "●", "running"
+    if node == topo.entry:
+        return "▶", "ok"
+    if terminal:
+        return "■", "err"
+    return " ", "muted"
+
+
+def _graph_node_name_style(
+    node: str, current: str | None, annotated: bool, visited: frozenset[str] | set[str]
+) -> str:
+    if node == current:
+        return "running"
+    if annotated and node not in visited:
+        return "muted"
+    return "action"
+
+
+def _graph_node_edges(
+    line: Text, topo: _Topology, node: str, *, conditions: bool, terminal: bool
+) -> None:
+    if terminal:
+        line.append("  (terminal)", style="muted")
+        return
+    line.append("  → ", style="subtle")
+    for i, (to, cond) in enumerate(topo.out_edges(node)):
+        if i:
+            line.append(" · ", style="muted")
+        line.append(to, style="subtle")
+        if conditions and cond:
+            line.append(f" [{cond}]", style="muted")
+
+
 def _graph_renderable(
     topo: _Topology,
     *,
@@ -248,53 +301,21 @@ def _graph_renderable(
     nodes the session hasn't reached are dimmed.
     """
     annotated = current is not None or bool(visited)
-    header = Text()
-    header.append(topo.name, style="header")
-    header.append(f"  ·  {len(topo.actions)} action(s)", style="muted")
-    if topo.entry:
-        header.append("  ·  entry: ", style="muted")
-        header.append(topo.entry, style="action")
-    if session:
-        header.append("  ·  session: ", style="muted")
-        header.append(session, style="subtle")
-    if current:
-        header.append("  ·  at: ", style="muted")
-        header.append(current, style="running")
-    lines: list[Text] = [header, Text("─" * 52, style="muted")]
+    lines: list[Text] = [_graph_header(topo, current=current, session=session)]
+    lines.append(Text("─" * 52, style="muted"))
     width = max((len(a) for a in topo.actions), default=0)
     ordered = ([topo.entry] if topo.entry in topo.actions else []) + [
         a for a in topo.actions if a != topo.entry
     ]
     for node in ordered:
         terminal = topo.is_terminal(node)
-        if node == current:
-            marker, mstyle = "●", "running"
-        elif node == topo.entry:
-            marker, mstyle = "▶", "ok"
-        elif terminal:
-            marker, mstyle = "■", "err"
-        else:
-            marker, mstyle = " ", "muted"
-        if node == current:
-            name_style = "running"
-        elif annotated and node not in visited:
-            name_style = "muted"
-        else:
-            name_style = "action"
+        marker, mstyle = _graph_node_marker(node, topo, current, terminal)
+        name_style = _graph_node_name_style(node, current, annotated, visited)
         line = Text()
         line.append(f" {marker} ", style=mstyle)
         line.append(f"{node:<{width}}", style=name_style)
         line.append(" ↺" if topo.has_self_loop(node) else "  ", style="running")
-        if terminal:
-            line.append("  (terminal)", style="muted")
-        else:
-            line.append("  → ", style="subtle")
-            for i, (to, cond) in enumerate(topo.out_edges(node)):
-                if i:
-                    line.append(" · ", style="muted")
-                line.append(to, style="subtle")
-                if conditions and cond:
-                    line.append(f" [{cond}]", style="muted")
+        _graph_node_edges(line, topo, node, conditions=conditions, terminal=terminal)
         lines.append(line)
     return Group(*lines)
 
@@ -873,6 +894,65 @@ def _build_steps_table(
 # == sessions ls ======================================================
 
 
+def _scan_app_entry(app_dir: Path, *, show_all: bool) -> dict[str, Any] | None:
+    """Build one ``sessions ls`` row from an app-dir, or ``None`` to skip."""
+    log = app_dir / "log.jsonl"
+    size = log.stat().st_size if log.exists() else 0
+    rows = _read_steps(log) if size > 0 else []
+    if not rows and not show_all:
+        # FastMCP creates a tracker entry per Client connect; hide unadvanced.
+        return None
+    return {
+        "app_id": app_dir.name,
+        "mtime": datetime.fromtimestamp(app_dir.stat().st_mtime).isoformat(timespec="seconds"),
+        "size_bytes": size,
+        "steps": len(rows),
+        "last_action": rows[-1].action if rows else "(empty)",
+        "last_status": rows[-1].status if rows else "empty",
+    }
+
+
+def _collect_sessions_payload(
+    project_dirs: list[Path], *, limit: int, show_all: bool
+) -> list[dict[str, Any]]:
+    payload: list[dict[str, Any]] = []
+    for proj in project_dirs:
+        app_dirs = sorted(
+            (p for p in proj.iterdir() if p.is_dir()),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )[:limit]
+        entries = [
+            entry for a in app_dirs if (entry := _scan_app_entry(a, show_all=show_all)) is not None
+        ]
+        payload.append({"project": proj.name, "apps": entries})
+    return payload
+
+
+def _build_sessions_table(proj_entry: dict[str, Any]) -> Table:
+    table = Table(
+        title=f"[header]{proj_entry['project']}/[/]",
+        title_justify="left",
+        expand=True,
+        show_lines=False,
+        border_style="muted",
+    )
+    table.add_column("app_id", no_wrap=True, style="muted", width=12)
+    table.add_column("when", no_wrap=True, style="subtle", width=8)
+    table.add_column("steps", justify="right", width=6, no_wrap=True)
+    table.add_column("", width=1, no_wrap=True)
+    table.add_column("last action", no_wrap=True, style="action")
+    for app_entry in proj_entry["apps"]:
+        table.add_row(
+            app_entry["app_id"][:12],
+            _relative_when(app_entry["mtime"]),
+            str(app_entry["steps"]),
+            _status_text(app_entry["last_status"]),
+            (app_entry["last_action"] or "")[:18],
+        )
+    return table
+
+
 def sessions_ls(
     home: Annotated[
         Path | None,
@@ -917,39 +997,7 @@ def sessions_ls(
             err_console.print(f"[err]No such project under[/] {home}: {project!r}")
             raise typer.Exit(code=1)
 
-    payload: list[dict] = []
-    for proj in project_dirs:
-        app_dirs = sorted(
-            (p for p in proj.iterdir() if p.is_dir()),
-            key=lambda p: p.stat().st_mtime,
-            reverse=True,
-        )[:limit]
-        entries = []
-        for a in app_dirs:
-            log = a / "log.jsonl"
-            size = log.stat().st_size if log.exists() else 0
-            rows = _read_steps(log) if size > 0 else []
-            if not rows and not show_all:
-                # FastMCP creates a tracker entry per Client connect; many
-                # are never advanced. Hide them by default. ``--all`` to see.
-                continue
-            last_action = rows[-1].action if rows else "(empty)"
-            # An empty tracker dir means the session was created but never
-            # took a step. Calling that "running" is wrong; it's idle.
-            last_status = rows[-1].status if rows else "empty"
-            entries.append(
-                {
-                    "app_id": a.name,
-                    "mtime": datetime.fromtimestamp(a.stat().st_mtime).isoformat(
-                        timespec="seconds"
-                    ),
-                    "size_bytes": size,
-                    "steps": len(rows),
-                    "last_action": last_action,
-                    "last_status": last_status,
-                }
-            )
-        payload.append({"project": proj.name, "apps": entries})
+    payload = _collect_sessions_payload(project_dirs, limit=limit, show_all=show_all)
 
     if as_json:
         console.print_json(json.dumps(payload))
@@ -960,27 +1008,7 @@ def sessions_ls(
         return
 
     for proj_entry in payload:
-        table = Table(
-            title=f"[header]{proj_entry['project']}/[/]",
-            title_justify="left",
-            expand=True,
-            show_lines=False,
-            border_style="muted",
-        )
-        table.add_column("app_id", no_wrap=True, style="muted", width=12)
-        table.add_column("when", no_wrap=True, style="subtle", width=8)
-        table.add_column("steps", justify="right", width=6, no_wrap=True)
-        table.add_column("", width=1, no_wrap=True)
-        table.add_column("last action", no_wrap=True, style="action")
-        for app_entry in proj_entry["apps"]:
-            table.add_row(
-                app_entry["app_id"][:12],
-                _relative_when(app_entry["mtime"]),
-                str(app_entry["steps"]),
-                _status_text(app_entry["last_status"]),
-                (app_entry["last_action"] or "")[:18],
-            )
-        console.print(table)
+        console.print(_build_sessions_table(proj_entry))
         console.print()
 
 
@@ -1423,71 +1451,57 @@ def _post_report(webhook_url: str, markdown: str, *, project: str, app_id: str) 
         raise typer.Exit(code=2) from exc
 
 
-def status(
-    home: Annotated[
-        Path | None,
-        typer.Option("--home", help="Tracker storage root. Defaults to ~/.theodosia."),
-    ] = None,
-    as_json: Annotated[
-        bool,
-        typer.Option("--json", help="Emit JSON instead of a rich summary."),
-    ] = False,
-) -> None:
-    """One-shot snapshot: tracker storage, recent activity, project health.
-
-    Useful as a smoke check ("is my tracker working?") and as a launch banner
-    on demo recordings. Reads ``~/.theodosia`` by default.
-    """
+def _theodosia_installed_version() -> str:
     from importlib.metadata import PackageNotFoundError
     from importlib.metadata import version as _pkg_version
 
     try:
-        _theodosia_version = _pkg_version("theodosia")
+        return _pkg_version("theodosia")
     except PackageNotFoundError:
-        _theodosia_version = "0+unknown"
+        return "0+unknown"
 
-    resolved_home = _resolve_home(home)
+
+def _scan_project_latest(proj_dir: Path) -> tuple[int, dict[str, Any]]:
+    """Return ``(session_count, latest_info_dict)`` for one project dir."""
+    app_dirs = [p for p in proj_dir.iterdir() if p.is_dir()]
+    recent = sorted(app_dirs, key=lambda p: p.stat().st_mtime, reverse=True)[:5]
+    if not recent:
+        return len(app_dirs), {}
+    latest = recent[0]
+    log = latest / "log.jsonl"
+    rows = _read_steps(log) if log.exists() and log.stat().st_size > 0 else []
+    return len(app_dirs), {
+        "app_id": latest.name,
+        "mtime": datetime.fromtimestamp(latest.stat().st_mtime).isoformat(timespec="seconds"),
+        "steps": len(rows),
+        "last_action": rows[-1].action if rows else "(empty)",
+        "last_status": rows[-1].status if rows else "empty",
+    }
+
+
+def _collect_status_payload(resolved_home: Path) -> dict[str, Any]:
     payload: dict[str, Any] = {
-        "theodosia_version": _theodosia_version,
+        "theodosia_version": _theodosia_installed_version(),
         "storage_home": str(resolved_home),
         "storage_exists": resolved_home.exists(),
         "projects": [],
     }
-    if resolved_home.exists():
-        project_dirs = sorted(
-            (p for p in resolved_home.iterdir() if p.is_dir() and not p.name.startswith(".")),
-            key=lambda p: p.stat().st_mtime,
-            reverse=True,
+    if not resolved_home.exists():
+        return payload
+    project_dirs = sorted(
+        (p for p in resolved_home.iterdir() if p.is_dir() and not p.name.startswith(".")),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    for proj in project_dirs:
+        session_count, latest_info = _scan_project_latest(proj)
+        payload["projects"].append(
+            {"name": proj.name, "sessions": session_count, "latest": latest_info}
         )
-        for proj in project_dirs:
-            app_dirs = [p for p in proj.iterdir() if p.is_dir()]
-            recent = sorted(app_dirs, key=lambda p: p.stat().st_mtime, reverse=True)[:5]
-            latest = recent[0] if recent else None
-            latest_info: dict[str, Any] = {}
-            if latest is not None:
-                log = latest / "log.jsonl"
-                rows = _read_steps(log) if log.exists() and log.stat().st_size > 0 else []
-                latest_info = {
-                    "app_id": latest.name,
-                    "mtime": datetime.fromtimestamp(latest.stat().st_mtime).isoformat(
-                        timespec="seconds"
-                    ),
-                    "steps": len(rows),
-                    "last_action": rows[-1].action if rows else "(empty)",
-                    "last_status": rows[-1].status if rows else "empty",
-                }
-            payload["projects"].append(
-                {
-                    "name": proj.name,
-                    "sessions": len(app_dirs),
-                    "latest": latest_info,
-                }
-            )
+    return payload
 
-    if as_json:
-        print(json.dumps(payload, indent=2))
-        return
 
+def _print_status_header(payload: dict[str, Any]) -> None:
     console.print(
         Text.assemble(
             ("● ", "header"),
@@ -1503,6 +1517,70 @@ def status(
         )
     )
 
+
+def _print_status_empty_hint(resolved_home: Path) -> None:
+    console.print(Text(f"\nno projects found in {resolved_home}.", style="muted"))
+    burr_home = Path("~/.burr").expanduser()
+    if (
+        resolved_home == Path("~/.theodosia").expanduser()
+        and burr_home.exists()
+        and any(burr_home.iterdir())
+    ):
+        console.print(
+            "[muted]Sessions exist under [bold]~/.burr[/] (Burr's native default). "
+            "Try [bold]theodosia status --home ~/.burr[/].[/]"
+        )
+
+
+def _build_status_table(projects: list[dict[str, Any]]) -> Table:
+    table = Table(show_header=True, header_style="header", box=None, expand=False)
+    table.add_column("project", style="action", no_wrap=True)
+    table.add_column("sessions", justify="right", style="accent", no_wrap=True)
+    table.add_column("app_id", style="muted", no_wrap=True)
+    table.add_column("steps", justify="right", no_wrap=True)
+    table.add_column("last action", style="action", no_wrap=True)
+    table.add_column("status", no_wrap=True)
+    table.add_column("when", style="subtle", no_wrap=True)
+    style_for = {"ok": "ok", "running": "running", "failed": "err", "empty": "muted"}
+    for proj in projects:
+        raw: Any = proj.get("latest") or {}
+        entry: dict[str, Any] = raw if isinstance(raw, dict) else {}
+        status_text = entry.get("last_status", "")
+        table.add_row(
+            proj["name"],
+            str(proj["sessions"]),
+            (entry.get("app_id") or "")[:12],
+            str(entry.get("steps", 0)),
+            (entry.get("last_action") or "")[:18],
+            Text(status_text or "(none)", style=style_for.get(status_text, "muted")),
+            _relative_when(entry.get("mtime") or ""),
+        )
+    return table
+
+
+def status(
+    home: Annotated[
+        Path | None,
+        typer.Option("--home", help="Tracker storage root. Defaults to ~/.theodosia."),
+    ] = None,
+    as_json: Annotated[
+        bool,
+        typer.Option("--json", help="Emit JSON instead of a rich summary."),
+    ] = False,
+) -> None:
+    """One-shot snapshot: tracker storage, recent activity, project health.
+
+    Useful as a smoke check ("is my tracker working?") and as a launch banner
+    on demo recordings. Reads ``~/.theodosia`` by default.
+    """
+    resolved_home = _resolve_home(home)
+    payload = _collect_status_payload(resolved_home)
+
+    if as_json:
+        print(json.dumps(payload, indent=2))
+        return
+
+    _print_status_header(payload)
     if not payload["storage_exists"]:
         console.print()
         console.print(
@@ -1513,50 +1591,11 @@ def status(
             )
         )
         return
-
     if not payload["projects"]:
-        console.print(Text(f"\nno projects found in {resolved_home}.", style="muted"))
-        burr_home = Path("~/.burr").expanduser()
-        if (
-            resolved_home == Path("~/.theodosia").expanduser()
-            and burr_home.exists()
-            and any(burr_home.iterdir())
-        ):
-            console.print(
-                "[muted]Sessions exist under [bold]~/.burr[/] (Burr's native default). "
-                "Try [bold]theodosia status --home ~/.burr[/].[/]"
-            )
+        _print_status_empty_hint(resolved_home)
         return
-
-    table = Table(show_header=True, header_style="header", box=None, expand=False)
-    table.add_column("project", style="action", no_wrap=True)
-    table.add_column("sessions", justify="right", style="accent", no_wrap=True)
-    table.add_column("app_id", style="muted", no_wrap=True)
-    table.add_column("steps", justify="right", no_wrap=True)
-    table.add_column("last action", style="action", no_wrap=True)
-    table.add_column("status", no_wrap=True)
-    table.add_column("when", style="subtle", no_wrap=True)
-    for proj in payload["projects"]:
-        latest_raw: Any = proj.get("latest") or {}
-        latest_entry: dict[str, Any] = latest_raw if isinstance(latest_raw, dict) else {}
-        status_text = latest_entry.get("last_status", "")
-        status_style = {
-            "ok": "ok",
-            "running": "running",
-            "failed": "err",
-            "empty": "muted",
-        }.get(status_text, "muted")
-        table.add_row(
-            proj["name"],
-            str(proj["sessions"]),
-            (latest_entry.get("app_id") or "")[:12],
-            str(latest_entry.get("steps", 0)),
-            (latest_entry.get("last_action") or "")[:18],
-            Text(status_text or "(none)", style=status_style),
-            _relative_when(latest_entry.get("mtime") or ""),
-        )
     console.print()
-    console.print(table)
+    console.print(_build_status_table(payload["projects"]))
 
 
 def verify(
