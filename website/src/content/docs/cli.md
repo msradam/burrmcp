@@ -117,6 +117,17 @@ tampering, so it drops into CI or a cron audit. See the
 own `LocalTrackingClient` writes to `~/.burr`, so pass `--home ~/.burr` for a
 graph wired that way). `--json` on `ls` and `show` emits machine output.
 
+Tracker root resolution order, highest priority first:
+
+1. `--home` (per invocation, lives in the command surface).
+2. `THEODOSIA_HOME` environment variable (per process or per deployment).
+3. `build_cli(home=...)` baked-in default (per rebranded CLI).
+4. `~/.theodosia` (the default).
+
+Setting `THEODOSIA_HOME` also suppresses the "no sessions in ~/.theodosia;
+reading ~/.burr" hint on every command, on the principle that an operator
+who set the env explicitly does not need the implicit fallback nag.
+
 ## Verbose mode (`THEODOSIA_VERBOSE`)
 
 Set `THEODOSIA_VERBOSE=1` in the environment to restore the noisier output

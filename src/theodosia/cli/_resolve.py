@@ -62,15 +62,27 @@ def _resolve_serve_target(target: str | None, app_dir: list[str]) -> tuple[Any, 
 
 
 def _resolve_home(home: Path | None) -> Path:
-    """Tracker storage root: explicit flag, then the build_cli default, then ~/.theodosia.
+    """Tracker storage root, in resolution-priority order:
 
-    Theodosia keeps its LLM-driven session traces in ~/.theodosia by default, so
-    they stay separate from code-driven Burr runs in ~/.burr. If ~/.theodosia has
-    no sessions yet but ~/.burr does, fall back to ~/.burr and print a hint, so a
-    user whose tracker still writes to Burr's default does not see an empty store.
+    1. Explicit ``--home`` flag (per invocation).
+    2. ``THEODOSIA_HOME`` env var (per process / per deployment).
+    3. ``build_cli(home=...)`` default (per rebranded CLI).
+    4. ``~/.theodosia`` (the default).
+
+    Theodosia keeps its LLM-driven session traces in ``~/.theodosia`` by
+    default, so they stay separate from code-driven Burr runs in
+    ``~/.burr``. If ``~/.theodosia`` has no sessions yet but ``~/.burr``
+    does, fall back to ``~/.burr`` and print a hint, so a user whose
+    tracker still writes to Burr's default does not see an empty store.
+    The fallback is suppressed when ``THEODOSIA_HOME`` is set, because
+    an operator who set it explicitly does not need the implicit hint
+    on every command.
     """
     if home is not None:
         return Path(home).expanduser()
+    env_home = os.environ.get("THEODOSIA_HOME")
+    if env_home:
+        return Path(env_home).expanduser()
     if _BRANDING.home is not None:
         return Path(_BRANDING.home).expanduser()
     theodosia_home = Path("~/.theodosia").expanduser()
@@ -78,7 +90,7 @@ def _resolve_home(home: Path | None) -> Path:
     if not theodosia_home.exists() and burr_home.exists() and any(burr_home.iterdir()):
         err_console.print(
             "[muted]no sessions in ~/.theodosia; reading ~/.burr "
-            "(pass [bold]--home[/] to choose explicitly)[/]"
+            "(pass [bold]--home[/] or set [bold]THEODOSIA_HOME[/] to choose explicitly)[/]"
         )
         return burr_home
     return theodosia_home
