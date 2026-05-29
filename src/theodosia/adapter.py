@@ -1636,6 +1636,7 @@ def _mount_from_assembly(asm: Any, **kw: Any) -> FastMCP:
         external_tools=kw["external_tools"],
         upstream=kw["upstream"] if kw["upstream"] is not None else asm.upstream,
         hooks=kw.get("hooks"),
+        middleware=kw.get("middleware"),
     )
 
 
@@ -1671,6 +1672,7 @@ def mount(
     external_tools: dict[str, list[str]] | None = None,
     upstream: dict[str, Any] | None = None,
     hooks: list[Any] | None = None,
+    middleware: list[Any] | None = None,
 ) -> FastMCP:
     """Return a FastMCP server that exposes ``application`` per ``mode``.
 
@@ -1772,6 +1774,22 @@ def mount(
             from a graph, and it works with any compliant server because
             ``fastmcp.Client`` speaks every transport. Sessions open
             lazily on first use and stay open for the server's lifetime.
+        hooks: Optional list of Burr ``LifecycleAdapter`` instances
+            (``PreRunStepHook``, ``PostRunStepHook``, ``PreStartStreamHook``,
+            ``DoLogAttributeHook``, etc.). Attached to every session's
+            Application after construction. Equivalent to calling
+            ``ApplicationBuilder.with_hooks(...)`` inside the factory, but
+            keeps adapter-side concerns (timing, custom telemetry sinks,
+            structured logging) out of the factory.
+        middleware: Optional list of FastMCP ``Middleware`` instances added
+            to the mounted server after Theodosia's built-in input-coercion
+            middleware. Useful for OTel spans on every MCP call, rate
+            limiting, structured logging, or per-call metrics; the
+            ``with_middleware`` example demo uses this pattern with
+            ``TimingMiddleware`` / ``StructuredLoggingMiddleware`` /
+            ``RateLimitingMiddleware``. Order matters: middleware added
+            earlier wraps later ones, so these run inside the coercion
+            layer (they see post-coercion args).
     """
     from theodosia.assembly import Assembly
 
@@ -1793,6 +1811,7 @@ def mount(
             external_tools=external_tools,
             upstream=upstream,
             hooks=hooks,
+            middleware=middleware,
         )
 
     _silence_fastmcp_loggers()
@@ -1906,6 +1925,13 @@ def mount(
     # to objects/arrays when the tool's declared schema says the param
     # should be one. Tools whose schemas say "string" are not touched.
     mcp.add_middleware(_build_coercion_middleware())
+    # User-supplied middleware runs AFTER the built-in coercion middleware,
+    # so by the time a user's TimingMiddleware / StructuredLoggingMiddleware /
+    # RateLimitingMiddleware sees a tools/call, JSON-string args have already
+    # been re-parsed. Add order matters for FastMCP middleware; this places
+    # user code closer to the tool body.
+    for _mw in middleware or ():
+        mcp.add_middleware(_mw)
 
     # ── resources ────────────────────────────────────────────────────
 

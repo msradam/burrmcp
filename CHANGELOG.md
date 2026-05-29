@@ -6,6 +6,20 @@ versioning.
 
 ## [Unreleased]
 
+### Added (`mount(middleware=[...])` kwarg)
+
+- New ``mount(..., middleware=[mw1, mw2, ...])`` kwarg accepts a list
+  of FastMCP ``Middleware`` instances and chains them onto the mounted
+  server after Theodosia's built-in input-coercion middleware. Same
+  pattern as the ``hooks=[...]`` kwarg shipped above.
+- Users no longer need to call ``server.add_middleware(...)`` after
+  ``mount()`` returns scattered across deployment code; the surface
+  matches FastMCP's docs flow.
+- The ``with_middleware`` example demo (TimingMiddleware /
+  StructuredLoggingMiddleware / RateLimitingMiddleware) keeps working
+  via post-mount mutation; the new kwarg is additive.
+- 3 tests in ``tests/test_mount_middleware.py``.
+
 ### Added (Burr UI deep links from CLI)
 
 - ``theodosia sessions show <id>`` now prints a clickable Burr UI URL
