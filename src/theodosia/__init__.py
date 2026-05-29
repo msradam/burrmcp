@@ -25,6 +25,8 @@ from theodosia.adapter import (
     spawn_subapp,
 )
 from theodosia.assembly import Assembly
+from theodosia.cli import build_cli
+from theodosia.cli import run as run_cli
 from theodosia.importing import ToolSpec, burr_app_from_fastmcp
 from theodosia.ledger import HashChainedLedger, verify_ledger
 from theodosia.upstream import (
@@ -69,6 +71,7 @@ __all__ = [
     "UpstreamManager",
     "ValidationFailed",
     "bind_upstream",
+    "build_cli",
     "burr_app_from_fastmcp",
     "call_upstream",
     "classify_payload",
@@ -77,6 +80,7 @@ __all__ = [
     "current_mcp_context",
     "mount",
     "mount_multi",
+    "run_cli",
     "safe_upstream",
     "spawn_subapp",
     "tracker",

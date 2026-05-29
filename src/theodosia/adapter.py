@@ -1010,6 +1010,9 @@ class ActionTimeoutError(Exception):
 #: ContextVar set by the step handler around each ``_step_application``
 #: call. Reads inside an action body see their session's entry; used by
 #: ``spawn_subapp`` to record sub-run timelines on the parent session.
+_current_subrun_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "_theodosia_current_subrun_id", default=None
+)
 _current_session_entry: contextvars.ContextVar[_SessionEntry | None] = contextvars.ContextVar(
     "_theodosia_current_session", default=None
 )
@@ -1075,6 +1078,7 @@ async def spawn_subapp(
         "label": label,
         "started_ts": started,
         "ended_ts": None,
+        "parent_subrun_id": _current_subrun_id.get(),
         "history": [],
         "final_state": None,
         "error": None,
@@ -1083,31 +1087,42 @@ async def spawn_subapp(
         entry.subruns[sub_id] = record
         entry.last_access = time.monotonic()
 
+    halt_after_names = set(
+        halt_after if halt_after is not None else [sub_application.graph.actions[-1].name]
+    )
+    subrun_token = _current_subrun_id.set(sub_id)
     try:
-        last_step = (
-            halt_after if halt_after is not None else [sub_application.graph.actions[-1].name]
-        )
-        _, _, final_state = await sub_application.arun(
-            halt_after=last_step,
-            inputs=inputs or {},
-        )
+        # Drive the sub-app step-by-step so ``record["history"]`` populates
+        # without requiring the sub-Application to wire its own tracker.
+        # Each step lands in the record as it completes; halt_after is
+        # checked after the action runs (Burr's arun semantics).
+        step_inputs: dict[str, Any] = dict(inputs or {})
+        final_state = sub_application.state
+        seq = 0
+        while True:
+            stepped = await sub_application.astep(inputs=step_inputs)
+            if stepped is None:
+                break
+            action_obj, _result, new_state = stepped
+            step_state = _serializable_state(_public_state(new_state.get_all()))[0]
+            record["history"].append(
+                {"seq": seq, "action": action_obj.name, "state": step_state}
+            )
+            seq += 1
+            final_state = new_state
+            step_inputs = {}  # only the first astep carries client inputs
+            if action_obj.name in halt_after_names:
+                break
         final = _serializable_state(_public_state(final_state.get_all()))[0]
         record["final_state"] = final
         record["ended_ts"] = datetime.now(UTC).isoformat()
-        # If the sub-Application has its own LocalTrackingClient, surface
-        # its per-step trace on the record so theodosia://subruns/{id} returns
-        # a populated ``history`` rather than an empty list. Best-effort:
-        # a missing tracker, missing file, or read error all just leave
-        # ``history`` empty.
-        with contextlib.suppress(Exception):
-            trace_path = _tracker_log_path(sub_application)
-            if trace_path is not None and trace_path.exists():
-                record["history"] = _read_trace(trace_path)
         return {"subrun_id": sub_id, "label": label, "final_state": final}
     except Exception as exc:
         record["error"] = {"type": type(exc).__name__, "message": str(exc)}
         record["ended_ts"] = datetime.now(UTC).isoformat()
         raise
+    finally:
+        _current_subrun_id.reset(subrun_token)
 
 
 class ValidationFailed(Exception):

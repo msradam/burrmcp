@@ -165,9 +165,10 @@ async def test_query_with_no_matches_reports_no_hits_gracefully():
 
 @pytest.mark.asyncio
 async def test_subrun_history_populated_with_four_step_trace():
-    """spawn_subapp surfaces the sub-app's per-step trace on the subrun
-    record (v1.10.0 behaviour). The sub-graph has four actions, so the
-    trace has eight entries (begin/end pair per action)."""
+    """spawn_subapp records one history entry per action it ran. The
+    sub-graph has four actions, so the trace has four entries; each entry
+    carries the action name and the post-step state.
+    """
     server = build_server()
     async with Client(server) as client:
         await client.call_tool(
@@ -182,11 +183,10 @@ async def test_subrun_history_populated_with_four_step_trace():
         sid = subs[0]["id"]
         detail = json.loads((await client.read_resource(f"theodosia://subruns/{sid}"))[0].text)
         actions_in_trace = [h.get("action") for h in detail["history"] if h.get("action")]
-        # Each action appears twice in the trace (begin + end entries).
-        assert actions_in_trace.count("load_documents") == 2
-        assert actions_in_trace.count("score_documents") == 2
-        assert actions_in_trace.count("extract_snippets") == 2
-        assert actions_in_trace.count("summarize") == 2
+        assert actions_in_trace.count("load_documents") == 1
+        assert actions_in_trace.count("score_documents") == 1
+        assert actions_in_trace.count("extract_snippets") == 1
+        assert actions_in_trace.count("summarize") == 1
 
 
 @pytest.mark.asyncio

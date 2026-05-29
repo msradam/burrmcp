@@ -6,6 +6,57 @@ versioning.
 
 ## [Unreleased]
 
+### Fixed (round 17: composition-surface audits with scope discipline)
+
+Three parallel sim agents on under-tested Theodosia surfaces, briefed to
+label findings `[theodosia]` / `[burr]` / `[fastmcp]` / `[typer]` /
+`[mcp-spec]` / `[unclear]`. Only `[theodosia]`-labeled findings became
+grind targets; the rest get routed upstream or documented honestly.
+
+**Sim M (`spawn_subapp` + `mount_multi`):**
+- **`theodosia://subruns/{id}.history` now populates per-action** for every
+  sub-run, not just when the sub-Application wires its own
+  `LocalTrackingClient`. `spawn_subapp` drives the sub-app via `astep` in
+  a loop, recording one history entry (with `seq`, `action`, and
+  post-step `state`) per action it ran. Old behavior depended on Burr's
+  tracker JSONL existing in a path Theodosia could find. The new
+  behavior works for any sub-Application.
+- **Recursive `spawn_subapp` records `parent_subrun_id`**, so a nested
+  spawn tree can be reconstructed from `theodosia://subruns`. Previously
+  every sub-run reported the outermost session as parent; you could not
+  tell which spawn nested inside which.
+- `mount_multi` namespacing, isolation, refusal-scoping, and 5-graph
+  scaling all held without changes.
+
+**Sim O (`build_cli` downstream rebrand):**
+- **`--version` honors `prog_name`.** `my-fsm --version` reports `my-fsm
+  <version>` instead of `theodosia 0.2.0`, falling back to Theodosia's
+  version when the downstream package's metadata is missing.
+- **`status` banner uses `prog_name`.** The launch-banner header now
+  reads `<prog_name> <version>` instead of hard-coded `theodosia`.
+- **`primer` no longer registers under rebranded CLIs.** The primer
+  command is a Theodosia-specific demo whose panel, footer, and URLs
+  name the Theodosia project explicitly. A downstream `my-fsm` would
+  otherwise advertise theodosia in its first 30-second user experience.
+- **All nine `--home` `--help` strings** dropped the hardcoded
+  `~/.theodosia` mention. They now say "Tracker storage root. Overrides
+  the CLI default (see --help)." which is accurate for both branded and
+  rebranded CLIs.
+- **`build_cli` and `run_cli`** are now re-exported from `theodosia`
+  top-level so downstream packages do not need to import from
+  `theodosia.cli`.
+
+**Sim N (`ctx.sample` / `ctx.elicit` / `current_mcp_context`):**
+- `ctx.sample` integration is production-ready for capable clients;
+  no-handler refusal cleanly surfaces as `action_error`.
+- `ctx.elicit` accept/decline/timeout paths work for capable clients.
+- `current_mcp_context()` is session-isolated under concurrent overlapping
+  sampling roundtrips (contextvars-backed).
+- **Known limit**: `action_timeout_seconds` does NOT cancel an in-flight
+  `ctx.sample` / `ctx.elicit` roundtrip. The async-cancel scope does not
+  extend over server-to-client requests. Documented; the fix lives in a
+  later round.
+
 ### Fixed (round 16: adversarial / break-the-rails audits)
 
 Three parallel adversarial sim agents whose explicit job was to break

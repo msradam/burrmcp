@@ -509,7 +509,10 @@ def render(
         str | None, typer.Option("--project", "-p", help="Project of the session to annotate.")
     ] = None,
     home: Annotated[
-        Path | None, typer.Option("--home", help="Tracker storage root. Defaults to ~/.theodosia.")
+        Path | None,
+        typer.Option(
+            "--home", help="Tracker storage root. Overrides the CLI default (see --help)."
+        ),
     ] = None,
 ) -> None:
     """Render the mounted state machine as a diagram.
@@ -956,7 +959,9 @@ def _build_sessions_table(proj_entry: dict[str, Any]) -> Table:
 def sessions_ls(
     home: Annotated[
         Path | None,
-        typer.Option("--home", help="Tracker storage root. Defaults to ~/.theodosia."),
+        typer.Option(
+            "--home", help="Tracker storage root. Overrides the CLI default (see --help)."
+        ),
     ] = None,
     project: Annotated[
         str | None,
@@ -1065,7 +1070,9 @@ def sessions_show(
     ] = None,
     home: Annotated[
         Path | None,
-        typer.Option("--home", help="Tracker storage root. Defaults to ~/.theodosia."),
+        typer.Option(
+            "--home", help="Tracker storage root. Overrides the CLI default (see --help)."
+        ),
     ] = None,
     as_json: Annotated[
         bool, typer.Option("--json", help="Emit JSON instead of a rich table.")
@@ -1133,7 +1140,9 @@ def sessions_tail(
     ] = None,
     home: Annotated[
         Path | None,
-        typer.Option("--home", help="Tracker storage root. Defaults to ~/.theodosia."),
+        typer.Option(
+            "--home", help="Tracker storage root. Overrides the CLI default (see --help)."
+        ),
     ] = None,
     poll_interval: Annotated[
         float, typer.Option("--poll", help="Polling interval in seconds.")
@@ -1156,7 +1165,9 @@ def watch(
     ] = None,
     home: Annotated[
         Path | None,
-        typer.Option("--home", help="Tracker storage root. Defaults to ~/.theodosia."),
+        typer.Option(
+            "--home", help="Tracker storage root. Overrides the CLI default (see --help)."
+        ),
     ] = None,
     list_projects: Annotated[
         bool,
@@ -1192,7 +1203,9 @@ def logs(
     ] = None,
     home: Annotated[
         Path | None,
-        typer.Option("--home", help="Tracker storage root. Defaults to ~/.theodosia."),
+        typer.Option(
+            "--home", help="Tracker storage root. Overrides the CLI default (see --help)."
+        ),
     ] = None,
     refusals_only: Annotated[
         bool,
@@ -1256,11 +1269,16 @@ def _version_callback(value: bool) -> None:
         return
     from importlib.metadata import PackageNotFoundError, version
 
+    prog = _BRANDING.prog_name
+    pkg = prog if prog != "theodosia" else "theodosia"
     try:
-        v = version("theodosia")
+        v = version(pkg)
     except PackageNotFoundError:
-        v = "unknown"
-    console.print(f"theodosia {v}")
+        try:
+            v = version("theodosia")
+        except PackageNotFoundError:
+            v = "unknown"
+    console.print(f"{prog} {v}")
     raise typer.Exit()
 
 
@@ -1275,7 +1293,9 @@ def report(
     ] = None,
     home: Annotated[
         Path | None,
-        typer.Option("--home", help="Tracker storage root. Defaults to ~/.theodosia."),
+        typer.Option(
+            "--home", help="Tracker storage root. Overrides the CLI default (see --help)."
+        ),
     ] = None,
     out: Annotated[
         Path | None,
@@ -1452,13 +1472,19 @@ def _post_report(webhook_url: str, markdown: str, *, project: str, app_id: str) 
 
 
 def _theodosia_installed_version() -> str:
+    """Resolve the version of the *running* CLI's package, falling back to
+    Theodosia. Honors ``build_cli(prog_name=...)`` so a rebranded
+    ``my-fsm status`` reports ``my-fsm <version>``.
+    """
     from importlib.metadata import PackageNotFoundError
     from importlib.metadata import version as _pkg_version
 
-    try:
-        return _pkg_version("theodosia")
-    except PackageNotFoundError:
-        return "0+unknown"
+    for pkg in (_BRANDING.prog_name, "theodosia"):
+        try:
+            return _pkg_version(pkg)
+        except PackageNotFoundError:
+            continue
+    return "0+unknown"
 
 
 def _scan_project_latest(proj_dir: Path) -> tuple[int, dict[str, Any]]:
@@ -1481,6 +1507,7 @@ def _scan_project_latest(proj_dir: Path) -> tuple[int, dict[str, Any]]:
 
 def _collect_status_payload(resolved_home: Path) -> dict[str, Any]:
     payload: dict[str, Any] = {
+        "prog_name": _BRANDING.prog_name,
         "theodosia_version": _theodosia_installed_version(),
         "storage_home": str(resolved_home),
         "storage_exists": resolved_home.exists(),
@@ -1505,7 +1532,7 @@ def _print_status_header(payload: dict[str, Any]) -> None:
     console.print(
         Text.assemble(
             ("● ", "header"),
-            (f"theodosia {payload['theodosia_version']}\n", "header"),
+            (f"{payload['prog_name']} {payload['theodosia_version']}\n", "header"),
         )
     )
     storage_style = "ok" if payload["storage_exists"] else "err"
@@ -1561,7 +1588,9 @@ def _build_status_table(projects: list[dict[str, Any]]) -> Table:
 def status(
     home: Annotated[
         Path | None,
-        typer.Option("--home", help="Tracker storage root. Defaults to ~/.theodosia."),
+        typer.Option(
+            "--home", help="Tracker storage root. Overrides the CLI default (see --help)."
+        ),
     ] = None,
     as_json: Annotated[
         bool,
@@ -1609,7 +1638,9 @@ def verify(
     ] = None,
     home: Annotated[
         Path | None,
-        typer.Option("--home", help="Tracker storage root. Defaults to ~/.theodosia."),
+        typer.Option(
+            "--home", help="Tracker storage root. Overrides the CLI default (see --help)."
+        ),
     ] = None,
 ) -> None:
     """Verify a session's tamper-evident ledger. Exits nonzero if the chain is broken.
@@ -1721,7 +1752,12 @@ def build_cli(
     cli.command()(verify)
     cli.command()(status)
     cli.command()(report)
-    cli.command()(primer)
+    # ``primer`` is a Theodosia-specific demo of Theodosia's onboarding and
+    # ships labels and URLs that name the project explicitly. Don't register
+    # it for rebranded CLIs ( ``build_cli(prog_name="my-fsm")`` ) since the
+    # downstream surface would otherwise advertise theodosia.
+    if prog_name == "theodosia":
+        cli.command()(primer)
 
     @cli.callback()
     def _root(
