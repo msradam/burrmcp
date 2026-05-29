@@ -370,3 +370,23 @@ def test_cli_doctor_app_dir_surfaces_in_help():
     result = runner.invoke(app, ["doctor", "--help"])
     assert result.exit_code == 0
     assert "--app-dir" in result.output
+
+
+def test_doctor_warns_on_sync_action_with_persister(tmp_path):
+    """Burr stores the persister at ``_state_persister`` and lifecycle adapters
+    at ``_adapter_set._adapters``. The earlier name guesses (``_persister``,
+    ``_lifecycle_adapters``) silently no-op'd, so doctor's WARN never fired
+    for real persister setups; an SRE persona hit the bug in dogfood (L).
+    This test pins detection to the real attribute names so it can't regress.
+    """
+    # ``examples/sqlite_persister.py`` builds an Application with
+    # ``with_state_persister(...)`` and three sync action bodies. The conftest
+    # autouse fixture inserts ``examples/`` onto sys.path.
+    from sqlite_persister import build_application
+
+    app = build_application(db_path=str(tmp_path / "check.db"))
+    report = run_checks(app)
+    warn_titles = [c.name for c in report.checks if c.status == CheckStatus.WARN]
+    assert any("Sync action bodies with persister" in t for t in warn_titles), (
+        f"expected the sync-actions WARN to fire; got: {warn_titles}"
+    )

@@ -61,3 +61,17 @@ attempt timeline (including refusals and forks) at `theodosia://history`, and
 the tracker coordinates (project, `app_id`, partition key) at
 `theodosia://session`. Each fork is its own tracked run, so the audit trail
 stays complete across rollbacks and resumes.
+
+## Don't reuse `app_id` across runs
+
+Burr's `app_id` is the row key for everything on disk: the tracker log, the
+refusal sidecar, and the hash-chained ledger. Each fresh `mount()` of a
+factory generates a new `app_id` automatically. If you instead pin a
+factory's `with_identifiers(app_id="my-fixed-id")` and rerun it in a fresh
+process, the new session opens for append on the same
+`~/.<tracker>/<project>/<app_id>/log.jsonl` but starts its sequence at
+`seq=0`. You then see `seq=0` appear multiple times in the same file. The
+hash chain still verifies (the binding covers `app_id` and each run's chain
+is self-consistent), but reading the timeline is confusing. Pin `app_id`
+only when you genuinely want one logical session that survives restarts via
+`fork_from_past`; otherwise let Burr generate one per run.

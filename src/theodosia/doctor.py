@@ -320,11 +320,18 @@ def _check_sync_actions_with_persister(application: Any, app: Application) -> li
     """
     import inspect
 
-    has_persister = getattr(app, "_persister", None) is not None or any(
-        type(h).__name__.endswith("Persister") for h in getattr(app, "_lifecycle_adapters", [])
+    # Burr stores the persister at ``_state_persister`` (set by
+    # ``with_state_persister``) and lifecycle adapters live on
+    # ``_adapter_set._adapters``, not ``_lifecycle_adapters``. The earlier
+    # name guesses silently no-op'd, so this WARN never fired for real
+    # persister setups; an SRE persona hit the bug in dogfood (L).
+    adapter_set = getattr(app, "_adapter_set", None)
+    adapters = getattr(adapter_set, "_adapters", None) or getattr(app, "_lifecycle_adapters", ())
+    has_persister = getattr(app, "_state_persister", None) is not None or any(
+        type(h).__name__.endswith(("Persister", "PersisterHook")) for h in adapters
     )
     has_tracker = getattr(app, "_tracker", None) is not None or any(
-        "Tracker" in type(h).__name__ for h in getattr(app, "_lifecycle_adapters", [])
+        "Tracker" in type(h).__name__ for h in adapters
     )
     if not (has_persister or has_tracker):
         return []

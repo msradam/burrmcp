@@ -23,6 +23,29 @@ Two more tools appear when the client cannot read MCP resources directly
 `resources/read` would. They route through the same path as the native
 resources, so a tools-only client reaches everything below.
 
+### What `step` returns on the wire
+
+A `step` call returns a FastMCP `ToolResult` with **two content blocks**
+plus the structured payload:
+
+1. A short human headline like `Step 3: pay ✓ → fulfill` (or
+   `Step 3: pay ✗ invalid_transition`). Clients that render server-log
+   strings inline (Bob, Claude Code's streaming output) show this on
+   the timeline.
+2. The JSON body, serialised as a text block.
+
+The same JSON body lives on `result.structured_content` for capable
+clients. **A programmatic driver should read `structured_content`**,
+not the second text block. The schema of the JSON body (success vs.
+each refusal shape) is documented in [refusals](refusals.md). Sample
+shape from `fastmcp.Client`:
+
+```python
+r = await client.call_tool("step", {"action": "pay", "inputs": {"amount": 5.0}})
+r.structured_content  # the dict you act on
+r.content              # [TextContent(headline), TextContent(json body)]
+```
+
 ## Resources
 
 | URI | Returns |
