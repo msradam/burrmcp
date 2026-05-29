@@ -6,6 +6,34 @@ versioning.
 
 ## [Unreleased]
 
+### Fixed (round 18: hard timeout boundary; storage coupling; radon hygiene)
+- **`action_timeout_seconds` now fires at the wall-clock budget regardless
+  of whether the inner await honors cancellation.** Previously
+  ``asyncio.wait_for`` waited for the cancelled task to acknowledge
+  ``CancelledError``; an action body awaiting on a ``ctx.sample`` or
+  ``ctx.elicit`` server-to-client request sat for the full FastMCP request
+  timeout (~30s) because FastMCP's elicit/sample do not propagate
+  cancellation cleanly. The new ``_race_with_timeout`` helper uses
+  ``asyncio.wait`` so the timer fires at the boundary; the orphaned task
+  continues until its own internals unwind. Documented in ``refusals.md``
+  with the in-memory transport caveat (FastMCP serializes outgoing
+  responses behind outstanding elicit requests on in-memory; production
+  http / stdio / sse transports get the wire response at the budget).
+- **`theodosia.tracker()` honors ``THEODOSIA_HOME`` env and the
+  ``build_cli(home=...)`` value.** Resolution order: explicit ``storage_dir``
+  arg → ``THEODOSIA_HOME`` env → ``_BRANDING.home`` for the current
+  process → ``~/.theodosia``. A downstream rebrand calling
+  ``build_cli(home="~/.my-fsm")`` no longer has to thread ``storage_dir``
+  through every ``theodosia.tracker(project=...)`` call to keep the CLI's
+  reads and the tracker's writes pointed at the same root.
+- **`_resolve_app` extracted into ``_pick_default_project``,
+  ``_pick_default_app_id``, ``_resolve_app_id_prefix``, and ``_bail`` helpers.**
+  Missing home / project / app id now exit 1 with a clean rich-rendered
+  message instead of a raw ``FileNotFoundError`` traceback. ``_resolve_app``
+  dropped off the C-rank radon list.
+- **`verify_ledger` extracted ``_check_entry`` per-entry helper.** Main
+  loop reads as a one-liner per entry; radon dropped off the C list.
+
 ### Fixed (round 17: composition-surface audits with scope discipline)
 
 Three parallel sim agents on under-tested Theodosia surfaces, briefed to
@@ -47,7 +75,7 @@ grind targets; the rest get routed upstream or documented honestly.
   `theodosia.cli`.
 
 **Sim N (`ctx.sample` / `ctx.elicit` / `current_mcp_context`):**
-- `ctx.sample` integration is production-ready for capable clients;
+- `ctx.sample` integration works against capable clients;
   no-handler refusal cleanly surfaces as `action_error`.
 - `ctx.elicit` accept/decline/timeout paths work for capable clients.
 - `current_mcp_context()` is session-isolated under concurrent overlapping

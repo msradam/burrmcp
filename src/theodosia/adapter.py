@@ -1768,6 +1768,33 @@ def _session_app_and_lock(
     return entry.application, entry.lock, entry
 
 
+async def _race_with_timeout(coro: typing.Awaitable[Any], timeout_seconds: float) -> Any:
+    """Run ``coro`` with a hard wall-clock budget.
+
+    Unlike :func:`asyncio.wait_for`, which waits for the cancelled task to
+    propagate ``CancelledError`` before returning, this returns at the
+    budget boundary regardless. The orphaned task continues in the
+    background until its own internals unwind (FastMCP's ``ctx.sample`` /
+    ``ctx.elicit`` notably do not honor cancellation cleanly because they
+    are waiting on a server-to-client request; ``wait_for`` would sit until
+    the FastMCP request timeout, defeating the action-level budget).
+
+    Raises :class:`TimeoutError` at the budget; the caller translates it
+    into an :class:`ActionTimeoutError` refusal.
+    """
+    task = asyncio.ensure_future(coro)
+    try:
+        done, _pending = await asyncio.wait({task}, timeout=timeout_seconds)
+        if task in done:
+            return task.result()
+        task.cancel()
+        raise TimeoutError(f"action did not complete within {timeout_seconds}s")
+    except BaseException:
+        if not task.done():
+            task.cancel()
+        raise
+
+
 async def _step_application(
     app: Application,
     action_name: str,
@@ -1847,12 +1874,12 @@ async def _step_application(
                 def _thread_runner() -> tuple[Any, Any, Any]:
                     return asyncio.run(app.astep(inputs=inputs))  # type: ignore[return-value,misc]
 
-                a, result, new_state = await asyncio.wait_for(
-                    asyncio.to_thread(_thread_runner), timeout=timeout_seconds
+                a, result, new_state = await _race_with_timeout(
+                    asyncio.to_thread(_thread_runner), timeout_seconds
                 )
             elif timeout_seconds is not None:
-                a, result, new_state = await asyncio.wait_for(  # type: ignore[misc]
-                    app.astep(inputs=inputs), timeout=timeout_seconds
+                a, result, new_state = await _race_with_timeout(  # type: ignore[misc]
+                    app.astep(inputs=inputs), timeout_seconds
                 )
             else:
                 a, result, new_state = await app.astep(inputs=inputs)  # type: ignore[misc]

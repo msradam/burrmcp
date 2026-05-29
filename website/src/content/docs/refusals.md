@@ -71,6 +71,19 @@ defeat the timer. The orphaned thread keeps running until the body
 returns; Python cannot safely kill threads, so the client gets the
 structured refusal while the body completes in the background.
 
+The budget is enforced with `asyncio.wait` rather than `asyncio.wait_for`
+so the timer fires at the boundary regardless of whether the inner await
+honors cancellation. Action bodies awaiting on a `ctx.sample` or
+`ctx.elicit` server-to-client request fall into this category: FastMCP's
+elicit/sample awaits do not propagate cancellation cleanly. The
+``action_timeout`` envelope is set at the budget; on stdio / http / sse
+transports the wire response is also delivered at the budget. On the
+in-memory transport the outgoing tool response is serialized behind the
+outstanding elicit request, so a client awaiting `call_tool` may not see
+the response until the upstream elicit completes (typically the FastMCP
+default request timeout). This is an in-memory transport semantic, not
+an action-budget bug; production deployments do not hit it.
+
 ```json
 {
   "error": "action_timeout",
