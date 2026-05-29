@@ -2719,6 +2719,28 @@ def mount(
             return _step_tool_result({"error": "no_session"}, "fork_from_past ✗ no_session")
 
         entry = store.get_or_create(ctx.session_id, factory)
+        # Bind ``partition_key`` to the calling session's identity. Without
+        # this, a caller could pass any partition_key and load another
+        # tenant's persisted state. The bound partition_key is the one the
+        # session's factory wrote via ``with_identifiers(partition_key=...)``;
+        # when the caller passes the empty default we fill in that value, and
+        # when they pass a non-empty value that disagrees we refuse.
+        bound_partition_key = getattr(entry.application, "_partition_key", None) or ""
+        if partition_key and partition_key != bound_partition_key:
+            return _step_tool_result(
+                {
+                    "error": "partition_mismatch",
+                    "reason": (
+                        "the caller-supplied partition_key does not match the "
+                        "session's bound partition_key; refusing to load state "
+                        "from a different partition. Mount per-tenant servers "
+                        "if cross-partition resume is intended."
+                    ),
+                    "requested": partition_key,
+                },
+                f"fork_from_past ✗ partition_mismatch ({partition_key})",
+            )
+        partition_key = bound_partition_key
         async with entry.lock:
             loaded_state_dict: dict[str, Any] | None = None
             last_action: str | None = None
