@@ -6,6 +6,127 @@ versioning.
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.3.0] - 2026-05-29
+
+This release closes the gap between "code exists and tests pass" and
+"someone could ship this in production today". It is anchored in three
+parallel dogfood runs that built real things in clean containers
+(multi-tenant SaaS ticketing, an upstream MCP composition against
+`@modelcontextprotocol/server-filesystem`, and a new-user-from-docs
+walkthrough). One load-bearing bug was found and fixed; the rest is
+onboarding, surface ergonomics, and verified docs.
+
+### Fixed (`mount(upstream={...})` happy-path config from a running server)
+
+`mount(upstream={"name": {"command": "...", "args": [...]}})` was dead on
+arrival in any context where the parent server actually runs. FastMCP
+wraps `sys.stderr` in a `StringIO` for protocol cleanliness inside a
+running server, the upstream subprocess opener (`mcp.client.stdio`)
+called `.fileno()` on inherited stderr, and `StringIO` has no
+`.fileno()`. Subprocess crashed; the resulting `UpstreamError` blamed
+"in-memory FastMCP Client", which was the wrong diagnosis.
+
+- `_as_transport` now defaults `log_file=sys.__stderr__` on the
+  `StdioTransport` it builds. `sys.__stderr__` is the original,
+  unwrapped interpreter-level stderr and has a real `.fileno()`
+  regardless of what's been done to `sys.stderr`.
+- Users can override per-config via `{"log_file": Path(...)}` or
+  any `TextIO`.
+- The "fileno" `UpstreamError` message now names the actual condition
+  (stderr has no real fd) and points at the override path.
+- 4 regression tests in `tests/test_upstream_stderr_default.py`,
+  including a `monkeypatch`ed `sys.stderr` wrap that simulates
+  FastMCP's behavior.
+
+Surfaced by a dogfood run building a real log-triage FSM against
+`@modelcontextprotocol/server-filesystem`. The documented happy-path
+config now works from inside a running server without a custom
+`UpstreamManager`.
+
+### Added (install hygiene: `theodosia.__version__` + namespace cleanup)
+
+- `theodosia.__version__` resolves via `importlib.metadata` with a
+  graceful `0+unknown` fallback for editable-install edge cases.
+- The public namespace no longer leaks stdlib + typing names. `Any`,
+  `contextlib`, and `PackageNotFoundError` previously surfaced via
+  `dir(theodosia)`; moved inside their consumers.
+
+### Added (curated examples front door)
+
+`examples/` had 49 demos across nine pattern groups, which was
+overwhelming on first visit. Two new docs solve "where do I start"
+without moving files:
+
+- `examples/CURATED.md`: six demos covering Theodosia's breadth without
+  overlap, each with what it shows + the one-liner to run it. The
+  six: `coffee_order`, `incident_response`, `differential_review`,
+  `granite_oncall`, `sqlite_persister`, `multi_graph`. Plus a
+  "promote next" section naming five more.
+- `examples/README.md`: catalog front door linking CURATED.md as
+  "start here", then grouping all 49 demos by pattern category.
+
+### Added (persist-and-resume idiom in `examples/sqlite_persister.py`)
+
+`examples/sqlite_persister.py` previously showed the *saver* hook only
+(`with_state_persister(persister)`). Building a real save-and-resume
+loop requires also calling Burr's `initialize_from(persister,
+resume_at_next_action=True, default_state=..., default_entrypoint=...)`
+as the *loader*. A dogfood agent building a real multi-tenant SaaS had
+to read Burr source to discover this split.
+
+- New `build_application_with_resume(db_path, app_id)` factory
+  demonstrates the loader path side by side with the existing save-only
+  factory.
+- Extended docstring spells out which primitive covers which phase.
+- 2 new tests in `tests/test_sqlite_persister.py` cover the new
+  factory's defaults-fallback and resume-from-prior-state behavior.
+
+### Added (Burr UI deep links from CLI)
+
+- `theodosia sessions show <id>` prints a clickable Burr UI URL under
+  the steps table (`http://localhost:7241/project/<project>/<partition_key>/<app_id>`),
+  rendered as a rich link so terminals that honor OSC 8 will ⌘-click
+  into the replay. `--open` opens it in the default browser.
+- `theodosia status` prints the Burr UI root URL at the bottom.
+- Both honor `BURR_UI_HOST` and `BURR_UI_PORT` env overrides for
+  users running the UI behind a tunnel or on a non-default port.
+- `--json` output for both commands carries the URL under
+  `burr_ui_url`.
+
+### Added (`mount(hooks=[...])` and `mount(middleware=[...])` kwargs)
+
+Surface Burr's lifecycle adapter ecosystem and FastMCP's middleware
+chain through the `mount()` API without making the caller reach into
+the underlying objects.
+
+- `mount(..., hooks=[hook1, hook2])` attaches Burr `LifecycleAdapter`
+  instances (`PreRunStepHook`, `PostRunStepHook`, `PreStartStreamHook`,
+  persister hooks, etc.) to every session's Application via Burr's
+  public `LifecycleAdapterSet.with_new_adapters` API. Same surface as
+  `ApplicationBuilder.with_hooks(...)` for callers that only see the
+  built Application or a factory.
+- `mount(..., middleware=[mw1, mw2])` chains FastMCP `Middleware`
+  instances onto the mounted server after Theodosia's built-in
+  input-coercion middleware. Useful for OTel spans on every MCP call,
+  rate limiting, structured logging.
+- `mount_multi(...)` now accepts both kwargs too and forwards them to
+  each sub-application's `mount()` call (previously a `TypeError`).
+- Tool annotations: the four MCP tools carry `ToolAnnotations(
+  destructiveHint, idempotentHint, openWorldHint)` so capable clients
+  render the right confirmations.
+- 13 tests total across `tests/test_mount_hooks.py`,
+  `tests/test_mount_middleware.py`, `tests/test_mount_multi.py`,
+  `tests/test_tool_annotations.py`, `tests/test_streaming_progress.py`.
+
+### Added (`theodosia.drive_claude`)
+
+One-line glue between a mounted server and the Anthropic SDK. Lists the
+FSM's tools, injects `theodosia://graph` / `state` / `next` into the
+system prompt, loops turn-by-turn until terminal or `max_turns`. Optional
+`[claude]` extra (anthropic>=0.40). Re-exported from the top level.
+
 ### Added (`theodosia sessions diff <a> <b>`)
 
 Cross-session post-mortem comparison. Useful when you want to ask
@@ -45,68 +166,8 @@ so cross-module ``from … import _BRANDING`` references stay live; the
 single-file ``global _BRANDING; _BRANDING = …`` pattern only worked when
 all consumers lived in one module.
 
-### Added (`mount(middleware=[...])` kwarg)
-
-- New ``mount(..., middleware=[mw1, mw2, ...])`` kwarg accepts a list
-  of FastMCP ``Middleware`` instances and chains them onto the mounted
-  server after Theodosia's built-in input-coercion middleware. Same
-  pattern as the ``hooks=[...]`` kwarg shipped above.
-- Users no longer need to call ``server.add_middleware(...)`` after
-  ``mount()`` returns scattered across deployment code; the surface
-  matches FastMCP's docs flow.
-- The ``with_middleware`` example demo (TimingMiddleware /
-  StructuredLoggingMiddleware / RateLimitingMiddleware) keeps working
-  via post-mount mutation; the new kwarg is additive.
-- 3 tests in ``tests/test_mount_middleware.py``.
-
-### Added (Burr UI deep links from CLI)
-
-- ``theodosia sessions show <id>`` now prints a clickable Burr UI URL
-  under the steps table (``http://localhost:7241/project/<project>/<partition_key>/<app_id>``),
-  rendered as a rich link so terminals that honor OSC 8 will ⌘-click into
-  the replay. ``--open`` opens it in the default browser.
-- ``theodosia status`` prints the Burr UI root URL at the bottom.
-- Both honor ``BURR_UI_HOST`` and ``BURR_UI_PORT`` env overrides for
-  users running the UI behind a tunnel or on a non-default port.
-- ``--json`` output for both commands now carries the URL under
-  ``burr_ui_url``.
-
-Theodosia does not ship a UI; ``theodosia ui`` launches Burr's. Deep
-links make the replay one click away from any tracked session.
-
-### Added (streaming, hooks, annotations, drive_claude)
-
-Surface more of what Burr and FastMCP already do through the ``mount()``
-boundary.
-
-- **`mount(..., hooks=[...])`**: pass a list of Burr ``LifecycleAdapter``
-  instances (``PreRunStepHook``, ``PostRunStepHook``, ``PreStartStreamHook``,
-  ``DoLogAttributeHook``, etc.) and they get attached to every session's
-  Application via the adapter set after construction. Matches the surface
-  of ``ApplicationBuilder.with_hooks(...)`` for callers that only see the
-  built Application or a factory.
-- **Streaming actions surface chunks as MCP progress notifications.**
-  ``@streaming_action(.pydantic)`` was already wired in
-  ``_step_streaming_action``. The chunks fan out via
-  ``ctx.report_progress(...)`` and the response carries
-  ``streamed: True`` plus ``chunks: N``. Newly covered by an explicit
-  ``tests/test_streaming_progress.py`` regression so the bridge cannot
-  silently regress.
-- **Tool annotations**: the four MCP tools now carry
-  ``ToolAnnotations(destructiveHint, idempotentHint, openWorldHint)``
-  appropriate to each.  ``step`` / ``reset_session`` / ``fork_at`` /
-  ``fork_from_past`` are all destructive; ``reset_session`` is
-  idempotent; ``fork_from_past`` reaches outside the current session's
-  history (``openWorldHint=True``). The synthetic ``list_resources`` /
-  ``read_resource`` tools FastMCP's ``ResourcesAsTools`` transform adds
-  are marked read-only for free.
-- **`theodosia.drive_claude`**: the one-line glue between a mounted
-  server and Anthropic's SDK. Lists the FSM's tools, injects
-  ``theodosia://graph`` / ``state`` / ``next`` into the system prompt,
-  loops turn-by-turn until terminal or ``max_turns``. Optional
-  ``[claude]`` extra (anthropic>=0.40). Re-exported from the top level.
-- **`tool annotations`, `streaming progress`, and `hooks kwarg`** all
-  covered by new tests (10 new asserts; 791 passing total).
+_The kwargs and deep-link entries that lived here have been folded
+into the consolidated entries near the top of this Unreleased section._
 
 ### Fixed (round 18: hard timeout boundary; storage coupling; radon hygiene)
 - **`action_timeout_seconds` now fires at the wall-clock budget regardless
