@@ -1020,42 +1020,51 @@ def sessions_ls(
 # == sessions show ====================================================
 
 
+def _bail(msg: str) -> None:
+    err_console.print(msg)
+    raise typer.Exit(code=1)
+
+
+def _pick_default_project(home: Path) -> str:
+    if not home.is_dir():
+        _bail(f"[err]No tracker storage at[/] {home}")
+    candidates = [p for p in home.iterdir() if p.is_dir() and not p.name.startswith(".")]
+    if not candidates:
+        _bail(f"[err]No tracked projects under[/] {home}")
+    return max(candidates, key=lambda p: p.stat().st_mtime).name
+
+
+def _pick_default_app_id(proj_path: Path, project: str) -> str:
+    app_candidates = [p for p in proj_path.iterdir() if p.is_dir()]
+    if not app_candidates:
+        _bail(f"[err]No apps under project[/] {project}")
+    return max(app_candidates, key=lambda p: p.stat().st_mtime).name
+
+
+def _resolve_app_id_prefix(proj_path: Path, project: str, app_id: str) -> str:
+    """Map a uuid prefix to a single concrete app id, or bail."""
+    matches = [p.name for p in proj_path.iterdir() if p.is_dir() and p.name.startswith(app_id)]
+    if len(matches) == 1:
+        return matches[0]
+    suffix = f" (ambiguous prefix matches: {matches})" if len(matches) > 1 else ""
+    _bail(f"[err]No app[/] {app_id!r} [err]in project[/] {project!r}{suffix}")
+    return app_id  # unreachable; _bail raises
+
+
 def _resolve_app(home: Path, project: str | None, app_id: str | None) -> tuple[Path, str, str]:
     """Resolve project + app_id (each optional) into a concrete log directory.
 
-    Both default to the most-recently-touched. Returns (log_path, project, app_id).
+    Both default to the most-recently-touched. Returns ``(log_path, project, app_id)``.
     """
     if project is None:
-        candidates = [p for p in home.iterdir() if p.is_dir() and not p.name.startswith(".")]
-        if not candidates:
-            err_console.print(f"[err]No tracked projects under[/] {home}")
-            raise typer.Exit(code=1)
-        project = max(candidates, key=lambda p: p.stat().st_mtime).name
-
+        project = _pick_default_project(home)
     proj_path = home / project
     if not proj_path.is_dir():
-        err_console.print(f"[err]No such project directory:[/] {proj_path}")
-        raise typer.Exit(code=1)
-
+        _bail(f"[err]No such project directory:[/] {proj_path}")
     if app_id is None:
-        app_candidates = [p for p in proj_path.iterdir() if p.is_dir()]
-        if not app_candidates:
-            err_console.print(f"[err]No apps under project[/] {project}")
-            raise typer.Exit(code=1)
-        app_id = max(app_candidates, key=lambda p: p.stat().st_mtime).name
-
-    if not (proj_path / app_id).is_dir():
-        # Prefix match: `sessions show abc123` matches a uuid starting with it.
-        matches = [p.name for p in proj_path.iterdir() if p.is_dir() and p.name.startswith(app_id)]
-        if len(matches) == 1:
-            app_id = matches[0]
-        else:
-            err_console.print(
-                f"[err]No app[/] {app_id!r} [err]in project[/] {project!r}"
-                + (f" (ambiguous prefix matches: {matches})" if len(matches) > 1 else "")
-            )
-            raise typer.Exit(code=1)
-
+        app_id = _pick_default_app_id(proj_path, project)
+    elif not (proj_path / app_id).is_dir():
+        app_id = _resolve_app_id_prefix(proj_path, project, app_id)
     return proj_path / app_id / "log.jsonl", project, app_id
 
 

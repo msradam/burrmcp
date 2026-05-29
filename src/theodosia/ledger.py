@@ -161,28 +161,40 @@ def verify_ledger(
             if not line:
                 continue
             entry = json.loads(line)
-            stored = entry.get("hash")
-            payload = {k: v for k, v in entry.items() if k != "hash"}
-            recomputed = _digest(prev, payload, resolved_key)
-            if entry.get("prev") != prev:
-                problems.append(f"line {i}: prev-link mismatch (chain broken before here)")
-            if stored != recomputed:
-                problems.append(f"line {i}: hash mismatch (entry was altered)")
-            if expected_binding is not None:
-                got = entry.get("binding") or {}
-                missing = [k for k, v in expected_binding.items() if got.get(k) != v]
-                if missing:
-                    problems.append(
-                        f"line {i}: binding mismatch on {missing} "
-                        f"(ledger does not belong to this session)"
-                    )
-            prev = stored
+            problems.extend(_check_entry(i, entry, prev, expected_binding, resolved_key))
+            prev = entry.get("hash")
             count += 1
     if expected_min_entries is not None and count < expected_min_entries:
         problems.append(
             f"truncation: ledger has {count} entries; expected at least {expected_min_entries}"
         )
     return (not problems), problems
+
+
+def _check_entry(
+    i: int,
+    entry: dict[str, Any],
+    prev: str,
+    expected_binding: dict[str, Any] | None,
+    resolved_key: bytes | None,
+) -> list[str]:
+    """Per-entry checks: hash, prev-link, and binding match."""
+    problems: list[str] = []
+    payload = {k: v for k, v in entry.items() if k != "hash"}
+    recomputed = _digest(prev, payload, resolved_key)
+    if entry.get("prev") != prev:
+        problems.append(f"line {i}: prev-link mismatch (chain broken before here)")
+    if entry.get("hash") != recomputed:
+        problems.append(f"line {i}: hash mismatch (entry was altered)")
+    if expected_binding is not None:
+        got = entry.get("binding") or {}
+        missing = [k for k, v in expected_binding.items() if got.get(k) != v]
+        if missing:
+            problems.append(
+                f"line {i}: binding mismatch on {missing} "
+                f"(ledger does not belong to this session)"
+            )
+    return problems
 
 
 def ledger_count(path: str | Path) -> int:
