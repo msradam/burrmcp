@@ -1993,13 +1993,13 @@ def mount(
     async def _history_resource(ctx: Context) -> str:
         """Timeline of every action attempted in this session.
 
-        Each entry has ``seq``, ``ts``, ``action``, ``inputs``,
-        ``state_after``, ``valid_next_actions``, ``refused``, and
-        ``refusal_reason``. Both successful steps and refused attempts
-        (invalid transitions, unknown actions) appear. In factory-mode
-        deployments each session sees only its own history; in
-        shared-app deployments each session sees the timeline of its
-        own calls against the shared FSM.
+        The payload is a JSON array (no wrapper object) of entries each
+        carrying ``seq``, ``ts``, ``action``, ``inputs``, ``state_after``,
+        ``valid_next_actions``, ``refused``, and ``refusal_reason``. Both
+        successful steps and refused attempts (invalid transitions, unknown
+        actions) appear. In factory-mode deployments each session sees only
+        its own history; in shared-app deployments each session sees the
+        timeline of its own calls against the shared FSM.
         """
         history = store.history(ctx.session_id) if ctx is not None else []
         return json.dumps(history, default=str, indent=2)

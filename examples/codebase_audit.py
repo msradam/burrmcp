@@ -35,7 +35,7 @@ import shlex
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Literal
+from typing import Literal
 
 from burr.core import ApplicationBuilder, Condition, State, action
 from pydantic import BaseModel, Field
@@ -154,9 +154,7 @@ def summarize(state: State) -> State:
     hard_fails = [
         t for t in ("ruff", "mypy", "pytest") if findings.get(t, {}).get("status") == "fail"
     ]
-    soft_fails = [
-        t for t in ("refurb", "bandit") if findings.get(t, {}).get("status") != "ok"
-    ]
+    soft_fails = [t for t in ("refurb", "bandit") if findings.get(t, {}).get("status") != "ok"]
     blocking = bool(hard_fails) or (state["strict"] and bool(soft_fails))
     verdict = {
         "hard_fails": hard_fails,

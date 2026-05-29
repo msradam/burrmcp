@@ -39,6 +39,28 @@ Run:
 
 Or wire into a client via ``mount`` and call the ``fork_from_past``
 meta-tool with ``{"app_id": <prior-uid>, "sequence_id": <int|-1>}``.
+
+Two persistence patterns ship side by side:
+
+* ``build_application(db_path)`` is the "save-only" pattern: every step
+  writes a row, but a fresh session always starts at ``with_state(...)``
+  / ``with_entrypoint(...)``. To resume an old session the agent must
+  call ``fork_from_past`` explicitly with a known ``app_id``.
+
+* ``build_application_with_resume(db_path, app_id)`` adds Burr's
+  ``initialize_from(persister, resume_at_next_action=True, default_state=...,
+  default_entrypoint=...)``. The factory tries to load the latest snapshot
+  for the given ``app_id`` from the persister; if one exists, the new
+  session resumes at the next action with that state. If not, it falls
+  back to ``default_state`` / ``default_entrypoint``. This is the
+  user-comes-back-and-picks-up idiom.
+
+``with_state_persister`` is the *saver* hook (what to write on every
+step). ``initialize_from`` is the *loader* (what to read at session
+start). They take the same persister instance but cover different
+phases; you need both for a true save-and-resume loop. Burr's docs
+treat them as separate primitives and they appear in different
+example files; that is the gotcha worth knowing.
 """
 
 from __future__ import annotations
@@ -316,6 +338,60 @@ def build_application(db_path: str | None = None):
         .with_entrypoint("start")
         .build()
     )
+
+
+def build_application_with_resume(
+    db_path: str | None = None,
+    app_id: str | None = None,
+):
+    """Like :func:`build_application` but auto-resumes from the persister.
+
+    Demonstrates Burr's ``initialize_from(persister, ...)`` API, which
+    is how a fresh session picks up where a prior one left off without
+    requiring a ``fork_from_past`` call from the agent.
+
+    Mutually exclusive with the ``with_state(...)`` /
+    ``with_entrypoint(...)`` chain on the same builder. Burr raises
+    ``ApplicationBuilderException`` if both are set; pass the defaults
+    to ``initialize_from`` instead. The behavior:
+
+    * ``persister.load(partition_key, app_id, sequence_id=None)`` is
+      called with ``sequence_id=None``, which loads the latest row.
+    * If a row exists, the new Application starts in that state at
+      ``resume_at_next_action`` (the action that would have run next).
+    * If not, ``default_state`` / ``default_entrypoint`` apply.
+
+    Args:
+        db_path: SQLite file path. Same default as :func:`build_application`.
+        app_id: The persisted session id to resume. ``None`` means
+            "new session"; the persister has nothing under None, so the
+            defaults always apply. Pass a known id (returned by the
+            adapter as ``app_id`` in the ``session`` resource) to resume.
+    """
+    persister = SQLitePersister(db_path or _default_db_path())
+    builder = (
+        ApplicationBuilder()
+        .with_actions(start=start, tick=tick, finalize=finalize)
+        .with_transitions(
+            ("start", "tick"),
+            ("tick", "tick", _TICK_OPEN),
+            ("tick", "finalize", _TICK_OPEN),
+        )
+        .with_state_persister(persister)
+    )
+    if app_id:
+        builder = builder.with_identifiers(app_id=app_id)
+    return builder.initialize_from(
+        persister,
+        resume_at_next_action=True,
+        default_state={
+            "counter": 0,
+            "status": "initial",
+            "log": [],
+            "final_count": None,
+        },
+        default_entrypoint="start",
+    ).build()
 
 
 def build_server():

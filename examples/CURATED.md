@@ -23,6 +23,11 @@ What to look for: connect a client and call `step(action="cancel")`
 from the wrong state. The refusal carries the list of actions that
 were reachable, so a smart client can self-correct.
 
+The load-bearing primitive in this file is `Condition.expr("stage ==
+'ordered'")` on the transitions. That string is evaluated against the
+live state at every step; the agent's `step(action=X)` is allowed
+only when the condition is true. That is how the rails are gated.
+
 ## 2. `incident_response.py` — real ops on shipped data
 
 SRE workflow that parses real Alertmanager JSON, slices a shipped

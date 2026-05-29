@@ -27,6 +27,7 @@ from fastmcp import Client
 from sqlite_persister import (
     SQLitePersister,
     build_application,
+    build_application_with_resume,
     finalize,
     start,
     tick,
@@ -312,3 +313,31 @@ def test_actions_pure_logic():
     s = finalize(s)
     assert s.get("status") == "finalized"
     assert s.get("final_count") == 2
+
+
+# == persist-and-resume idiom =====================================
+
+
+def test_resume_factory_returns_defaults_when_no_prior_state(tmp_path):
+    """Fresh db: the factory falls back to default_state / default_entrypoint."""
+    db = str(tmp_path / "resume.db")
+    app = build_application_with_resume(db_path=db, app_id="new-session")
+    assert app.state.get("counter") == 0
+    assert app.state.get("status") == "initial"
+
+
+def test_resume_factory_picks_up_persisted_state(tmp_path):
+    """Walk the standard build_application a few steps, then rebuild via
+    the resume factory with the same app_id; the new Application starts
+    mid-walk, not at zero. Proves save-and-resume round-trip.
+    """
+    db = str(tmp_path / "resume.db")
+    first = build_application(db_path=db)
+    first.step()
+    first.step()
+    walked_counter = first.state.get("counter")
+    assert walked_counter >= 1
+
+    resumed = build_application_with_resume(db_path=db, app_id=first.uid)
+    assert resumed.state.get("counter") == walked_counter
+    assert resumed.state.get("status") == "started"

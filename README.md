@@ -67,17 +67,63 @@ uv pip install theodosia     # or: pip install theodosia
 
 Python 3.11 through 3.13. Optional extras: `theodosia[observability]`, `theodosia[ui]`, `theodosia[all]`.
 
+On a slim Docker image (`python:3.13-slim`, Alpine) the install pulls a `psutil` build that needs `gcc` and `python3-dev`. Either use the full `python:3.13` image, or `apt-get install -y gcc python3-dev` before `pip install`.
+
 ---
 
 ## Quickstart
 
 ```python
+from burr.core import ApplicationBuilder, State, action
+from burr.core.action import Condition
 from theodosia import mount
 
-mount(build_application, name="coffee").run()   # `build_application` returns a Burr Application
+
+@action(reads=[], writes=["item", "stage"])
+def take_order(state: State, item: str) -> State:
+    return state.update(item=item, stage="ordered")
+
+
+@action(reads=["stage"], writes=["stage"])
+def pay(state: State, amount: float) -> State:
+    return state.update(stage="paid")
+
+
+def build_application():
+    is_ordered = Condition.expr("stage == 'ordered'")
+    return (
+        ApplicationBuilder()
+        .with_actions(take_order=take_order, pay=pay)
+        .with_transitions(("take_order", "pay", is_ordered))
+        .with_state(item=None, stage="empty")
+        .with_entrypoint("take_order")
+        .build()
+    )
+
+
+if __name__ == "__main__":
+    mount(build_application, name="coffee").run()
 ```
 
-Pass a factory (a callable returning a built `Application`) so each MCP session gets its own isolated state. Passing an already-built `Application` works too but shares state across sessions.
+Save as `coffee.py` and run `python coffee.py` to serve over stdio. Pass a factory (a callable returning a built `Application`) so each MCP session gets its own isolated state. Passing an already-built `Application` works too but shares state across sessions.
+
+To exercise it without a real client, use FastMCP's in-process `Client`:
+
+```python
+import asyncio
+from fastmcp import Client
+from coffee import build_application
+
+async def main():
+    async with Client(mount(build_application, name="coffee")) as client:
+        r = await client.call_tool("step", {"action": "pay", "inputs": {"amount": 5.0}})
+        print(r.structured_content)   # refusal: take_order required first
+        r = await client.call_tool("step", {"action": "take_order", "inputs": {"item": "mocha"}})
+        r = await client.call_tool("step", {"action": "pay", "inputs": {"amount": 5.0}})
+        print(r.structured_content)
+
+asyncio.run(main())
+```
 
 A client that calls `pay` before `take_order` gets a refusal it can recover from: the valid actions ride on every response.
 
@@ -103,6 +149,7 @@ The vocabulary you meet, in roughly the order you reach for it. Every Theodosia 
 - **`Persona`**: PERSONA.md identity layer mounted as MCP prompts. Same FSM, different actor; same audit trail. Frame-aware placeholders (`{state.x}`, `{action.name}`) interpolate against the live session.
 - **`Assembly`**: a frozen bundle of a workflow plus its personas, upstream config, instructions, and metadata. `Assembly(...).serve()` mounts; `from_yaml` loads from disk.
 - **`fork_at` / `fork_from_past`**: branch any run at any past sequence id. Replay the prefix, diverge from the chosen point.
+- **`theodosia.tracker(project)`**: a Burr `LocalTrackingClient` defaulted to `~/.theodosia` so LLM-driven sessions stay separate from code-driven Burr runs in `~/.burr`. Use it in your builder: `.with_tracker(theodosia.tracker("my-project"))`. Honors `THEODOSIA_HOME` and `build_cli(home=...)`.
 - **Hooks**: Burr's lifecycle adapters (`PreRunStepHook`, `PostRunStepHook`, `PreStartStreamHook`, persister hooks, etc.) attach via `mount(..., hooks=[hook1, hook2])` or via `ApplicationBuilder.with_hooks(...)` in your factory. Either path works.
 - **Middleware**: FastMCP `Middleware` instances attach via `mount(..., middleware=[mw1, mw2])`. Use for OpenTelemetry spans, rate limiting, structured logging, per-call metrics.
 - **`drive_claude(server, anthropic, *, prompt, ...)`**: one-line glue between a mounted server and the Anthropic SDK. Lists the FSM's tools, injects `theodosia://graph` / `state` / `next` into the system prompt, loops turn-by-turn until terminal or `max_turns`. Optional `[claude]` extra.
