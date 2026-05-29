@@ -28,6 +28,7 @@ from theodosia.adapter import (
 from theodosia.assembly import Assembly
 from theodosia.cli import build_cli
 from theodosia.cli import run as run_cli
+from theodosia.drive import drive_claude
 from theodosia.importing import ToolSpec, burr_app_from_fastmcp
 from theodosia.ledger import HashChainedLedger, verify_ledger
 from theodosia.upstream import (
@@ -98,6 +99,7 @@ __all__ = [
     "confidence_label",
     "coverage",
     "current_mcp_context",
+    "drive_claude",
     "mount",
     "mount_multi",
     "run_cli",

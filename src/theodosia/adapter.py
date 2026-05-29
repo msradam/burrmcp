@@ -2347,11 +2347,20 @@ def mount(
                 json_schema_extra={"enum": action_names.copy()},  # type: ignore[dict-item]
             ),
         ]
+        from mcp.types import ToolAnnotations
+
         step_description = f"{step.__doc__}\n\n{action_surface}"
         mcp.tool(
             name="step",
             description=step_description,
             output_schema=_step_response_schema(),
+            annotations=ToolAnnotations(
+                title="Take one FSM transition",
+                # Each call advances the session's state machine.
+                destructiveHint=True,
+                idempotentHint=False,
+                openWorldHint=False,
+            ),
         )(step)
 
     else:
@@ -2437,7 +2446,18 @@ def mount(
             headline,
         )
 
-    mcp.tool(name="reset_session", description=reset_session.__doc__)(reset_session)
+    from mcp.types import ToolAnnotations
+
+    mcp.tool(
+        name="reset_session",
+        description=reset_session.__doc__,
+        annotations=ToolAnnotations(
+            title="Reset this session",
+            destructiveHint=True,  # discards the session's state and history
+            idempotentHint=True,  # repeated resets are no-ops after the first
+            openWorldHint=False,
+        ),
+    )(reset_session)
 
     # ── meta tool: fork_at ──────────────────────────────────────────
     # Rewind the session's Application to the state captured after a
@@ -2565,7 +2585,16 @@ def mount(
             headline,
         )
 
-    mcp.tool(name="fork_at", description=fork_at.__doc__)(fork_at)
+    mcp.tool(
+        name="fork_at",
+        description=fork_at.__doc__,
+        annotations=ToolAnnotations(
+            title="Branch this session from a prior step",
+            destructiveHint=True,  # replaces current state with the past snapshot
+            idempotentHint=False,
+            openWorldHint=False,
+        ),
+    )(fork_at)
 
     # ── meta tool: fork_from_past ───────────────────────────────────
     # Resume a past Burr run from disk. Lets an agent recover state
@@ -2748,7 +2777,16 @@ def mount(
             headline,
         )
 
-    mcp.tool(name="fork_from_past", description=fork_from_past.__doc__)(fork_from_past)
+    mcp.tool(
+        name="fork_from_past",
+        description=fork_from_past.__doc__,
+        annotations=ToolAnnotations(
+            title="Resume a different session's past state",
+            destructiveHint=True,  # replaces this session's state with another's
+            idempotentHint=False,
+            openWorldHint=True,  # reaches outside the current session's history
+        ),
+    )(fork_from_past)
 
     # Surfaces resources as tools for clients without resources/read
     # (IBM Bob Shell, as of mid-2026).

@@ -58,10 +58,14 @@ ui = [
 mellea = [
     "mellea>=0.1",
 ]
+claude = [
+    "anthropic>=0.40",
+]
 all = [
     "theodosia[observability]",
     "theodosia[mellea]",
     "theodosia[ui]",
+    "theodosia[claude]",
 ]
 
 [project.scripts]

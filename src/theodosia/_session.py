@@ -83,9 +83,7 @@ class _SessionStore:
         if self.ttl_seconds is None:
             return
         now = time.monotonic()
-        stale = [
-            sid for sid, e in self._entries.items() if now - e.last_access > self.ttl_seconds
-        ]
+        stale = [sid for sid, e in self._entries.items() if now - e.last_access > self.ttl_seconds]
         for sid in stale:
             del self._entries[sid]
 
