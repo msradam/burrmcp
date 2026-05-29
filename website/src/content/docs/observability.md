@@ -3,10 +3,17 @@ title: 'Observability'
 description: 'The theodosia:// resources, the terminal CLI, the Burr UI, OpenTelemetry.'
 ---
 
-Every narrative demo wires `LocalTrackingClient(project="<demo>-demo")`, so each
-MCP session writes a JSONL log under `~/.burr`. Three surfaces read it: the
+Wire a tracker into your `ApplicationBuilder` with `theodosia.tracker(project="...")`
+and every MCP session writes a JSONL log under `~/.theodosia` (the path the
+`theodosia` CLI looks at by default). Three surfaces read that log: the
 `theodosia://` MCP resources (for the agent), the `theodosia` CLI (for the terminal),
 and the Burr web UI (for replay).
+
+If you use Burr's own `LocalTrackingClient(project="...")` directly instead,
+sessions write to `~/.burr` and you must point the CLI at it with
+`theodosia sessions ls --home ~/.burr -p <project>`. The two helpers exist for the
+two audiences (theodosia-first vs Burr-first); pick one per project and stay
+consistent.
 
 ![theodosia logs replaying a session timeline, including a refused step](/theodosia/observability.gif)
 

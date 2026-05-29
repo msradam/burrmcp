@@ -47,7 +47,10 @@ import asyncio
 import contextlib
 import contextvars
 import inspect
+import io
 import json
+import logging
+import os
 import re
 import time
 import typing
@@ -704,7 +707,7 @@ def _build_persona_frame(
     except Exception:
         return None
     entry = store.get_or_create(session_id, factory)
-    app = entry.app
+    app = entry.application
     state_fields = dict(app.state.get_all())
     state_fields.pop("__PRIOR_STEP", None)
     last_action = app.state.get("__PRIOR_STEP") or app.entrypoint
@@ -1633,12 +1636,21 @@ async def _step_application(
             )
         # astep is typed Optional, but the monkey-patched get_next_action
         # guarantees a non-None return for the client-named action.
-        if timeout_seconds is not None:
-            a, result, new_state = await asyncio.wait_for(  # type: ignore[misc]
-                app.astep(inputs=inputs), timeout=timeout_seconds
-            )
+        # Suppress Burr's own stderr traceback display. The action error
+        # surfaces as a structured ``action_error`` refusal on the wire; the
+        # traceback would print before that wire response and add noise to
+        # the developer's terminal. Set THEODOSIA_VERBOSE=1 to keep it.
+        if os.environ.get("THEODOSIA_VERBOSE"):
+            stderr_ctx: contextlib.AbstractContextManager[Any] = contextlib.nullcontext()
         else:
-            a, result, new_state = await app.astep(inputs=inputs)  # type: ignore[misc]
+            stderr_ctx = contextlib.redirect_stderr(io.StringIO())
+        with stderr_ctx:
+            if timeout_seconds is not None:
+                a, result, new_state = await asyncio.wait_for(  # type: ignore[misc]
+                    app.astep(inputs=inputs), timeout=timeout_seconds
+                )
+            else:
+                a, result, new_state = await app.astep(inputs=inputs)  # type: ignore[misc]
     except (InvalidTransitionError, ActionExecutionError, ActionTimeoutError):
         raise
     except TimeoutError as exc:
@@ -1918,6 +1930,15 @@ def mount(
             ``fastmcp.Client`` speaks every transport. Sessions open
             lazily on first use and stay open for the server's lifetime.
     """
+    # FastMCP's per-call DEBUG output ("Sending INFO to client: Step N...")
+    # is useful when wiring a new client but noisy in normal use. Silence it
+    # by default; set THEODOSIA_VERBOSE=1 to keep it.
+    if not os.environ.get("THEODOSIA_VERBOSE"):
+        for _noisy in ("fastmcp", "mcp", "FastMCP"):
+            _lg = logging.getLogger(_noisy)
+            if _lg.level < logging.WARNING:
+                _lg.setLevel(logging.WARNING)
+
     shared_app, factory = _resolve(application)
     # Per-session store keyed by ctx.session_id; populated lazily on
     # the first tool call. Lives in closure scope so it's tied to this
@@ -2264,15 +2285,17 @@ def mount(
                     indent=2,
                 )
 
-        # Each persona becomes an MCP prompt. When a session is active the
-        # body is interpolated against the current frame; unknown placeholders
-        # render as empty strings.
+        # Each persona becomes an MCP prompt. ``ctx: Context`` is the
+        # FastMCP convention for server-injected context (without the
+        # annotation it would be advertised as a required client argument).
+        # When a session is active the body is interpolated against the
+        # current frame; unknown placeholders render as empty strings.
         for _persona in personas_map.values():
             _name = f"theodosia/persona/{_persona.name}"
             _desc = _persona.description or f"Persona: {_persona.name}"
 
             def _make_prompt_fn(persona_obj):
-                async def _persona_prompt_fn(ctx) -> str:
+                async def _persona_prompt_fn(ctx: Context) -> str:
                     frame = _build_persona_frame(ctx, store, factory)
                     return persona_obj.to_prompt_text(frame=frame)
 

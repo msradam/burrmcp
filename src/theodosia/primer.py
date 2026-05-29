@@ -176,8 +176,10 @@ async def _run(console: Console) -> int:
     console.print()
     console.print("[bold]Next steps[/bold]")
     console.print("  Read the docs at https://msradam.github.io/theodosia/")
-    console.print("  Author your own graph: [cyan]theodosia doctor my_module:build[/cyan]")
-    console.print("  Mount it: [cyan]theodosia serve my_module:build[/cyan]")
+    console.print(
+        "  Author your own graph: [cyan]theodosia doctor my_module:build_application[/cyan]"
+    )
+    console.print("  Mount it: [cyan]theodosia serve my_module:build_application[/cyan]")
     console.print()
     return 0
 

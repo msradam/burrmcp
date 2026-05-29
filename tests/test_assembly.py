@@ -64,6 +64,28 @@ def test_assembly_to_dict_round_trip(tiny_workflow):
     assert b == a
 
 
+def test_assembly_to_yaml_round_trip(tmp_path: Path):
+    a = Assembly(
+        name="round-trip",
+        workflow="my_mod:build",
+        upstream={"g": "url"},
+        metadata={"team": "sre"},
+    )
+    out = tmp_path / "a.yaml"
+    text = a.to_yaml(out)
+    assert "round-trip" in text
+    assert out.exists()
+    b = Assembly.from_yaml(out)
+    assert b == a
+
+
+def test_assembly_to_yaml_returns_text_without_path(tmp_path: Path):
+    a = Assembly(name="x", workflow="m:f")
+    text = a.to_yaml()
+    assert "name: x" in text
+    assert "workflow: m:f" in text
+
+
 def test_assembly_from_yaml(tmp_path: Path):
     payload = {
         "name": "from-yaml",

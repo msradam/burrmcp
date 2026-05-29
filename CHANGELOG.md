@@ -6,6 +6,29 @@ versioning.
 
 ## [Unreleased]
 
+### Fixed (round 2: exploration audit)
+- **Personas were unreachable from MCP clients.** `get_prompt` returned
+  `Missing required arguments: {'ctx'}` because the persona handler
+  declared `ctx` without the `Context` type annotation FastMCP needs to
+  recognize a server-injected parameter. The annotation now lands and
+  `_build_persona_frame` reads `entry.application` (the actual attribute)
+  instead of `entry.app`. Frame-aware interpolation works end-to-end.
+- **Burr's "Oh no an error!" panel + Python traceback** no longer print
+  on every `action_error` refusal. The action exception is captured into
+  a structured wire response; the developer-facing terminal stays clean.
+  Set `THEODOSIA_VERBOSE=1` to restore the old behavior.
+- **FastMCP DEBUG "Sending INFO to client" notifications** are now silenced
+  in `mount()`. Same `THEODOSIA_VERBOSE=1` escape hatch.
+- **`Assembly.to_yaml(path=None)`** added so the YAML round-trip is
+  symmetric with `from_yaml`. Returns the YAML text; writes to ``path``
+  if given.
+- **`theodosia primer` "Next steps"** now says `module:build_application`
+  rather than `module:build`, matching the `authoring.md` convention.
+- **Tracker home doc conflict resolved.** `observability.md` now leads
+  with `theodosia.tracker(project=...)` (writes to `~/.theodosia`, what
+  the CLI reads by default) and mentions Burr's `LocalTrackingClient`
+  with its `~/.burr` path as the alternative for Burr-first projects.
+
 ### Fixed
 - `theodosia primer`: self-contains the coffee-order FSM so the command
   works after a wheel install. Previously failed with "bundled coffee_order
