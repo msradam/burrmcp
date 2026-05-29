@@ -65,12 +65,15 @@ FSM said no" from "the action's code raised."
 ## For the terminal: the CLI
 
 ```bash
+theodosia status                      # one-shot snapshot of tracker + projects
 theodosia sessions ls                 # recent sessions, most recent first
 theodosia sessions show <app-id>      # full timeline: per-step state diff + timing
 theodosia sessions tail [app-id]      # live-tail a running session
 theodosia watch [app-id]              # alias for `sessions tail`
 theodosia logs [app-id]               # compact one-line-per-step, greppable
 theodosia logs --refusals --plain     # only steps that errored, pipe-friendly
+theodosia report <app-id>             # markdown post-mortem, optional webhook
+theodosia verify [app-id]             # check the tamper-evident ledger
 ```
 
 `app-id` defaults to the most-recently-touched session and accepts a uuid prefix.

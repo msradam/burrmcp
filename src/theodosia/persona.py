@@ -63,7 +63,15 @@ def render_with_frame(text: str, frame: dict[str, Any] | None) -> str:
             cur = cur.get(part) if isinstance(cur, dict) else getattr(cur, part, None)
             if cur is None:
                 return ""
-        return "" if cur is None else str(cur)
+        if cur is None:
+            return ""
+        # Render dicts and lists as JSON, not Python repr, so LLM consumers
+        # see ``{"item": "soda"}`` rather than ``{'item': 'soda'}``.
+        if isinstance(cur, dict | list | tuple):
+            import json
+
+            return json.dumps(cur, default=str)
+        return str(cur)
 
     return _PLACEHOLDER.sub(_resolve, text)
 

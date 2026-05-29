@@ -6,6 +6,16 @@ versioning.
 
 ## [Unreleased]
 
+### Fixed (round 8: seventh exploration audit)
+- **Persona placeholders render dicts and lists as JSON, not Python
+  `repr`.** `{state.order}` for `state.order = {"item": "soda", "qty": 1}`
+  now renders `{"item": "soda", "qty": 1}` (double quotes) so an LLM
+  consuming the rendered persona prompt sees JSON, not single-quoted
+  Python. Scalars still go through `str()`. Documented in `personas.md`.
+- **`observability.md` terminal-CLI inventory** now includes `theodosia
+  status`, `theodosia report`, and `theodosia verify`. Previously asymmetric
+  with `cli.md`.
+
 ### Fixed (round 7: sixth exploration audit)
 - **`theodosia status` "empty" status actually fires.** The previous round
   added the "empty" label to `sessions ls` but missed the second code path

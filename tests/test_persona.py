@@ -16,6 +16,15 @@ from theodosia.persona import (
 # ── Persona.from_text ────────────────────────────────────────────────────
 
 
+def test_render_dict_value_as_json_not_repr() -> None:
+    text = "order: {state.order}; items: {state.items}"
+    frame = {"state": {"order": {"item": "soda", "qty": 1}, "items": ["a", "b"]}}
+    out = render_with_frame(text, frame)
+    assert '{"item": "soda"' in out
+    assert "['a', 'b']" not in out
+    assert '["a", "b"]' in out
+
+
 def test_parse_frontmatter_and_body() -> None:
     p = Persona.from_text(
         "---\n"

@@ -98,6 +98,9 @@ persona that references a field the FSM hasn't populated yet renders
 cleanly until the field exists. Interpolation runs at `get_prompt` time
 against whatever state the calling session is in.
 
+Values that resolve to dicts, lists, or tuples are rendered as JSON
+(`{"item": "soda"}`), not Python `repr`. Scalars are rendered via `str()`.
+
 ## Resources
 
 | URI                                       | Returns                                |
