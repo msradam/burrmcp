@@ -6,6 +6,40 @@ versioning.
 
 ## [Unreleased]
 
+### Added (doing-it-justice pass: streaming, hooks, annotations, drive_claude)
+
+The Burr + FastMCP pairing exposes more depth than `mount()` was making
+visible. This pass surfaces it.
+
+- **`mount(..., hooks=[...])`**: pass a list of Burr ``LifecycleAdapter``
+  instances (``PreRunStepHook``, ``PostRunStepHook``, ``PreStartStreamHook``,
+  ``DoLogAttributeHook``, etc.) and they get attached to every session's
+  Application via the adapter set after construction. Matches the surface
+  of ``ApplicationBuilder.with_hooks(...)`` for callers that only see the
+  built Application or a factory.
+- **Streaming actions surface chunks as MCP progress notifications.**
+  ``@streaming_action(.pydantic)`` was already wired in
+  ``_step_streaming_action`` — the chunks fan out via
+  ``ctx.report_progress(...)`` and the response carries
+  ``streamed: True`` plus ``chunks: N``. Newly covered by an explicit
+  ``tests/test_streaming_progress.py`` regression so the bridge cannot
+  silently regress.
+- **Tool annotations**: the four MCP tools now carry
+  ``ToolAnnotations(destructiveHint, idempotentHint, openWorldHint)``
+  appropriate to each.  ``step`` / ``reset_session`` / ``fork_at`` /
+  ``fork_from_past`` are all destructive; ``reset_session`` is
+  idempotent; ``fork_from_past`` reaches outside the current session's
+  history (``openWorldHint=True``). The synthetic ``list_resources`` /
+  ``read_resource`` tools FastMCP's ``ResourcesAsTools`` transform adds
+  are marked read-only for free.
+- **`theodosia.drive_claude`**: the one-line glue between a mounted
+  server and Anthropic's SDK. Lists the FSM's tools, injects
+  ``theodosia://graph`` / ``state`` / ``next`` into the system prompt,
+  loops turn-by-turn until terminal or ``max_turns``. Optional
+  ``[claude]`` extra (anthropic>=0.40). Re-exported from the top level.
+- **`tool annotations`, `streaming progress`, and `hooks kwarg`** all
+  covered by new tests (10 new asserts; 791 passing total).
+
 ### Fixed (round 18: hard timeout boundary; storage coupling; radon hygiene)
 - **`action_timeout_seconds` now fires at the wall-clock budget regardless
   of whether the inner await honors cancellation.** Previously

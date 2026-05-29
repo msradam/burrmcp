@@ -1587,6 +1587,21 @@ def _has_local_tracker(app: Application) -> bool:
     return isinstance(getattr(app, "_tracker", None), LocalTrackingClient)
 
 
+def _attach_hooks(app: Application, hooks: list[Any]) -> None:
+    """Append Burr lifecycle adapters to an already-built ``Application``.
+
+    Burr's ``ApplicationBuilder.with_hooks(*)`` is the normal path; this
+    helper is the post-build version for callers that only see the built
+    Application (factories, deserialized apps). Re-derives the sync/async
+    hook caches so the new adapters fire on the next ``astep``.
+    """
+    adapter_set = getattr(app, "_adapter_set", None)
+    if adapter_set is None:
+        return
+    adapter_set._adapters.extend(hooks)
+    adapter_set.sync_hooks, adapter_set.async_hooks = adapter_set._get_lifecycle_hooks()
+
+
 def _resolve_assembly_workflow(workflow: Any) -> Any:
     """Turn an Assembly's ``workflow`` field into a built Application or factory."""
     if not isinstance(workflow, str):
@@ -1620,6 +1635,7 @@ def _mount_from_assembly(asm: Any, **kw: Any) -> FastMCP:
         next_hint=kw["next_hint"],
         external_tools=kw["external_tools"],
         upstream=kw["upstream"] if kw["upstream"] is not None else asm.upstream,
+        hooks=kw.get("hooks"),
     )
 
 
@@ -1654,6 +1670,7 @@ def mount(
     next_hint: Callable[..., str | None] | None = None,
     external_tools: dict[str, list[str]] | None = None,
     upstream: dict[str, Any] | None = None,
+    hooks: list[Any] | None = None,
 ) -> FastMCP:
     """Return a FastMCP server that exposes ``application`` per ``mode``.
 
@@ -1775,10 +1792,31 @@ def mount(
             next_hint=next_hint,
             external_tools=external_tools,
             upstream=upstream,
+            hooks=hooks,
         )
 
     _silence_fastmcp_loggers()
     shared_app, factory = _resolve(application)
+
+    # When user-supplied hooks are provided, wrap shared_app or factory so
+    # the hooks are attached after construction. Burr's adapter set is a
+    # plain list of LifecycleAdapter instances; we append and re-derive the
+    # sync/async hook caches. Hooks attached this way fire on the same
+    # surfaces as ``ApplicationBuilder.with_hooks(...)``; they are not
+    # session-scoped, so place per-session logic inside the hook body if
+    # needed.
+    if hooks:
+        if factory is not None:
+            original_factory = factory
+
+            def factory_with_hooks() -> Application:
+                app_inst = original_factory()
+                _attach_hooks(app_inst, hooks)
+                return app_inst
+
+            factory = factory_with_hooks
+        if shared_app is not None:
+            _attach_hooks(shared_app, hooks)
     # Per-session store keyed by ctx.session_id; populated lazily on
     # the first tool call. Lives in closure scope so it's tied to this
     # server instance, not module-global. Holds both the session's
