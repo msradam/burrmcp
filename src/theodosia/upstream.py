@@ -34,7 +34,15 @@ _DETAIL_LIMIT = 300
 
 @dataclass
 class SourceResult:
-    """A classified upstream response: OK, ERROR, or MALFORMED."""
+    """A classified upstream response.
+
+    ``status`` is the lowercase string ``"ok"``, ``"error"``, or
+    ``"malformed"`` (the public ``theodosia.OK`` / ``ERROR`` /
+    ``MALFORMED`` constants hold those values). The uppercase names are
+    Python identifiers; the wire value is lowercase. Compare to the
+    constants, not to bare strings, to avoid a case-mismatch silently
+    classifying every response as degraded.
+    """
 
     name: str
     status: str

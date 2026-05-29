@@ -76,7 +76,14 @@ class FakeUpstream:
         self._calls.clear()
 
     def register(self, server: str, tool: str, response: ToolResponse) -> None:
-        """Add or replace a tool response after construction."""
+        """Add or replace a tool response after construction.
+
+        ``response`` is one of: a static value (returned verbatim), a
+        sync callable ``f(args) -> value``, or an async callable
+        ``async f(args) -> value``. A callable that raises simulates
+        upstream failure, surfacing through ``safe_upstream`` as a
+        classified ``ERROR`` result.
+        """
         self._responses.setdefault(server, {})[tool] = response
 
     # ── Manager protocol ──────────────────────────────────────────────────

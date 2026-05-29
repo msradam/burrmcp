@@ -168,6 +168,35 @@ Common trap: calling `step("take_order", {"item": "mocha"})` (without the
 `order` wrapper) raises `missing required inputs: {'order'}`. The input keys
 are parameter names, not the fields of the typed model.
 
+## `reads=` is structural, not advisory
+
+A Burr action's `reads=[...]` declaration looks like documentation but
+is actually enforced at runtime when the FSM uses `PydanticTypingSystem`.
+Burr synthesizes a per-action input model containing only the declared
+fields; an action body that references an undeclared field of state
+raises `AttributeError`, not `None`. The field literally does not exist
+on the projected input.
+
+```python
+@action(reads=["claims"], writes=["verification_answers"])
+def answer_verifications(state: VerifierState) -> VerifierState:
+    # state.claims works.
+    # state.baseline raises AttributeError: 'VerifierStateanswer_verifications_input'
+    # object has no attribute 'baseline' -- even though baseline exists
+    # at the FSM level.
+    ...
+```
+
+This is the architectural enforcement that makes patterns like
+Chain-of-Verification (independent verification phase) structural rather
+than aspirational. A prompt asking the LLM to "ignore the baseline when
+verifying" is exhortation; `reads=["claims"]` is a runtime contract the
+action body cannot violate.
+
+The MCP wire boundary tightens the same property: `step`'s `inputs`
+parameter only forwards keys that match the action body's signature, so
+an LLM client cannot smuggle extra fields through the wire either.
+
 ## Bundling: `theodosia.Assembly`
 
 An Assembly is a frozen dataclass bundling the workflow plus its mount-time

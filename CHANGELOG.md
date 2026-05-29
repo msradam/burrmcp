@@ -6,6 +6,35 @@ versioning.
 
 ## [Unreleased]
 
+### Fixed (round 15: remaining-prompt-pattern parallel audits)
+
+Three more parallel sim-agent audits, building the remaining classic
+prompt patterns as FSMs. All three returned ship-it verdicts.
+
+- **Sim G (ReWOO, plan-first-no-observation)**: confirmed the
+  no-inline-observation property is structurally enforced by the FSM
+  topology, not just a prompt instruction. 3-5x token savings matched
+  the paper. Verdict: ship.
+- **Sim H (Chain-of-Verification)**: discovered that Burr's
+  `reads=[...]` declaration enforces per-action input independence via
+  the synthesized Pydantic input model. The verifier action literally
+  cannot access the baseline because the field doesn't exist on its
+  projected input (`AttributeError`, not `None`). This is the
+  structural enforcement that makes CoVe's independence property
+  defensible. New section in `authoring.md` documenting it.
+- **Sim I (Plan-and-Execute)**: `reads=["last_eval", ...]` forces the
+  planner to engage with the failure signal — the action body cannot
+  run without that field in scope. Termination cap is a transition
+  edge, not a counter. Verdict: ship over LangChain's Plan-and-Execute.
+
+### Documented
+- `SourceResult.status` is the lowercase string `"ok"` / `"error"` /
+  `"malformed"`. The uppercase `OK` / `ERROR` / `MALFORMED` constants
+  are the public identifiers; compare to those, not bare uppercase
+  strings.
+- `FakeUpstream.register` accepts static values, sync callables, or
+  async callables taking the args dict. Spelled out in the docstring.
+
 ### Fixed (round 14: prompt-pattern parallel audits)
 
 Three more parallel sim-agent audits, this round building classic prompt
