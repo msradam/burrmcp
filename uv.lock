@@ -2837,10 +2837,10 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "anthropic", marker = "extra == 'claude'", specifier = ">=0.40" },
-    { name = "apache-burr", extras = ["opentelemetry"], marker = "extra == 'observability'", specifier = ">=0.42,<0.43" },
-    { name = "apache-burr", extras = ["start"], marker = "extra == 'ui'", specifier = ">=0.42,<0.43" },
-    { name = "apache-burr", extras = ["tracking"], specifier = ">=0.42,<0.43" },
-    { name = "fastmcp", specifier = ">=3.3,<3.4" },
+    { name = "apache-burr", extras = ["opentelemetry"], marker = "extra == 'observability'", specifier = ">=0.42,<1.0" },
+    { name = "apache-burr", extras = ["start"], marker = "extra == 'ui'", specifier = ">=0.42,<1.0" },
+    { name = "apache-burr", extras = ["tracking"], specifier = ">=0.42,<1.0" },
+    { name = "fastmcp", specifier = ">=3.3,<4.0" },
     { name = "mellea", marker = "extra == 'mellea'", specifier = ">=0.1" },
     { name = "opentelemetry-api", marker = "extra == 'observability'", specifier = ">=1.20" },
     { name = "opentelemetry-sdk", marker = "extra == 'observability'", specifier = ">=1.20" },

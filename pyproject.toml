@@ -33,11 +33,17 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "apache-burr[tracking]>=0.42,<0.43",
-    "fastmcp>=3.3,<3.4",
+    "apache-burr[tracking]>=0.42,<1.0",
+    "fastmcp>=3.3,<4.0",
     "pydantic>=2,<3",
     "typer>=0.12,<1.0",
 ]
+# Upper bounds are at the next semver major: Burr is still 0.x (which by
+# convention may break between minors, so users sharing a venv with newer
+# Burr may need to pin tighter at deploy), FastMCP follows semver. CI
+# tests against ``apache-burr==0.42`` and ``fastmcp==3.3`` today; if a
+# minor release breaks the integration we will pin tighter and document
+# the break in CHANGELOG.
 
 [project.urls]
 Homepage = "https://github.com/msradam/theodosia"
@@ -48,12 +54,12 @@ Changelog = "https://github.com/msradam/theodosia/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 observability = [
-    "apache-burr[opentelemetry]>=0.42,<0.43",
+    "apache-burr[opentelemetry]>=0.42,<1.0",
     "opentelemetry-api>=1.20",
     "opentelemetry-sdk>=1.20",
 ]
 ui = [
-    "apache-burr[start]>=0.42,<0.43",
+    "apache-burr[start]>=0.42,<1.0",
 ]
 mellea = [
     "mellea>=0.1",
