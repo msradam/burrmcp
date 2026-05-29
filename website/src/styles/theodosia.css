@@ -3,6 +3,13 @@
  * Drop into src/styles/theodosia.css and import from src/content/docs/_layout or
  * astro.config.mjs (Starlight customCss). Override Starlight tokens by reassigning
  * --sl-color-* to these values in a sibling starlight-overrides.css file.
+ *
+ * !!! HAND-MIRROR OF src/theodosia/tokens.py !!!
+ * The single source of truth for these colors and fonts lives in the Python
+ * module src/theodosia/tokens.py. The themed Burr web UI overlay and the
+ * Theodosia TUI both consume tokens.py directly. This CSS file restates the
+ * same values for the docs site, which can't import Python at build time
+ * (yet). If you change a color or font here, update tokens.py in the same PR.
  */
 
 :root {

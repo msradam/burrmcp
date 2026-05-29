@@ -1,0 +1,46 @@
+# Theodosia
+
+> Put an AI agent on rails. Mount a Burr state machine as an MCP server so the agent can only take the next allowed step, with every step recorded.
+
+Theodosia exposes a four-tool MCP surface (`step`, `reset_session`, `fork_at`, `fork_from_past`) that an MCP-aware agent (Claude Code, Cursor, fast-agent, mcphost) drives. The agent picks an action by name; the FSM enforces transitions; refusals carry valid-next-action hints so the agent self-corrects.
+
+The hosted docs are at https://theodosia.dev. Source: https://github.com/msradam/theodosia.
+
+## Start here
+
+- [Theodosia](https://theodosia.dev/): One-page overview of mount() and the agent contract.
+- [Architecture](https://theodosia.dev/architecture/): How mount() turns a Burr Application into an MCP server.
+- [Tutorial: build your own agent](https://theodosia.dev/tutorial/): End-to-end walkthrough. Describe a workflow, have a coding model write the Burr graph, mount with Theodosia, drive with an agent, read the recorded session.
+
+## Authoring and tooling
+
+- [Authoring a graph](https://theodosia.dev/authoring/): Build a Burr Application from scratch and serve it with Theodosia.
+- [CLI](https://theodosia.dev/cli/): `serve`, `doctor`, `render`, `status`, `report`, `sessions`, and `build_cli()` for branded downstream commands.
+- [What works through mount()](https://theodosia.dev/compatibility/): Burr surfaces that pass through the adapter (state, actions, transitions, hooks, persisters, sub-applications).
+
+## The agent contract
+
+- [MCP tools and resources](https://theodosia.dev/tools/): The fixed `step`/`reset_session`/`fork_at`/`fork_from_past` tools and the `theodosia://...` resources every mounted server exposes.
+- [Refusals and recovery](https://theodosia.dev/refusals/): Structured refusal shapes the step tool returns, and how an agent recovers from them.
+- [Sessions and forking](https://theodosia.dev/sessions/): Per-session state isolation; tools that reset, roll back, and resume a run.
+
+## Composing with other systems
+
+- [Driving other MCP servers](https://theodosia.dev/upstream/): The `upstream=` feature: action bodies calling other MCP servers via `call_upstream()`. Also covers chaos handling: `safe_upstream()` returns classified `SourceResult` (`ok`/`error`/`malformed`) so one flaky upstream never poisons the FSM.
+- [Examples](https://theodosia.dev/examples/): Standalone agents built with Theodosia, plus the 43 in-repo example FSMs.
+
+## Observability and safety
+
+- [Observability](https://theodosia.dev/observability/): The `theodosia://...` resources, the terminal CLI, the Burr UI, OpenTelemetry.
+- [Security model](https://theodosia.dev/security-model/): The trust boundary Theodosia enforces, and what it deliberately does not.
+
+## Why this approach
+
+- [Case study: the rails make the agent finish](https://theodosia.dev/case-study/): The same model run two ways on real incident tasks. Free-ranging it trails off; on rails the conclude gate forces a committed, correct conclusion. Benchmark grader as witness.
+- [Research foundation](https://theodosia.dev/research-foundation/): The published evidence behind driving a state machine from outside the model: why structure, external verification, and audit beat prompt-level fixes. Cites STRATUS (NeurIPS 2025), MAST, ChaosEater.
+
+## Optional
+
+- [Source repository](https://github.com/msradam/theodosia): The package, all 43 narrative example FSMs, and the test suite.
+- [PyPI](https://pypi.org/project/theodosia/): `pip install theodosia` to start.
+- [Philip](https://github.com/msradam/philip): Sibling library that lifts Ansible playbooks, Mermaid diagrams, SQL CTEs, and Excalidraw sketches into Burr Applications that Theodosia can mount.

@@ -24,13 +24,22 @@ from theodosia.adapter import (
     mount_multi,
     spawn_subapp,
 )
+from theodosia.assembly import Assembly
 from theodosia.importing import ToolSpec, burr_app_from_fastmcp
 from theodosia.ledger import HashChainedLedger, verify_ledger
 from theodosia.upstream import (
+    ERROR,
+    MALFORMED,
+    OK,
+    SourceResult,
     UpstreamError,
     UpstreamManager,
     bind_upstream,
     call_upstream,
+    classify_payload,
+    confidence_label,
+    coverage,
+    safe_upstream,
 )
 
 
@@ -48,8 +57,13 @@ def tracker(project: str, storage_dir: str = "~/.theodosia", **kwargs: Any):
 
 
 __all__ = [
+    "ERROR",
+    "MALFORMED",
+    "OK",
+    "Assembly",
     "HashChainedLedger",
     "ServingMode",
+    "SourceResult",
     "ToolSpec",
     "UpstreamError",
     "UpstreamManager",
@@ -57,9 +71,13 @@ __all__ = [
     "bind_upstream",
     "burr_app_from_fastmcp",
     "call_upstream",
+    "classify_payload",
+    "confidence_label",
+    "coverage",
     "current_mcp_context",
     "mount",
     "mount_multi",
+    "safe_upstream",
     "spawn_subapp",
     "tracker",
     "verify_ledger",

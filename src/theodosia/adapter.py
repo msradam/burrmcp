@@ -58,7 +58,10 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Annotated, Any
+
+if TYPE_CHECKING:
+    from theodosia.persona import PersonaSource
 
 import pydantic
 from burr.core import Application
@@ -481,6 +484,32 @@ def _read_trace(path: Path, *, tail: int = _TRACE_MAX_ENTRIES) -> list[dict]:
     return entries
 
 
+# The machinery preamble shipped to every Theodosia-served MCP server by
+# default. It teaches the agent how to drive the workflow: one step tool,
+# pick from the listed actions, recover from refusals by reading
+# valid_next_actions, stop at terminal. Validated in the floor test (qwen3:0.6b
+# went from 0/10 to 10/10 on a trivial 3-action FSM once this was present).
+# Mount() prepends this to any developer-supplied ``instructions`` unless
+# ``include_default_instructions=False`` is passed.
+DEFAULT_INSTRUCTIONS = """\
+This server exposes several tools. To drive the workflow, use only the `step` \
+tool. Follow this loop:
+
+1. Call `step` with {"action": "<NAME>", "inputs": {}} where <NAME> is one of \
+the action names listed in the `step` tool's schema.
+
+2. If the response contains "valid_next_actions": [...], your call was \
+refused. You MUST call `step` again with one of the names in that list. Do \
+not write a text reply.
+
+3. If the response contains "known_actions" but the action you used is not in \
+the list, you used a name that does not exist. Pick a name from \
+"known_actions" or "valid_next_actions" and call `step` again.
+
+4. Stop when the response shows a terminal state (no "valid_next_actions" \
+listed)."""
+
+
 def _render_action_surface(app: Application) -> str:
     """Render a compact text summary of the FSM's action + transition surface.
 
@@ -533,7 +562,7 @@ def _normalize_external_tools(
                 stacklevel=3,
             )
             continue
-        out[action_name] = [str(t) for t in (tools or []) if str(t).strip()]
+        out[action_name] = [t for t in (tools or ()) if isinstance(t, str) and t.strip()]
     return out
 
 
@@ -658,6 +687,42 @@ def _compute_graph_summary(
     }
 
 
+def _build_persona_frame(
+    ctx: Context | None,
+    store: _SessionStore,
+    factory: ApplicationFactory | None,
+) -> dict[str, Any] | None:
+    """Build the frame dict for persona interpolation, or ``None`` if no session.
+
+    Top-level keys: ``state.<field>``, ``action.name``, ``action.reachable``,
+    ``graph.total_actions``, ``graph.all_actions``, ``session.session_id``.
+    """
+    if ctx is None or factory is None:
+        return None
+    try:
+        session_id = ctx.session_id
+    except Exception:
+        return None
+    entry = store.get_or_create(session_id, factory)
+    app = entry.app
+    state_fields = dict(app.state.get_all())
+    state_fields.pop("__PRIOR_STEP", None)
+    last_action = app.state.get("__PRIOR_STEP") or app.entrypoint
+    reachable = valid_next_action_names(app)
+    return {
+        "state": state_fields,
+        "action": {
+            "name": last_action,
+            "reachable": ", ".join(reachable),
+        },
+        "graph": {
+            "total_actions": len(app.graph.actions),
+            "all_actions": ", ".join(a.name for a in app.graph.actions),
+        },
+        "session": {"session_id": session_id},
+    }
+
+
 def valid_next_action_names(app: Application) -> list[str]:
     """Names of actions reachable from the current state.
 
@@ -688,7 +753,7 @@ def _action_inputs(action: Action) -> tuple[list[str], list[str]]:
     raw = action.inputs
     if isinstance(raw, tuple) and len(raw) == 2:
         req, opt = raw
-        return list(req), list(opt)
+        return req.copy(), opt.copy()
     return list(raw or []), []
 
 
@@ -1188,11 +1253,8 @@ def _append_refusal_sidecar(app: Application, record: dict[str, Any]) -> None:
     if log_path is None:
         return
     sidecar = log_path.parent / "refusals.jsonl"
-    try:
-        with sidecar.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(record, default=str) + "\n")
-    except OSError:
-        pass
+    with contextlib.suppress(OSError), sidecar.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(record, default=str) + "\n")
 
 
 def _refusal_payload(
@@ -1707,11 +1769,14 @@ def _has_local_tracker(app: Application) -> bool:
 
 
 def mount(
-    application: ApplicationOrFactory,
+    application: ApplicationOrFactory | Any,
     *,
     mode: ServingMode = ServingMode.STEP,
     name: str | None = None,
     instructions: str | None = None,
+    include_default_instructions: bool = True,
+    personas: PersonaSource | None = None,
+    default_persona: str | None = None,
     session_ttl_seconds: int | None = _DEFAULT_SESSION_TTL_SECONDS,
     max_sessions: int | None = _DEFAULT_MAX_SESSIONS,
     action_timeout_seconds: float | None = None,
@@ -1721,6 +1786,37 @@ def mount(
     external_tools: dict[str, list[str]] | None = None,
     upstream: dict[str, Any] | None = None,
 ) -> FastMCP:
+    # If the first positional is an Assembly, unpack it; explicit kwargs override
+    # the assembly's fields.
+    from theodosia.assembly import Assembly
+
+    if isinstance(application, Assembly):
+        asm = application
+        workflow = asm.workflow
+        if isinstance(workflow, str):
+            import importlib
+
+            module_name, _, attr = workflow.partition(":")
+            workflow = getattr(importlib.import_module(module_name), attr)
+        return mount(
+            workflow,
+            mode=mode,
+            name=name if name is not None else asm.name,
+            instructions=instructions if instructions is not None else asm.instructions,
+            include_default_instructions=include_default_instructions
+            if include_default_instructions is not True
+            else asm.include_default_instructions,
+            personas=personas if personas is not None else asm.personas,
+            default_persona=default_persona if default_persona is not None else asm.default_persona,
+            session_ttl_seconds=session_ttl_seconds,
+            max_sessions=max_sessions,
+            action_timeout_seconds=action_timeout_seconds,
+            input_validators=input_validators,
+            state_loader=state_loader,
+            next_hint=next_hint,
+            external_tools=external_tools,
+            upstream=upstream if upstream is not None else asm.upstream,
+        )
     """Return a FastMCP server that exposes ``application`` per ``mode``.
 
     Args:
@@ -1732,7 +1828,29 @@ def mount(
         mode: ``ServingMode.STEP`` (the only supported value).
         name: MCP server name; defaults to ``"theodosia"``.
         instructions: Server-level instructions surfaced via the MCP
-            spec's server-info ``instructions`` field.
+            spec's server-info ``instructions`` field. When
+            ``include_default_instructions`` is True (the default), the
+            machinery preamble (``DEFAULT_INSTRUCTIONS``) is prepended to
+            this string so the agent gets both how-to-drive-an-FSM guidance
+            and your FSM-specific guidance. Pass an empty string to suppress
+            the developer portion while still keeping the default preamble.
+        include_default_instructions: Whether to prepend
+            ``DEFAULT_INSTRUCTIONS`` (the validated 5-rule machinery preamble)
+            to the server's instructions. Default True. Floor-tested to lift
+            qwen3:0.6b from 0/10 to 10/10 on a trivial FSM, with no regression
+            on stronger models. Pass False if you want full control over what
+            the agent sees.
+        personas: An optional identity layer. Accepts a directory path (parses
+            every ``*.md`` file as a PERSONA.md), a single file path, a dict
+            ``{name: text}``, or a list of ``Persona`` objects. Each persona is
+            registered as an MCP prompt named ``theodosia/persona/<name>`` so
+            clients can pick one at session-start, and the full set is
+            exposed at ``theodosia://personas``. If unset, the server has no
+            identity layer (the historical Theodosia behavior).
+        default_persona: The persona whose body is prepended to the server's
+            ``instructions`` for clients that don't pick one explicitly. Must
+            be one of the loaded persona names, or ``None`` (default) to use
+            the lexically first persona. Ignored if no personas are loaded.
         session_ttl_seconds: Idle TTL for the per-session store. After
             this many seconds without a tool call or resource read, a
             session's Application and history are evicted on the next
@@ -1818,7 +1936,17 @@ def mount(
     # name exists in the graph; warn (don't fail) on unknowns so a typo
     # doesn't take the server down.
     external_tools_map = _normalize_external_tools(external_tools, shared_app)
-    upstream_manager = UpstreamManager(upstream) if upstream else None
+    # Accept either a config dict (the common case; UpstreamManager opens
+    # real client sessions) or a pre-built manager (test fakes, custom
+    # managers wrapping already-open sessions). Anything with an async
+    # ``call`` attribute is treated as a manager; anything else is treated
+    # as a config dict.
+    if upstream is None:
+        upstream_manager = None
+    elif hasattr(upstream, "call"):
+        upstream_manager = upstream
+    else:
+        upstream_manager = UpstreamManager(upstream)
     # Static graph summary, computed once. Sub-runs may have their own
     # graphs but this resource describes the top-level one.
     graph_summary = _compute_graph_summary(shared_app, server_name, external_tools_map)
@@ -1838,7 +1966,27 @@ def mount(
         "explore an alternate path from there, call fork_at(sequence_id) "
         "with a seq from theodosia://history. Both are always available."
     )
-    parts = [p for p in (instructions, action_surface, discovery_hint) if p]
+    # Load personas (the identity layer). One persona becomes the default for
+    # this server's instructions; all personas are registered as MCP prompts
+    # so clients can pick a different one at session-start.
+    from theodosia.persona import load_personas, resolve_default
+
+    personas_map = load_personas(personas)
+    persona = resolve_default(personas_map, default_persona)
+    persona_prompt = persona.to_prompt_text() if persona is not None else None
+
+    # Compose the server's instructions in this order:
+    #   1. DEFAULT_INSTRUCTIONS: the machinery preamble (how to drive an FSM)
+    #   2. default persona prompt: who's executing the workflow (identity)
+    #   3. instructions: developer-supplied (what this specific FSM is for)
+    #   4. action_surface: the rendered action listing
+    #   5. discovery_hint: pointer to ``theodosia://graph`` etc.
+    # Order matters: machinery first (protocol), identity next (voice/role),
+    # then domain instructions, then the listings. The agent reads top-down.
+    preamble = DEFAULT_INSTRUCTIONS if include_default_instructions else None
+    parts = [
+        p for p in (preamble, persona_prompt, instructions, action_surface, discovery_hint) if p
+    ]
     effective_instructions = "\n\n".join(parts)
     # ``strict_input_validation=False`` lets the coercion middleware below
     # run before FastMCP rejects out-of-shape arguments. With strict
@@ -2068,6 +2216,70 @@ def mount(
             indent=2,
         )
 
+    # ── personas: identity layer (when mounted with personas=) ──────
+    if personas_map:
+
+        @mcp.resource("theodosia://personas")
+        async def _personas_resource() -> str:
+            """Index of personas mounted on this server.
+
+            Returns ``{name: {description, voice, has_metadata}}`` so a client
+            can list available identities without fetching every body. Each
+            persona is also registered as an MCP prompt named
+            ``theodosia/persona/<name>``; ``prompts/get`` returns the body.
+            """
+            return json.dumps(
+                {
+                    p.name: {
+                        "description": p.description,
+                        "voice": p.voice,
+                        "has_metadata": bool(p.metadata),
+                    }
+                    for p in personas_map.values()
+                },
+                indent=2,
+            )
+
+        if persona is not None:
+            default_name = persona.name
+
+            @mcp.resource("theodosia://persona")
+            async def _active_persona_resource() -> str:
+                """The persona currently active for this server.
+
+                For v0.3 the active persona is whichever was chosen at mount
+                time via ``default_persona=`` (or the lexically first one).
+                Mid-session swap via a ``set_persona`` tool is planned for
+                v0.3.1 and will make this per-session.
+                """
+                p = personas_map[default_name]
+                return json.dumps(
+                    {
+                        "name": p.name,
+                        "description": p.description,
+                        "voice": p.voice,
+                        "body": p.body,
+                        "metadata": p.metadata,
+                    },
+                    indent=2,
+                )
+
+        # Each persona becomes an MCP prompt. When a session is active the
+        # body is interpolated against the current frame; unknown placeholders
+        # render as empty strings.
+        for _persona in personas_map.values():
+            _name = f"theodosia/persona/{_persona.name}"
+            _desc = _persona.description or f"Persona: {_persona.name}"
+
+            def _make_prompt_fn(persona_obj):
+                async def _persona_prompt_fn(ctx) -> str:
+                    frame = _build_persona_frame(ctx, store, factory)
+                    return persona_obj.to_prompt_text(frame=frame)
+
+                return _persona_prompt_fn
+
+            mcp.prompt(name=_name, description=_desc)(_make_prompt_fn(_persona))
+
     # ── tools, per mode ──────────────────────────────────────────────
 
     if mode is ServingMode.STEP:
@@ -2254,6 +2466,24 @@ def mount(
             await _emit_log(ctx, headline)
             return _step_tool_result(out, headline)
 
+        # Constrain the action parameter to the actual graph's action names so
+        # the tool schema advertises an enum. Weak models otherwise hallucinate
+        # plausible-sounding action names (e.g. "Start the workflow.") and
+        # never recover; verified in the floor test (qwen3:0.6b went from 0/10
+        # to 10/10 once the enum was present). The injection is via Pydantic's
+        # Field(json_schema_extra=...) on an Annotated wrapper so FastMCP's
+        # schema generator picks it up without us forking the type hint.
+        step.__annotations__["action"] = Annotated[
+            str,
+            pydantic.Field(
+                description=(
+                    "Name of the action to run. Must be one of the listed "
+                    "values; calling an out-of-state value returns an "
+                    "invalid_transition error with the current valid set."
+                ),
+                json_schema_extra={"enum": action_names.copy()},
+            ),
+        ]
         step_description = f"{step.__doc__}\n\n{action_surface}"
         mcp.tool(
             name="step",

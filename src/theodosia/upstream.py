@@ -1,29 +1,8 @@
-"""Upstream MCP servers: theodosia as an MCP *client* to other servers.
+"""Upstream MCP servers: theodosia as an MCP client to other servers.
 
-This is the load-bearing half of the "works with any MCP server" promise.
-theodosia is normally the MCP *server* the agent talks to. With ``upstream``,
-it also opens MCP *client* sessions to other servers (Kubernetes, Grafana,
-filesystem, ...). A Burr action can then call those servers' tools from
-inside its Python body via ``call_upstream(server, tool, args)``.
-
-Why this keeps the architecture honest:
-
-* **Single surface.** The agent only ever sees theodosia's ``step`` tool.
-  The upstream servers are not exposed to it. There is no separate "query
-  the cluster" surface to get absorbed in, so weak models can't loop.
-* **Every call is a ledger entry.** The upstream call happens inside an
-  action, so it advances state by construction. The graph can't fall out
-  of sync with what actually happened.
-* **Any server.** MCP is a standard protocol and ``fastmcp.Client``
-  speaks every transport (stdio, http, sse). theodosia doesn't need to know
-  what the upstream server is.
-* **No arg-guessing.** The action author writes the call explicitly
-  (server, tool, args) -- the same as calling any API. No fragile
-  per-backend name/arg inference.
-
-Bind a manager with ``bind_upstream`` (mount does this around each step);
-call tools with ``call_upstream``. Tests/embeddings can bind any object
-with an async ``call(server, tool, args)`` method.
+``bind_upstream`` installs a manager for the current context; ``call_upstream``
+invokes a tool on a named upstream from inside a Burr action body. A manager
+is anything with an async ``call(server, tool, args)`` method.
 """
 
 from __future__ import annotations
@@ -32,6 +11,7 @@ import asyncio
 import contextlib
 import json
 from contextvars import ContextVar
+from dataclasses import dataclass, field
 from typing import Any
 
 _UPSTREAM: ContextVar[Any | None] = ContextVar("theodosia_upstream", default=None)
@@ -41,12 +21,100 @@ class UpstreamError(RuntimeError):
     """An upstream call failed or no manager/server was available."""
 
 
+# ── Classified upstream responses ─────────────────────────────────────────
+
+OK = "ok"
+ERROR = "error"
+MALFORMED = "malformed"
+
+_STATUS_VALUES = frozenset({OK, ERROR, MALFORMED})
+_ERROR_TEXT_HINTS = ("error", "exception", "traceback", "failed")
+_DETAIL_LIMIT = 300
+
+
+@dataclass
+class SourceResult:
+    """A classified upstream response: OK, ERROR, or MALFORMED."""
+
+    name: str
+    status: str
+    data: Any = None
+    detail: str = ""
+    meta: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if self.status not in _STATUS_VALUES:
+            raise ValueError(
+                f"SourceResult.status must be one of {sorted(_STATUS_VALUES)}; got {self.status!r}"
+            )
+
+    @property
+    def usable(self) -> bool:
+        """True when the data is structured and not error-shaped."""
+        return self.status == OK
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "status": self.status,
+            "data": self.data,
+            "detail": self.detail,
+            "meta": self.meta,
+        }
+
+
+def classify_payload(name: str, payload: Any, *, expect: str = "any") -> SourceResult:
+    """Classify a returned payload. ``expect`` is one of ``any``, ``list``, ``dict``."""
+    if payload is None:
+        return SourceResult(name, ERROR, detail="empty response")
+    if isinstance(payload, str):
+        low = payload.lower()
+        if any(hint in low for hint in _ERROR_TEXT_HINTS):
+            return SourceResult(name, ERROR, detail=payload[:_DETAIL_LIMIT])
+        return SourceResult(name, MALFORMED, data=payload, detail="unstructured text")
+    if isinstance(payload, dict) and payload.get("error"):
+        return SourceResult(name, ERROR, detail=str(payload.get("error"))[:_DETAIL_LIMIT])
+    if expect == "list" and not isinstance(payload, (list, dict)):
+        return SourceResult(name, MALFORMED, data=payload, detail="expected list/dict")
+    if expect == "dict" and not isinstance(payload, dict):
+        return SourceResult(name, MALFORMED, data=payload, detail="expected dict")
+    return SourceResult(name, OK, data=payload)
+
+
+async def safe_upstream(
+    name: str,
+    server: str,
+    tool: str,
+    args: dict[str, Any] | None = None,
+    *,
+    expect: str = "any",
+) -> SourceResult:
+    """Call an upstream tool and return a classified result. Never raises."""
+    try:
+        payload = await call_upstream(server, tool, args or {})
+    except UpstreamError as exc:
+        return SourceResult(name, ERROR, detail=f"upstream unavailable: {exc}"[:_DETAIL_LIMIT])
+    except Exception as exc:
+        return SourceResult(name, ERROR, detail=f"{type(exc).__name__}: {exc}"[:_DETAIL_LIMIT])
+    return classify_payload(name, payload, expect=expect)
+
+
+def coverage(results: list[SourceResult]) -> tuple[int, int]:
+    """Return ``(usable_sources, configured_sources)``."""
+    return sum(1 for r in results if r.usable), len(results)
+
+
+def confidence_label(usable: int, total: int) -> str:
+    """Map a coverage tuple to ``none``, ``degraded``, or ``full``."""
+    if 0 in (total, usable):
+        return "none"
+    if usable < total:
+        return "degraded"
+    return "full"
+
+
 def bind_upstream(manager: Any):
-    """Bind an upstream manager for the current context. Returns the token
-    for ``_UPSTREAM.reset(token)``. ``manager`` is anything with an async
-    ``call(server, tool, args) -> Any`` method (the built-in
-    ``UpstreamManager`` or a custom one, e.g. a harness wrapping an
-    already-open session)."""
+    """Bind an upstream manager for the current context; returns the reset token."""
     return _UPSTREAM.set(manager)
 
 
@@ -55,12 +123,7 @@ def reset_upstream(token) -> None:
 
 
 async def call_upstream(server: str, tool: str, args: dict[str, Any] | None = None) -> Any:
-    """Call ``tool`` on the upstream MCP ``server`` with ``args``.
-
-    Returns the tool's result (structured content if present, else text).
-    Raises ``UpstreamError`` if no manager is bound or the server is
-    unknown. Call this from inside a Burr action body.
-    """
+    """Call ``tool`` on upstream ``server``; raises ``UpstreamError`` if unbound."""
     mgr = _UPSTREAM.get()
     if mgr is None:
         raise UpstreamError(
@@ -88,13 +151,11 @@ def _extract(result: Any) -> Any:
 
 
 def _as_transport(config: Any) -> Any:
-    """Map an upstream config to something ``fastmcp.Client`` accepts.
+    """Map an upstream config to a ``fastmcp.Client`` transport.
 
-    A bare ``{"command": ..., "args": [...]}`` dict becomes an explicit
-    ``StdioTransport`` (so the upstream tool names are NOT namespaced, the
-    way an mcp-config dict would prefix them). Everything else (URL string,
-    mcp-config dict, transport object, FastMCP instance) is passed through
-    untouched.
+    A bare ``{"command": ..., "args": [...]}`` becomes a ``StdioTransport``
+    so upstream tool names are not namespaced the way an mcp-config dict
+    would prefix them.
     """
     if isinstance(config, dict) and "command" in config and "mcpServers" not in config:
         from fastmcp.client.transports import StdioTransport
@@ -109,16 +170,10 @@ def _as_transport(config: Any) -> Any:
 
 
 class UpstreamManager:
-    """Lazily opens and caches ``fastmcp.Client`` sessions to upstream
-    servers, keyed by name. One session per server, opened on first use,
-    kept open for the manager's lifetime.
-
-    ``configs`` maps a server name to anything ``fastmcp.Client`` accepts
-    as its transport: a URL string, an mcp-config dict, a transport object.
-    """
+    """Lazily opens and caches one ``fastmcp.Client`` session per upstream server."""
 
     def __init__(self, configs: dict[str, Any]):
-        self._configs = dict(configs or {})
+        self._configs = configs.copy()
         self._clients: dict[str, Any] = {}
         self._lock = asyncio.Lock()
 
@@ -136,17 +191,14 @@ class UpstreamManager:
         from fastmcp import Client
 
         client = Client(_as_transport(self._configs[server]))
-        await client.__aenter__()  # keep the session open across calls
+        await client.__aenter__()
         self._clients[server] = client
         return client
 
     async def call(self, server: str, tool: str, args: dict[str, Any]) -> Any:
-        # Serialize per-manager: a single Client session isn't guaranteed
-        # safe under concurrent calls, and Burr steps are serialized per
-        # session anyway.
         async with self._lock:
             client = await self._client(server)
-            result = await client.call_tool(tool, args or {})
+            result = await client.call_tool(tool, args)
         return _extract(result)
 
     async def aclose(self) -> None:

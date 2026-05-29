@@ -3,8 +3,22 @@ title: 'CLI'
 description: 'serve, doctor, render, the observability commands, and build_cli.'
 ---
 
-`pip install theodosia` registers a `theodosia` console script with three groups of
-commands: serve, validate, and observe.
+`pip install theodosia` registers a `theodosia` console script with four groups of
+commands: first-touch, serve, validate, and observe.
+
+## primer
+
+`primer` is the 30-second offline first-touch. It mounts the bundled
+[`coffee_order`](https://github.com/msradam/theodosia/tree/main/examples/coffee_order.py)
+FSM in-process via FastMCP's in-memory client, walks a fixed trajectory through
+the `step` tool, prints the timeline with state diffs, and ends with one
+structured refusal so the recoverable shape is visible.
+
+```bash
+theodosia primer
+```
+
+No API key, no LLM, byte-deterministic. The first thing to run after `pip install`.
 
 ## serve and doctor
 

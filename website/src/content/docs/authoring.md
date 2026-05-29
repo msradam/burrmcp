@@ -110,8 +110,35 @@ finds your runs with no extra flags. If you instead wire Burr's native tracker
 point the CLI at it: `theodosia sessions ls --home ~/.burr -p incident`. Pick
 one and stay consistent.
 
+## Bundling: `theodosia.Assembly`
+
+An Assembly is a frozen dataclass bundling the workflow plus its mount-time
+configuration (personas, upstream config, instructions, metadata) into one
+declarative artifact. `mount(assembly)` and `assembly.serve()` are equivalent,
+so an Assembly is a complete description of what to mount.
+
+```python
+from theodosia import Assembly
+from incident import build_application
+
+asm = Assembly(
+    name="incident",
+    workflow=build_application,
+    upstream={"grafana": "http://localhost:8000/sse"},
+    personas="personas/",  # a directory of PERSONA.md files
+    default_persona="on-call-sre",
+)
+
+asm.serve().run()       # or: theodosia.mount(asm).run()
+```
+
+The `workflow` field accepts a built `Application`, a factory callable, or a
+`module:attr` import string. `Assembly.from_yaml(path)` loads the same shape
+from disk for declarative configuration. Per-call kwargs to `mount(asm, ...)`
+override the Assembly's fields.
+
 ## Next
 
 - [Architecture](architecture.md): the four-tool surface and how `step` drives Burr.
 - [Observability](observability.md): tail, replay, and the Burr UI for any served graph.
-- [CLI](cli.md): `serve`, `doctor`, and the observability commands.
+- [CLI](cli.md): `primer`, `serve`, `doctor`, and the observability commands.

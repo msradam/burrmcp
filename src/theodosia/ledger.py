@@ -52,7 +52,7 @@ class HashChainedLedger:
         """Chain ``event`` onto the ledger and return the written entry
         (the event plus its ``prev`` and ``hash``)."""
         prev = self._last_hash()
-        entry = {**event, "prev": prev}
+        entry = event | {"prev": prev}
         entry["hash"] = _digest(prev, entry)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.path.open("a", encoding="utf-8") as fh:

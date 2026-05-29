@@ -37,6 +37,7 @@ from rich.text import Text
 from rich.theme import Theme
 
 from theodosia.adapter import ServingMode, mount
+from theodosia.primer import primer
 
 # Rose Pine palette (https://rosepinetheme.com). Semantic style names map
 # onto the palette so the rendering code reads intent, not hex.
@@ -103,7 +104,7 @@ def _import_target(target: str, extra_paths: list[str] | None = None) -> Any:
             f"target must be of the form module:attr (got {target!r}). "
             f"Example: coffee_order:build_application"
         )
-    paths = [os.getcwd(), *(extra_paths or [])]
+    paths = [str(Path.cwd()), *(extra_paths or [])]
     for p in paths:
         absp = os.path.abspath(p)
         if absp not in sys.path:
@@ -180,7 +181,7 @@ class _Topology:
         return not any(frm == node for frm, _to, _c in self.edges)
 
     def has_self_loop(self, node: str) -> bool:
-        return any(frm == node and to == node for frm, to, _c in self.edges)
+        return any(frm == node == to for frm, to, _c in self.edges)
 
 
 def _topology(target: str | None, app_dir: list[str], name: str) -> _Topology:
@@ -213,8 +214,7 @@ def _render_mermaid(topo: _Topology, *, conditions: bool) -> str:
 def _render_dot(topo: _Topology, *, conditions: bool) -> str:
     lines = ["digraph G {", "    rankdir=LR;", "    node [shape=box, style=rounded];"]
     if topo.entry:
-        lines.append("    __start__ [shape=point];")
-        lines.append(f'    __start__ -> "{topo.entry}";')
+        lines.extend(("    __start__ [shape=point];", f'    __start__ -> "{topo.entry}";'))
     for frm, to, cond in topo.edges:
         label = f' [label="{cond}"]' if conditions and cond else ""
         lines.append(f'    "{frm}" -> "{to}"{label};')
@@ -1099,6 +1099,311 @@ def _version_callback(value: bool) -> None:
     raise typer.Exit()
 
 
+def report(
+    app_id: Annotated[
+        str | None,
+        typer.Argument(help="App id (full uuid or prefix). Defaults to most recent."),
+    ] = None,
+    project: Annotated[
+        str | None,
+        typer.Option("--project", "-p", help="Project name. Defaults to most recent."),
+    ] = None,
+    home: Annotated[
+        Path | None,
+        typer.Option("--home", help="Tracker storage root. Defaults to ~/.theodosia."),
+    ] = None,
+    out: Annotated[
+        Path | None,
+        typer.Option(
+            "--out",
+            "-o",
+            help="Write the report to a file. Default: print to stdout.",
+        ),
+    ] = None,
+    webhook: Annotated[
+        str | None,
+        typer.Option(
+            "--webhook",
+            help=(
+                "POST the report as application/markdown to this URL. "
+                "Useful for Slack/Discord/Linear/PagerDuty hooks. The post "
+                "happens in addition to --out / stdout, not instead."
+            ),
+        ),
+    ] = None,
+) -> None:
+    """Generate a markdown post-mortem for a tracked session.
+
+    The report covers session metadata, an ordered timeline of every action
+    (with status and any error summary), refusals (blocked transitions the
+    agent attempted), and the final state of the FSM. Compatible with any
+    Burr session theodosia has tracked; reads from ``~/.theodosia`` (or
+    ``--home``) without requiring the original mounted server to be
+    running. Optionally POSTs the rendered markdown to a webhook for
+    Slack, Discord, Linear, PagerDuty, or any inbox that accepts
+    ``application/markdown``.
+    """
+    resolved_home = _resolve_home(home)
+    log_path, proj, aid = _resolve_app(resolved_home, project, app_id)
+    steps = _read_steps(log_path)
+    refusals = _read_refusals(log_path)
+    markdown = _render_session_report(
+        project=proj, app_id=aid, log_path=log_path, steps=steps, refusals=refusals
+    )
+
+    if out is not None:
+        out.expanduser().write_text(markdown, encoding="utf-8")
+        err_console.print(
+            Text.assemble(
+                ("wrote report: ", "muted"),
+                (str(out.expanduser()), "ok"),
+            )
+        )
+    else:
+        print(markdown)
+
+    if webhook is not None:
+        _post_report(webhook, markdown, project=proj, app_id=aid)
+
+
+def _render_session_report(
+    *,
+    project: str,
+    app_id: str,
+    log_path: Path,
+    steps: list[StepRow],
+    refusals: list[StepRow],
+) -> str:
+    """Render a markdown post-mortem from a session's step rows and refusals."""
+    lines: list[str] = [
+        f"# Session report: `{project}` / `{app_id}`",
+        "",
+        f"- Log path: `{log_path}`",
+        f"- Steps recorded: {len(steps)}",
+        f"- Refusals recorded: {len(refusals)}",
+    ]
+    if steps:
+        first = steps[0]
+        last = steps[-1]
+        total_ms = sum(s.duration_ms or 0 for s in steps)
+        lines.extend(
+            (
+                f"- First action: `{first.action}` at {first.started}",
+                f"- Last action: `{last.action}` ({last.status}) at {last.started}",
+                f"- Total action duration: {total_ms:.1f} ms",
+            )
+        )
+    lines.append("")
+
+    if steps:
+        lines.extend(
+            (
+                "## Timeline",
+                "",
+                "| seq | action | status | started | dur (ms) | error |",
+                "|---:|---|---|---|---:|---|",
+            )
+        )
+        for s in steps:
+            dur = f"{s.duration_ms:.1f}" if s.duration_ms is not None else "-"
+            err = (s.error_summary or "").replace("|", "\\|")[:80]
+            lines.append(f"| {s.seq} | `{s.action}` | {s.status} | {s.started} | {dur} | {err} |")
+        lines.append("")
+
+    if refusals:
+        lines.extend(
+            (
+                "## Refusals",
+                "",
+                "Refusals are transitions the agent attempted that the FSM rejected. "
+                "They never advanced state; they are recorded here for postmortem.",
+                "",
+                "| seq | action | ts | reason |",
+                "|---:|---|---|---|",
+            )
+        )
+        for r in refusals:
+            reason = (r.error_summary or "").replace("|", "\\|")[:80]
+            lines.append(f"| {r.seq} | `{r.action}` | {r.started} | {reason} |")
+        lines.append("")
+
+    if steps:
+        final_state = steps[-1].state_summary
+        if final_state:
+            lines.extend(
+                (
+                    "## Final state",
+                    "",
+                    "```json",
+                    json.dumps(final_state, indent=2, default=str),
+                    "```",
+                    "",
+                )
+            )
+
+    if not steps and not refusals:
+        lines.extend(("_(no steps or refusals recorded at this session yet)_", ""))
+
+    return "\n".join(lines)
+
+
+def _post_report(webhook_url: str, markdown: str, *, project: str, app_id: str) -> None:
+    """POST the rendered report to a webhook as ``application/markdown``."""
+    import urllib.request
+
+    req = urllib.request.Request(
+        webhook_url,
+        data=markdown.encode("utf-8"),
+        method="POST",
+        headers={
+            "Content-Type": "application/markdown; charset=utf-8",
+            "X-Theodosia-Project": project,
+            "X-Theodosia-App-Id": app_id,
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            err_console.print(
+                Text.assemble(
+                    ("posted to ", "muted"),
+                    (webhook_url, "ok"),
+                    (f" (HTTP {resp.status})", "muted"),
+                )
+            )
+    except Exception as exc:
+        err_console.print(
+            Text.assemble(
+                ("webhook POST failed: ", "err"),
+                (f"{type(exc).__name__}: {exc}", "err"),
+            )
+        )
+        raise typer.Exit(code=2) from exc
+
+
+def status(
+    home: Annotated[
+        Path | None,
+        typer.Option("--home", help="Tracker storage root. Defaults to ~/.theodosia."),
+    ] = None,
+    as_json: Annotated[
+        bool,
+        typer.Option("--json", help="Emit JSON instead of a rich summary."),
+    ] = False,
+) -> None:
+    """One-shot snapshot: tracker storage, recent activity, project health.
+
+    Useful as a smoke check ("is my tracker working?") and as a launch banner
+    on demo recordings. Reads ``~/.theodosia`` by default.
+    """
+    from importlib.metadata import PackageNotFoundError
+    from importlib.metadata import version as _pkg_version
+
+    try:
+        _theodosia_version = _pkg_version("theodosia")
+    except PackageNotFoundError:
+        _theodosia_version = "0+unknown"
+
+    resolved_home = _resolve_home(home)
+    payload: dict[str, Any] = {
+        "theodosia_version": _theodosia_version,
+        "storage_home": str(resolved_home),
+        "storage_exists": resolved_home.exists(),
+        "projects": [],
+    }
+    if resolved_home.exists():
+        project_dirs = sorted(
+            (p for p in resolved_home.iterdir() if p.is_dir() and not p.name.startswith(".")),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
+        for proj in project_dirs:
+            app_dirs = [p for p in proj.iterdir() if p.is_dir()]
+            recent = sorted(app_dirs, key=lambda p: p.stat().st_mtime, reverse=True)[:5]
+            latest = recent[0] if recent else None
+            latest_info: dict[str, Any] = {}
+            if latest is not None:
+                log = latest / "log.jsonl"
+                rows = _read_steps(log) if log.exists() and log.stat().st_size > 0 else []
+                latest_info = {
+                    "app_id": latest.name,
+                    "mtime": datetime.fromtimestamp(latest.stat().st_mtime).isoformat(
+                        timespec="seconds"
+                    ),
+                    "steps": len(rows),
+                    "last_action": rows[-1].action if rows else "(empty)",
+                    "last_status": rows[-1].status if rows else "running",
+                }
+            payload["projects"].append(
+                {
+                    "name": proj.name,
+                    "sessions": len(app_dirs),
+                    "latest": latest_info,
+                }
+            )
+
+    if as_json:
+        print(json.dumps(payload, indent=2))
+        return
+
+    console.print(
+        Text.assemble(
+            ("● ", "header"),
+            (f"theodosia {payload['theodosia_version']}\n", "header"),
+        )
+    )
+    storage_style = "ok" if payload["storage_exists"] else "err"
+    console.print(
+        Text.assemble(
+            ("storage: ", "muted"),
+            (str(payload["storage_home"]), storage_style),
+            (" (exists)" if payload["storage_exists"] else " (missing)", storage_style),
+        )
+    )
+
+    if not payload["storage_exists"]:
+        console.print()
+        console.print(
+            Text(
+                "Run a mounted FSM at least once, or create the directory, "
+                "to see project activity.",
+                style="muted",
+            )
+        )
+        return
+
+    if not payload["projects"]:
+        console.print(Text("\nno projects found in storage.", style="muted"))
+        return
+
+    table = Table(show_header=True, header_style="header", box=None, expand=False)
+    table.add_column("project", style="action")
+    table.add_column("sessions", justify="right", style="accent")
+    table.add_column("latest app_id", style="muted", overflow="fold")
+    table.add_column("steps", justify="right")
+    table.add_column("last action")
+    table.add_column("status")
+    table.add_column("when")
+    for proj in payload["projects"]:
+        latest = proj.get("latest") or {}
+        status_text = latest.get("last_status", "")
+        status_style = {
+            "ok": "ok",
+            "running": "running",
+            "failed": "err",
+        }.get(status_text, "muted")
+        table.add_row(
+            proj["name"],
+            str(proj["sessions"]),
+            (latest.get("app_id") or "")[:20],
+            str(latest.get("steps", 0)),
+            latest.get("last_action", ""),
+            Text(status_text or "(none)", style=status_style),
+            latest.get("mtime", ""),
+        )
+    console.print()
+    console.print(table)
+
+
 def verify(
     app_id: Annotated[
         str | None,
@@ -1217,6 +1522,9 @@ def build_cli(
     cli.command()(watch)
     cli.command()(logs)
     cli.command()(verify)
+    cli.command()(status)
+    cli.command()(report)
+    cli.command()(primer)
 
     @cli.callback()
     def _root(

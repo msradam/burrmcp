@@ -5,62 +5,59 @@ description = "Mount Burr state-machine Applications as MCP servers."
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
 license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE.md"]
 authors = [
     { name = "Adam Munawar Rahman", email = "msrahmanadam@gmail.com" },
+]
+keywords = [
+    "mcp",
+    "burr",
+    "state-machine",
+    "fsm",
+    "agent",
+    "llm",
+    "fastmcp",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
     "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries",
+    "Typing :: Typed",
 ]
 dependencies = [
-    # Burr's public API is stable, but theodosia depends on some details
-    # that aren't part of Burr's public surface: ``Action.fn``, the shape
-    # of ``Action.inputs`` as a (required, optional) tuple, and Burr's
-    # internal ``__PRIOR_STEP`` state key. Pin to a minor range so a
-    # Burr release that changes any of these fails install rather than
-    # breaking silently. Bump the upper bound when we've verified.
-    # PyPI package was renamed ``burr`` -> ``apache-burr`` at 0.42;
-    # ``import burr`` is unchanged. ``[tracking]`` is required for
-    # ``LocalTrackingClient``.
     "apache-burr[tracking]>=0.42,<0.43",
     "fastmcp>=3.3,<3.4",
     "pydantic>=2,<3",
-    # Typer for the theodosia CLI (serve, doctor). Brings click as a
-    # transitive; that's fine.
     "typer>=0.12,<1.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/msradam/theodosia"
+Repository = "https://github.com/msradam/theodosia"
+Documentation = "https://github.com/msradam/theodosia#readme"
+Issues = "https://github.com/msradam/theodosia/issues"
+Changelog = "https://github.com/msradam/theodosia/blob/main/CHANGELOG.md"
+
 [project.optional-dependencies]
-# Turnkey OpenTelemetry: pulls Burr's opentelemetry extra plus the
-# core OTel API/SDK so a user can wire spans into their theodosia
-# server in one ``pip install 'theodosia[observability]'``. See
-# ``examples/with_otel.py`` for the wire-up pattern.
 observability = [
     "apache-burr[opentelemetry]>=0.42,<0.43",
     "opentelemetry-api>=1.20",
     "opentelemetry-sdk>=1.20",
 ]
-
-# Burr UI (`theodosia ui`) for inspecting tracked sessions. Optional
-# because the [start] extra is heavy (streamlit, graphviz, openai). The
-# CLI also auto-bootstraps via uvx when this extra isn't installed, so
-# most users don't need to install it explicitly.
 ui = [
     "apache-burr[start]>=0.42,<0.43",
 ]
-
-# Mellea for the mellea_qiskit_migration demo. Also needs an Ollama
-# runtime with `ollama pull granite4:micro` (runtime, not a Python dep).
 mellea = [
     "mellea>=0.1",
 ]
-
-# Convenience extra: install everything optional.
 all = [
     "theodosia[observability]",
     "theodosia[mellea]",
@@ -84,13 +81,7 @@ dev = [
     "pytest-cov>=5",
     "ruff>=0.15",
     "mypy>=1.10",
-    # OTel testing uses the in-memory exporter; the [observability]
-    # extra carries the rest.
     "theodosia[observability]",
-    # Example-demo deps: psutil for unix_health, bandit + detect-secrets
-    # for codebase_security. Dev-only because the examples are not
-    # part of the published wheel; end users running those demos
-    # install them separately.
     "psutil>=5.9",
     "bandit>=1.8",
     "detect-secrets>=1.5",
@@ -102,18 +93,12 @@ dev = [
 target-version = "py311"
 line-length = 100
 src = ["src"]
-extend-exclude = [
-    # Shipped sample data: Hamilton DAGs and SUT modules used as
-    # fixtures by the testing demos. They use sys.path tricks to be
-    # importable from the demo and aren't part of the codebase proper.
-    "examples/data",
-]
+extend-exclude = ["examples/data"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "C4", "UP", "SIM", "RUF", "PERF", "PIE", "RET", "FURB"]
 
 [tool.ruff.lint.per-file-ignores]
-# Tests insert examples/ into sys.path before importing the demo modules.
 "tests/**/*.py" = ["E402"]
 
 [tool.ruff.format]
@@ -121,11 +106,7 @@ quote-style = "double"
 
 [tool.mypy]
 python_version = "3.11"
-# apache-burr and fastmcp ship no type stubs, so strict import-following
-# only surfaces third-party shape noise, not real defects here.
 ignore_missing_imports = true
-# Stashed serving modes, preserved verbatim for revival; not on the
-# import path and not held to the type gate.
 exclude = ["_experimental/"]
 
 [tool.pytest.ini_options]

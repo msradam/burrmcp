@@ -6,6 +6,32 @@ versioning.
 
 ## [Unreleased]
 
+### Added
+- `theodosia.Assembly`: a frozen-dataclass bundle of a workflow plus its
+  personas, upstream config, instructions, and metadata. `Assembly.serve()`
+  mounts it; `mount(assembly)` is equivalent. `from_yaml` and `from_dict`
+  support declarative configuration.
+- `theodosia primer`: a CLI subcommand and offline first-touch. Walks the
+  bundled coffee-order FSM through the `step` tool in-process via FastMCP's
+  in-memory client, prints the timeline with state diffs, and ends with one
+  structured refusal so the recoverable shape is visible. No API key, no
+  LLM, byte-deterministic.
+- `py.typed` marker so downstream type-checkers consume Theodosia's
+  annotations.
+- README: "Primitives at a glance" enumeration and a "What this is not"
+  scope-fencing section.
+
+### Changed
+- PyPI metadata: `[project.urls]` (Homepage, Repository, Documentation,
+  Issues, Changelog), `keywords`, additional classifiers
+  (`Operating System :: OS Independent`,
+  `Topic :: Scientific/Engineering :: Artificial Intelligence`,
+  `Topic :: Software Development :: Libraries`, `Typing :: Typed`),
+  and `license-files = ["LICENSE", "NOTICE.md"]` per PEP 639.
+- Trimmed verbose docstrings on `theodosia.upstream`,
+  `theodosia.testing`, `theodosia._recording`, and `theodosia.persona`
+  to terse declarative statements.
+
 ## [0.2.0] - 2026-05-25
 
 ### Added
