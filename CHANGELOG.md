@@ -6,6 +6,34 @@ versioning.
 
 ## [Unreleased]
 
+### Changed (CLI package split for maintainability)
+
+``cli.py`` (1,884 lines) is now ``cli/`` (9 modules, largest 348 lines).
+Same public surface; no behavioral change. Same shape Statewright and
+ActiveGraph use: one module per command family.
+
+- ``cli/__init__.py``: public re-exports of every name tests and
+  ``theodosia.__init__`` reach for. ``from theodosia.cli import build_cli,
+  run, app, _BRANDING, _read_steps, _resolve_app, _burr_ui_url`` etc all
+  unchanged.
+- ``cli/_branding.py``: Rose Pine theme, ``Console`` instances, the
+  ``_Branding`` dataclass and singleton.
+- ``cli/_resolve.py``: target imports, tracker home resolution, app/project
+  lookup, Burr UI URL builder.
+- ``cli/_steps.py``: ``StepRow`` model, tracker log + refusal log readers,
+  state-diff text, table builder, scan helpers.
+- ``cli/_topology.py``: ``_Topology`` model, graph rendering, ``render``
+  command.
+- ``cli/sessions.py``: ``sessions ls / show / tail``, ``watch``, ``logs``.
+- ``cli/reports.py``: ``report`` command + markdown rendering + webhook POST.
+- ``cli/status.py``: ``status`` and ``verify`` commands.
+- ``cli/_app.py``: ``serve``, ``doctor``, ``ui``, ``build_cli``, ``run``.
+
+The ``_BRANDING`` singleton is now mutated in place by ``_set_branding``
+so cross-module ``from … import _BRANDING`` references stay live; the
+single-file ``global _BRANDING; _BRANDING = …`` pattern only worked when
+all consumers lived in one module.
+
 ### Added (`mount(middleware=[...])` kwarg)
 
 - New ``mount(..., middleware=[mw1, mw2, ...])`` kwarg accepts a list

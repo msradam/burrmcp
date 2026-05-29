@@ -20,10 +20,17 @@ runner = CliRunner()
 @pytest.fixture
 def restore_branding():
     """build_cli mutates a module-level branding singleton; restore it so a
-    rebranded CLI in one test doesn't leak into tests that use the default app."""
-    saved = cli._BRANDING
+    rebranded CLI in one test doesn't leak into tests that use the default app.
+
+    The singleton is now mutated in place (so cross-module imports stay live),
+    so save the fields and copy them back, rather than rebinding the name.
+    """
+    import dataclasses
+
+    saved_fields = dataclasses.asdict(cli._BRANDING)
     yield
-    cli._BRANDING = saved
+    for name, value in saved_fields.items():
+        setattr(cli._BRANDING, name, value)
 
 
 # ── import-target resolver ────────────────────────────────────────
