@@ -6,6 +6,18 @@ versioning.
 
 ## [Unreleased]
 
+### Added (`theodosia sessions diff <a> <b>`)
+
+Cross-session post-mortem comparison. Useful when you want to ask
+"how did this session diverge from a known-good one?".
+
+- Two app ids (full uuid or prefix).
+- Output: where the action paths diverged (common prefix + each
+  session's continuation), and a key-by-key state diff at the final
+  step (added / removed / changed values).
+- ``--json`` for scripted consumption.
+- Pure tracker-log reader. No live mounted server needed.
+
 ### Changed (CLI package split for maintainability)
 
 ``cli.py`` (1,884 lines) is now ``cli/`` (9 modules, largest 348 lines).

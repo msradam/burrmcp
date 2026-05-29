@@ -71,7 +71,9 @@ from theodosia.cli._topology import (
 )
 from theodosia.cli.reports import _post_report, _render_session_report, report
 from theodosia.cli.sessions import (
+    _diff_state_dicts,
     logs,
+    sessions_diff,
     sessions_ls,
     sessions_show,
     sessions_tail,
@@ -95,6 +97,7 @@ __all__ = [
     "_burr_ui_url",
     "_collect_status_payload",
     "_condition_label",
+    "_diff_state_dicts",
     "_duration_ms",
     "_exception_summary",
     "_graph_renderable",
@@ -134,6 +137,7 @@ __all__ = [
     "report",
     "run",
     "serve",
+    "sessions_diff",
     "sessions_ls",
     "sessions_show",
     "sessions_tail",

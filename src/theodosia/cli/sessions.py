@@ -199,6 +199,128 @@ def sessions_show(
     console.print(f"[muted]Burr UI:[/] [link={ui_url}]{ui_url}[/]")
 
 
+def _diff_state_dicts(
+    left: dict[str, Any], right: dict[str, Any]
+) -> tuple[list[str], list[str], list[tuple[str, Any, Any]]]:
+    """Return ``(only_in_left, only_in_right, changed)`` keys for two state dicts.
+
+    ``changed`` entries are ``(key, left_value, right_value)``. Both inputs are
+    post-filtered (``__SEQUENCE_ID`` etc already stripped by ``_read_steps``).
+    """
+    lk, rk = set(left), set(right)
+    only_left = sorted(lk - rk)
+    only_right = sorted(rk - lk)
+    changed = [(k, left[k], right[k]) for k in sorted(lk & rk) if left[k] != right[k]]
+    return only_left, only_right, changed
+
+
+def sessions_diff(
+    app_id_a: Annotated[
+        str,
+        typer.Argument(help="First session app id (full uuid or prefix)."),
+    ],
+    app_id_b: Annotated[
+        str,
+        typer.Argument(help="Second session app id (full uuid or prefix)."),
+    ],
+    project: Annotated[
+        str | None,
+        typer.Option("--project", "-p", help="Project name. Defaults to most recent."),
+    ] = None,
+    home: Annotated[
+        Path | None,
+        typer.Option(
+            "--home", help="Tracker storage root. Overrides the CLI default (see --help)."
+        ),
+    ] = None,
+    as_json: Annotated[
+        bool, typer.Option("--json", help="Emit JSON instead of a rich render.")
+    ] = False,
+) -> None:
+    """Diff two tracked sessions: action paths and final state.
+
+    Use to answer "what changed between this session and a known-good one?"
+    or "how did session B diverge from session A?". Reads only the tracker
+    JSONL; no live application needed.
+    """
+    home = _resolve_home(home)
+    log_a, proj_a, aid_a = _resolve_app(home, project, app_id_a)
+    log_b, proj_b, aid_b = _resolve_app(home, project, app_id_b)
+    rows_a = _read_steps(log_a)
+    rows_b = _read_steps(log_b)
+    actions_a = [r.action for r in rows_a]
+    actions_b = [r.action for r in rows_b]
+    state_a = rows_a[-1].state_summary if rows_a else {}
+    state_b = rows_b[-1].state_summary if rows_b else {}
+    only_a, only_b, changed = _diff_state_dicts(state_a, state_b)
+
+    if as_json:
+        console.print_json(
+            json.dumps(
+                {
+                    "a": {"project": proj_a, "app_id": aid_a, "actions": actions_a},
+                    "b": {"project": proj_b, "app_id": aid_b, "actions": actions_b},
+                    "state_diff": {
+                        "only_in_a": only_a,
+                        "only_in_b": only_b,
+                        "changed": [{"key": k, "a": va, "b": vb} for k, va, vb in changed],
+                    },
+                },
+                default=str,
+            )
+        )
+        return
+
+    console.print(
+        Text.assemble(
+            ("A: ", "muted"),
+            (f"{proj_a}/{aid_a}", "action"),
+            (f"  ({len(rows_a)} steps)", "muted"),
+        )
+    )
+    console.print(
+        Text.assemble(
+            ("B: ", "muted"),
+            (f"{proj_b}/{aid_b}", "action"),
+            (f"  ({len(rows_b)} steps)", "muted"),
+        )
+    )
+
+    if actions_a != actions_b:
+        console.print("\n[header]action path[/]")
+        common = 0
+        for a, b in zip(actions_a, actions_b, strict=False):
+            if a == b:
+                common += 1
+            else:
+                break
+        console.print(f"  [muted]common prefix:[/] {common} step(s)")
+        if common < len(actions_a):
+            console.print(f"  [muted]A continues:[/] {' → '.join(actions_a[common:])}")
+        if common < len(actions_b):
+            console.print(f"  [muted]B continues:[/] {' → '.join(actions_b[common:])}")
+    else:
+        console.print("\n[muted]action paths identical[/]")
+
+    console.print("\n[header]final state[/]")
+    if not (only_a or only_b or changed):
+        console.print("  [muted](identical)[/]")
+        return
+    for key, va, vb in changed:
+        console.print(
+            Text.assemble(
+                (f"  {key}: ", "muted"),
+                (f"{va}", "err"),
+                (" → ", "muted"),
+                (f"{vb}", "ok"),
+            )
+        )
+    for key in only_a:
+        console.print(Text.assemble((f"  -{key}: ", "err"), (f"{state_a[key]}", "muted")))
+    for key in only_b:
+        console.print(Text.assemble((f"  +{key}: ", "ok"), (f"{state_b[key]}", "muted")))
+
+
 def _tail(log_path: Path, *, project: str, app_id: str, poll_interval: float) -> None:
     """Live-render the tracker log via rich.Live."""
 

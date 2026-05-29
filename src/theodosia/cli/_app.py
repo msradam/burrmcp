@@ -20,7 +20,14 @@ from theodosia.cli._branding import (
 from theodosia.cli._resolve import _resolve_serve_target
 from theodosia.cli._topology import render
 from theodosia.cli.reports import report
-from theodosia.cli.sessions import logs, sessions_ls, sessions_show, sessions_tail, watch
+from theodosia.cli.sessions import (
+    logs,
+    sessions_diff,
+    sessions_ls,
+    sessions_show,
+    sessions_tail,
+    watch,
+)
 from theodosia.cli.status import status, verify
 from theodosia.primer import primer
 
@@ -271,6 +278,7 @@ def build_cli(
     sessions.command("list", hidden=True)(sessions_ls)  # muscle-memory alias
     sessions.command("show")(sessions_show)
     sessions.command("tail")(sessions_tail)
+    sessions.command("diff")(sessions_diff)
     cli.add_typer(sessions, name="sessions")
 
     cli.command()(serve)
