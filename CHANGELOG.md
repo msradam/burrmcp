@@ -6,6 +6,27 @@ versioning.
 
 ## [Unreleased]
 
+### Fixed
+- `theodosia primer`: self-contains the coffee-order FSM so the command
+  works after a wheel install. Previously failed with "bundled coffee_order
+  example not found" because the `examples/` directory is not packaged.
+- `theodosia serve` now accepts `--transport http|sse|streamable-http`,
+  `--host`, and `--port` flags. Previously the only available transport was
+  stdio, which is not what most clients expect from a deployed server.
+- README: clarified that `mount(factory)` (a callable returning an
+  `Application`) is the recommended shape for per-session isolation, matching
+  authoring.md. The four-tool surface description now notes the two extra
+  tools (`list_resources`, `read_resource`) FastMCP's `ResourcesAsTools`
+  transform adds. The structured-refusal list now includes the fork refusals
+  (`cannot_fork_to_refusal`, `unknown_past_run`, `no_tracker`).
+- `theodosia ui` README hint now reflects the actual fallback: auto-bootstrap
+  via `uvx`, or install `theodosia[ui]`.
+
+### Documented
+- `theodosia.testing.FakeUpstream`: full usage section in `upstream.md` with
+  a runnable example, plus a mention of `RecordingUpstream` and
+  `ReplayingUpstream` for trajectory tests.
+
 ### Added
 - `theodosia.Assembly`: a frozen-dataclass bundle of a workflow plus its
   personas, upstream config, instructions, and metadata. `Assembly.serve()`

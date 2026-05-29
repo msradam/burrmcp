@@ -334,6 +334,22 @@ def serve(
             ),
         ),
     ] = None,
+    transport: Annotated[
+        str,
+        typer.Option(
+            "--transport",
+            help="Transport: stdio (default), http, sse, or streamable-http.",
+            case_sensitive=False,
+        ),
+    ] = "stdio",
+    host: Annotated[
+        str,
+        typer.Option("--host", help="Bind address for http/sse transports."),
+    ] = "127.0.0.1",
+    port: Annotated[
+        int,
+        typer.Option("--port", help="Port for http/sse transports."),
+    ] = 8000,
 ) -> None:
     """Launch an importable Burr Application or factory as an MCP server."""
     application_or_factory, derived_name = _resolve_serve_target(target, app_dir or [])
@@ -343,7 +359,15 @@ def serve(
         name=name or derived_name,
         upstream=_BRANDING.upstream,
     )
-    server.run()
+    transport_norm = transport.lower()
+    if transport_norm == "stdio":
+        server.run(transport="stdio")
+    elif transport_norm in {"http", "sse", "streamable-http"}:
+        server.run(transport=transport_norm, host=host, port=port)
+    else:
+        raise typer.BadParameter(
+            f"unknown transport {transport!r}; expected stdio, http, sse, or streamable-http"
+        )
 
 
 def doctor(

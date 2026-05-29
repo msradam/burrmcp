@@ -63,3 +63,37 @@ instead of the built-in manager.
 `examples/upstream_filesystem.py` is a code-audit FSM that drives the official
 filesystem MCP server this way: list files, read a candidate, flag findings,
 report. The agent only ever calls `step`.
+
+## Testing with `FakeUpstream`
+
+`theodosia.testing.FakeUpstream` is an in-process stand-in for upstream MCP
+servers. It satisfies the same `async call(server, tool, args)` protocol as
+`UpstreamManager`, so a test passes it where a real upstream config would go.
+Every call is recorded for later assertion.
+
+```python
+from theodosia.testing import FakeUpstream
+from theodosia import mount
+
+fake = FakeUpstream({
+    "grafana": {
+        "list_datasources": [{"name": "prometheus", "type": "prometheus"}],
+        "query_metric": lambda args: {"rate": 0.42, "series": args["query"]},
+    },
+})
+
+server = mount(build_application, name="incident", upstream=fake)
+# ... drive the server through an MCP Client; the actions reach `fake` instead
+# of touching the network.
+
+assert fake.calls_to("grafana", "query_metric")[0].args["query"] == "rate(http_requests[5m])"
+```
+
+Responses can be static values, sync callables, or async callables taking the
+args dict. A callable that raises simulates upstream failure, which surfaces
+through `safe_upstream` as a classified `ERROR` result.
+
+For trajectory-based tests, `theodosia.testing.RecordingUpstream` wraps a real
+upstream and writes every call to a JSONL fixture; `ReplayingUpstream` serves
+that fixture back in order, raising `ReplayMismatch` if a drift call arrives.
+Useful for "record once against the real server, replay forever" test patterns.
