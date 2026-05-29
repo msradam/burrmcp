@@ -30,10 +30,56 @@ of Theodosia is to make those failures safe and visible rather than silent.
   recorded to the per-session history and Burr's tracker, so the trail reflects
   what the agent tried, not its own account. Each attempt is also hash-chained
   into a `ledger.jsonl` next to the tracker log; `theodosia verify <session>`
-  recomputes the chain and names the exact line if any entry was edited,
-  reordered, or deleted after the fact. The chain proves integrity (the record
-  was not altered), not confidentiality (it is not encrypted) and not origin (a
-  signature over the head would add non-repudiation; the chain alone does not).
+  recomputes the chain and names the exact line where any entry was edited,
+  reordered, or deleted after the fact. Entries carry the session's `app_id`,
+  `project`, and `partition_key` in the hashed payload, so copying the file
+  to a different session directory breaks verification.
+
+## What the ledger proves and what it does not
+
+The hash chain catches **in-place edits, reorderings, duplications, and
+middle-deletions** of recorded entries. It does **not** catch:
+
+- **Truncation.** Dropping the tail-most entry leaves a chain that still
+  self-verifies. Detect by external commitment of expected length, or by
+  streaming each entry to append-only storage as it is written.
+- **Whole-cloth forgery in the default (unkeyed) mode.** The hash function
+  is public, so anyone with write access to `ledger.jsonl` can mint a
+  chain from scratch. Set `THEODOSIA_LEDGER_KEY` (hex-encoded bytes) in
+  the server environment to switch the chain to HMAC-SHA256; forgery then
+  requires the key.
+- **Origin.** A signature over the head would add non-repudiation. The
+  chain alone does not.
+- **Existence of any particular session.** Deleting a whole session
+  directory is invisible to `verify`; detect with an external session
+  manifest.
+
+For regulated audit trails (SOX, HIPAA, PCI, GxP), layer at least one of
+HMAC mode, periodic external checkpointing (RFC 3161 timestamp authority
+or transparency log), and an append-only object store with retention
+locks on top. `ledger.jsonl` alone detects accidental corruption and the
+naive editor; it does not survive a motivated insider with filesystem
+write access.
+
+## What `reads=` enforces and what it does not
+
+A typed action's `reads=[...]` declaration is enforced at the action-body
+level via Burr's per-action Pydantic input projection: the body cannot
+access state fields it did not declare. This makes patterns like
+Chain-of-Verification's "independent verification" property structural
+between action bodies.
+
+`reads=` is **not** a confidentiality boundary on the MCP wire:
+
+- The step response includes the full post-step state.
+- `theodosia://state` returns the full state unconditionally.
+
+If your threat model is "the agent must not see field X", filter the
+state in a separate layer (a `state_loader` callback, an MCP middleware,
+or by partitioning the FSM so X never lands in the same Application
+state). `reads=` is the contract between the FSM graph and the action
+body's Python code; it is not the contract between the server and the
+LLM client.
 
 ## What Theodosia does not do
 
@@ -45,6 +91,14 @@ of Theodosia is to make those failures safe and visible rather than silent.
   wrong-but-legal step right.
 - It does **not authenticate the agent or the MCP transport.** Run it behind your
   own transport security (stdio in-process, or an authenticated HTTP front).
+- It does **not cap state size or depth.** A 100MB state value or a
+  500-level-nested dict will be materialized in full in the step response
+  and the tracker log. Add an action-body-level size check if the FSM may
+  receive large external data.
+- It does **not garbage-collect fork descendants.** Every `fork_at` /
+  `fork_from_past` creates a fresh `app_id` directory in the tracker
+  storage root. `max_sessions` caps the in-memory session map; it does
+  not cap on-disk fork directories. Reap them out of band.
 
 ## Reporting
 

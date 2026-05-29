@@ -168,14 +168,12 @@ Common trap: calling `step("take_order", {"item": "mocha"})` (without the
 `order` wrapper) raises `missing required inputs: {'order'}`. The input keys
 are parameter names, not the fields of the typed model.
 
-## `reads=` is structural, not advisory
+## `reads=` is action-body discipline, not wire confidentiality
 
-A Burr action's `reads=[...]` declaration looks like documentation but
-is actually enforced at runtime when the FSM uses `PydanticTypingSystem`.
-Burr synthesizes a per-action input model containing only the declared
-fields; an action body that references an undeclared field of state
-raises `AttributeError`, not `None`. The field literally does not exist
-on the projected input.
+A Burr action's `reads=[...]` declaration is enforced at runtime when the
+FSM uses `PydanticTypingSystem`. Burr synthesizes a per-action input model
+containing only the declared fields; an action body that references an
+undeclared field of state raises `AttributeError`, not `None`.
 
 ```python
 @action(reads=["claims"], writes=["verification_answers"])
@@ -188,14 +186,24 @@ def answer_verifications(state: VerifierState) -> VerifierState:
 ```
 
 This is the architectural enforcement that makes patterns like
-Chain-of-Verification (independent verification phase) structural rather
-than aspirational. A prompt asking the LLM to "ignore the baseline when
-verifying" is exhortation; `reads=["claims"]` is a runtime contract the
-action body cannot violate.
+Chain-of-Verification (independent verification phase between action
+bodies) structural. A prompt asking an action author to "remember not to
+peek at the baseline" is exhortation; `reads=["claims"]` is a runtime
+contract the action body cannot violate.
 
-The MCP wire boundary tightens the same property: `step`'s `inputs`
-parameter only forwards keys that match the action body's signature, so
-an LLM client cannot smuggle extra fields through the wire either.
+**What this does not do**: hide state from the LLM driving the FSM.
+`theodosia://state` returns the full state dict; every `step` response
+includes the post-step state. `reads=` is the contract between the FSM
+graph and the action body's Python code. It is not a confidentiality
+boundary on the MCP wire. If your threat model is "the agent must not
+see field X", you need to add a state filter in `mount()` (see
+[Security model](security-model.md)) rather than relying on `reads=`
+alone.
+
+The MCP wire boundary does tighten one separate property: `step`'s
+`inputs` parameter only forwards keys that match the action body's
+signature, so an LLM client cannot smuggle extra named parameters
+through the wire.
 
 ## Bundling: `theodosia.Assembly`
 

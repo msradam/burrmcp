@@ -1364,6 +1364,21 @@ def _record_history(
         _append_ledger(durable_app, record)
 
 
+def _ledger_binding(app: Application, log_path: Path) -> dict[str, Any]:
+    """Identity fields hashed into every ledger entry.
+
+    Embedding these in the chain means copying ``ledger.jsonl`` between
+    session directories breaks verification: ``verify`` is called with the
+    on-disk ``app_id`` / ``project`` and refuses entries whose binding does
+    not match.
+    """
+    return {
+        "app_id": log_path.parent.name,
+        "project": log_path.parent.parent.name,
+        "partition_key": getattr(app, "partition_key", None),
+    }
+
+
 def _append_ledger(app: Application, record: dict[str, Any]) -> None:
     """Chain one attempt (step or refusal) onto the session's tamper-evident
     ledger, next to the tracker log.
@@ -1377,7 +1392,11 @@ def _append_ledger(app: Application, record: dict[str, Any]) -> None:
     if log_path is None:
         return
     with contextlib.suppress(OSError):
-        HashChainedLedger(log_path.parent / "ledger.jsonl").append(record)
+        ledger = HashChainedLedger(
+            log_path.parent / "ledger.jsonl",
+            binding=_ledger_binding(app, log_path),
+        )
+        ledger.append(record)
 
 
 def _append_refusal_sidecar(app: Application, record: dict[str, Any]) -> None:

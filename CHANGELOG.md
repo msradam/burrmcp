@@ -6,6 +6,54 @@ versioning.
 
 ## [Unreleased]
 
+### Fixed (round 16: adversarial / break-the-rails audits)
+
+Three parallel adversarial sim agents whose explicit job was to break
+Theodosia. Findings collated; honest doc corrections + the fixes that
+ship cleanly in this round.
+
+- **Ledger entries now carry the session's `app_id`, `project`, and
+  `partition_key` in the hashed payload.** Copying `ledger.jsonl` between
+  session directories was previously undetected by `theodosia verify`;
+  Sim L's cross-session-replay forgery (#12 in their attack table) now
+  fails verification because the binding does not match the on-disk path.
+- **Optional HMAC mode for the ledger.** Setting `THEODOSIA_LEDGER_KEY`
+  (hex-encoded bytes) in the server environment switches the chain from
+  plain SHA256 to HMAC-SHA256. Default unkeyed mode is fast and detects
+  in-place edits; HMAC mode raises forgery work-factor from "Python
+  one-liner" to "extract the key." Both modes are documented in
+  `ledger.py` and the new `security-model.md` section.
+- **`security-model.md` rewritten** to document what the ledger DOES and
+  DOES NOT prove (truncation, whole-cloth forgery in unkeyed mode,
+  origin, and existence of a session are all out of scope) and what
+  `reads=` DOES and DOES NOT enforce (action-body discipline yes;
+  wire-level confidentiality no, because step responses and
+  `theodosia://state` return full state). Plus the no-state-cap and
+  no-fork-GC realities Sim K's stress run surfaced.
+- **`authoring.md` honest correction**: `reads=` is enforced for the
+  action body via Pydantic projection but is not a confidentiality
+  boundary on the MCP wire. Earlier framing implied otherwise.
+- **`classify_payload` detects nested error envelopes** up to 3 levels
+  deep. Previously, upstreams returning `{"data": {"error": "..."}}`
+  silently classified as OK; they now classify as ERROR with the nested
+  message in `detail`.
+- **Persona files with malformed YAML frontmatter** previously crashed
+  `mount()` at startup with `yaml.scanner.ScannerError`. Now caught and
+  re-raised as a `ValueError` that names the file and the YAML error;
+  the rest of the persona directory still loads.
+
+### Documented limits (not fixes, but honesty)
+- State size and depth are not capped by Theodosia. A 100MB state value
+  or a 500-level-nested dict will be materialized in full in the step
+  response and the tracker log. Cap in the action body.
+- `max_sessions` caps the in-memory FastMCP session map, not on-disk
+  fork directories. `fork_at` / `fork_from_past` each create a fresh
+  `app_id` directory; reap out of band.
+- Ledger truncation (dropping the tail-most entry) is still undetected
+  without external commitment. The fix is structural (Merkle root posted
+  to a transparency log or append-only object storage); planned for a
+  later release.
+
 ### Fixed (round 15: remaining-prompt-pattern parallel audits)
 
 Three more parallel sim-agent audits, building the remaining classic
@@ -23,7 +71,7 @@ prompt patterns as FSMs. All three returned ship-it verdicts.
   structural enforcement that makes CoVe's independence property
   defensible. New section in `authoring.md` documenting it.
 - **Sim I (Plan-and-Execute)**: `reads=["last_eval", ...]` forces the
-  planner to engage with the failure signal — the action body cannot
+  planner to engage with the failure signal: the action body cannot
   run without that field in scope. Termination cap is a transition
   edge, not a counter. Verdict: ship over LangChain's Plan-and-Execute.
 

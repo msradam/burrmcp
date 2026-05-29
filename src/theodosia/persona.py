@@ -105,7 +105,13 @@ class Persona:
             # Body starts after the closing fence + its newline
             body_start = text.find("\n", close + 4)
             body = text[body_start + 1 :] if body_start != -1 else ""
-            fm = yaml.safe_load(fm_text) or {}
+            try:
+                fm = yaml.safe_load(fm_text) or {}
+            except yaml.YAMLError as exc:
+                raise ValueError(
+                    f"persona frontmatter is not valid YAML: {exc}. "
+                    f"The whole file is rejected; the rest of the directory still loads."
+                ) from exc
             if not isinstance(fm, dict):
                 raise ValueError(
                     f"persona frontmatter must be a YAML mapping, got {type(fm).__name__}"

@@ -71,8 +71,31 @@ class SourceResult:
         }
 
 
+def _nested_error(payload: Any, depth: int = 3) -> str | None:
+    """Return an error string if ``payload`` (a dict) carries an error envelope.
+
+    Walks at most ``depth`` levels into nested dicts looking for an ``error``
+    key with a truthy value. Stops at depth or first non-dict.
+    """
+    if depth <= 0 or not isinstance(payload, dict):
+        return None
+    err = payload.get("error")
+    if err:
+        return str(err)
+    for v in payload.values():
+        nested = _nested_error(v, depth - 1)
+        if nested is not None:
+            return nested
+    return None
+
+
 def classify_payload(name: str, payload: Any, *, expect: str = "any") -> SourceResult:
-    """Classify a returned payload. ``expect`` is one of ``any``, ``list``, ``dict``."""
+    """Classify a returned payload. ``expect`` is one of ``any``, ``list``, ``dict``.
+
+    Dicts are checked for an error envelope up to three levels deep so that
+    upstreams returning ``{"data": {"error": "..."}}`` still classify as
+    ``ERROR``, not silently as ``OK``.
+    """
     if payload is None:
         return SourceResult(name, ERROR, detail="empty response")
     if isinstance(payload, str):
@@ -80,8 +103,10 @@ def classify_payload(name: str, payload: Any, *, expect: str = "any") -> SourceR
         if any(hint in low for hint in _ERROR_TEXT_HINTS):
             return SourceResult(name, ERROR, detail=payload[:_DETAIL_LIMIT])
         return SourceResult(name, MALFORMED, data=payload, detail="unstructured text")
-    if isinstance(payload, dict) and payload.get("error"):
-        return SourceResult(name, ERROR, detail=str(payload.get("error"))[:_DETAIL_LIMIT])
+    if isinstance(payload, dict):
+        err = _nested_error(payload)
+        if err is not None:
+            return SourceResult(name, ERROR, detail=err[:_DETAIL_LIMIT])
     if expect == "list" and not isinstance(payload, (list, dict)):
         return SourceResult(name, MALFORMED, data=payload, detail="expected list/dict")
     if expect == "dict" and not isinstance(payload, dict):
