@@ -105,6 +105,21 @@ tampering, so it drops into CI or a cron audit. See the
 own `LocalTrackingClient` writes to `~/.burr`, so pass `--home ~/.burr` for a
 graph wired that way). `--json` on `ls` and `show` emits machine output.
 
+## Verbose mode (`THEODOSIA_VERBOSE`)
+
+Set `THEODOSIA_VERBOSE=1` in the environment to restore the noisier output
+`mount()` suppresses by default:
+
+- Burr's "Oh no an error!" panel and full Python traceback when an action
+  body raises (every `action_error` refusal still produces a structured
+  wire response either way; verbose adds the diagnostic terminal noise).
+- FastMCP's per-call `Sending INFO to client: Step N: action ✓ → next`
+  debug notifications.
+
+Use it when wiring a new client, debugging a misbehaving action body, or
+recording a demo where the per-step trace is the point. Default off keeps
+production logs clean.
+
 ## ui
 
 ```bash

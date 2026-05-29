@@ -6,6 +6,15 @@ versioning.
 
 ## [Unreleased]
 
+### Fixed (round 10: 0.4.0-blocker doc fixes)
+- **`THEODOSIA_VERBOSE` documented in `cli.md`** with what it restores
+  (Burr's error panel + traceback, FastMCP per-call DEBUG) and when to
+  use it. Previously the env var was undocumented anywhere on the site.
+- **`theodosia status` empty-state hint.** When no projects exist under
+  `~/.theodosia` but `~/.burr` does, the empty message now suggests
+  `theodosia status --home ~/.burr`. A user who wired Burr's native
+  tracker no longer sees an empty table with no path forward.
+
 ### Fixed (round 9: static-analysis sweep + table widths)
 - **Responsive table widths in `theodosia status` and `theodosia sessions ls`.**
   Both tables now show a 12-char `app_id` prefix, an 18-char `last action`
