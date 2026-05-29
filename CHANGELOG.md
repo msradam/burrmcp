@@ -6,6 +6,20 @@ versioning.
 
 ## [Unreleased]
 
+### Fixed (round 12: sync action timeout actually preempts)
+- **`action_timeout_seconds` now preempts sync action bodies.** Previously
+  a sync body (`time.sleep`, blocking HTTP, tight CPU loop) blocked the
+  event loop, which defeated `asyncio.wait_for`: the cancellation timer
+  could not tick while the loop was blocked. Theodosia now detects sync
+  bodies and runs them via `asyncio.to_thread` so blocking happens off
+  the main loop and the timer fires regardless. The orphaned thread keeps
+  running (Python cannot safely kill threads), but the client gets the
+  structured `action_timeout` refusal at the budget boundary. Async
+  bodies stay on the main loop where ctx-injection works. Caught by the
+  round-12 evaluation audit; regression test in
+  `tests/test_sync_action_timeout.py`. `refusals.md` documents the
+  coverage and the orphaned-thread caveat.
+
 ### Fixed (round 10: 0.4.0-blocker doc fixes)
 - **`THEODOSIA_VERBOSE` documented in `cli.md`** with what it restores
   (Burr's error panel + traceback, FastMCP per-call DEBUG) and when to

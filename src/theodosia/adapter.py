@@ -1761,8 +1761,26 @@ async def _step_application(
             stderr_ctx: contextlib.AbstractContextManager[Any] = contextlib.nullcontext()
         else:
             stderr_ctx = contextlib.redirect_stderr(io.StringIO())
+        # A sync action body would block the event loop, which defeats
+        # ``asyncio.wait_for``: the cancellation timer cannot tick while the
+        # body is running. Detect sync bodies and run the step in a thread
+        # so blocking happens off the main loop and the timeout can fire.
+        # The orphaned thread finishes in the background (Python cannot
+        # safely kill threads), but the client gets a clean
+        # ``ActionTimeoutError`` refusal. Async bodies stay on the main
+        # loop where ctx-injection works.
+        fn = getattr(target_action, "fn", None)
+        is_sync_body = fn is not None and not inspect.iscoroutinefunction(fn)
         with stderr_ctx:
-            if timeout_seconds is not None:
+            if timeout_seconds is not None and is_sync_body:
+
+                def _thread_runner() -> tuple[Any, Any, Any]:
+                    return asyncio.run(app.astep(inputs=inputs))  # type: ignore[return-value,misc]
+
+                a, result, new_state = await asyncio.wait_for(
+                    asyncio.to_thread(_thread_runner), timeout=timeout_seconds
+                )
+            elif timeout_seconds is not None:
                 a, result, new_state = await asyncio.wait_for(  # type: ignore[misc]
                     app.astep(inputs=inputs), timeout=timeout_seconds
                 )

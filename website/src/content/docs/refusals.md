@@ -64,6 +64,13 @@ Validators are wired through `mount(..., input_validators={...})`.
 The action was reachable and ran, but exceeded `action_timeout_seconds`
 (configured on `mount`). It surfaces as a refusal rather than a hang.
 
+The timeout fires for both async and sync action bodies. Sync bodies are
+detected and run in a worker thread so a blocking call (`time.sleep`, a
+blocking HTTP request, a tight CPU loop) cannot freeze the event loop and
+defeat the timer. The orphaned thread keeps running until the body
+returns; Python cannot safely kill threads, so the client gets the
+structured refusal while the body completes in the background.
+
 ```json
 {
   "error": "action_timeout",
