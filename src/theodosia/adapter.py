@@ -57,7 +57,6 @@ import typing
 import uuid
 import warnings
 from collections.abc import Callable
-from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
@@ -959,53 +958,12 @@ def _action_signature_params(action: Action) -> list[inspect.Parameter]:
     return params
 
 
-class InvalidTransitionError(Exception):
-    """Raised when a client requests an action that isn't reachable now.
-
-    Carries the list of currently valid action names so the client can
-    recover without re-fetching ``theodosia://next``.
-    """
-
-    def __init__(self, requested: str, valid: list[str]) -> None:
-        self.requested = requested
-        self.valid = valid
-        msg = (
-            f"action {requested!r} is not reachable from current state. "
-            f"Valid actions now: {valid or '(none, terminal)'}."
-        )
-        super().__init__(msg)
-
-
-class ActionExecutionError(Exception):
-    """Raised when an action's wrapped function raises during execution.
-
-    Wraps the original exception so callers can record a structured
-    refusal entry (with the underlying error message) in the session's
-    history. ``original`` is the wrapped exception for callers that
-    want the traceback or the exact type.
-    """
-
-    def __init__(self, action_name: str, original: BaseException) -> None:
-        self.action_name = action_name
-        self.original = original
-        super().__init__(f"action {action_name!r} raised {type(original).__name__}: {original}")
-
-
-class ActionTimeoutError(Exception):
-    """Raised when an action exceeds its allotted execution time.
-
-    The action's coroutine is cancelled via ``asyncio.wait_for``; for
-    async actions doing I/O, cancellation is prompt. For sync or
-    CPU-bound actions, cancellation is best-effort and the underlying
-    work may continue running on its event-loop slot until it yields.
-    The session's FSM does not advance.
-    """
-
-    def __init__(self, action_name: str, timeout_seconds: float) -> None:
-        self.action_name = action_name
-        self.timeout_seconds = timeout_seconds
-        super().__init__(f"action {action_name!r} exceeded the {timeout_seconds}s timeout")
-
+from theodosia._exceptions import (  # noqa: E402 (re-export)
+    ActionExecutionError,
+    ActionTimeoutError,
+    InvalidTransitionError,
+    ValidationFailed,
+)
 
 #: ContextVar set by the step handler around each ``_step_application``
 #: call. Reads inside an action body see their session's entry; used by
@@ -1105,9 +1063,7 @@ async def spawn_subapp(
                 break
             action_obj, _result, new_state = stepped
             step_state = _serializable_state(_public_state(new_state.get_all()))[0]
-            record["history"].append(
-                {"seq": seq, "action": action_obj.name, "state": step_state}
-            )
+            record["history"].append({"seq": seq, "action": action_obj.name, "state": step_state})
             seq += 1
             final_state = new_state
             step_inputs = {}  # only the first astep carries client inputs
@@ -1123,30 +1079,6 @@ async def spawn_subapp(
         raise
     finally:
         _current_subrun_id.reset(subrun_token)
-
-
-class ValidationFailed(Exception):
-    """Raised by an input validator to refuse a call before execution.
-
-    Validators run between MCP wire arrival and action execution. They
-    receive the current public state and the inputs the client sent;
-    they may raise this to refuse, return a dict to substitute
-    normalised inputs, or return None to accept the originals.
-
-    The handler catches ``ValidationFailed``, returns a structured
-    ``{"error": "validation_failed", "reason": ..., "details": ...}``
-    to the client, and records a refusal in ``theodosia://history`` with
-    ``refusal_reason: "validation_failed"``. The FSM does not advance.
-
-    Use ``details`` to attach structured per-field information (e.g.
-    Pydantic validation errors) without baking it into the reason
-    string.
-    """
-
-    def __init__(self, reason: str, *, details: dict[str, Any] | None = None) -> None:
-        self.reason = reason
-        self.details = details or {}
-        super().__init__(reason)
 
 
 # Function attribute that lets hand-written Burr actions declare a
@@ -1227,98 +1159,12 @@ def _resolve(application: ApplicationOrFactory) -> tuple[Application, Applicatio
     )
 
 
-@dataclass
-class _SessionEntry:
-    """One session's slot in ``_SessionStore``.
-
-    ``application`` is None in shared-app mode (the server has one
-    Application that all sessions mutate; per-session apps aren't
-    created). ``history`` is always per-session: each session sees
-    only the timeline of its own calls.
-
-    ``lock`` serializes ``app.astep`` calls within one session. Burr
-    Applications are not thread-safe, and frontier clients can fire
-    parallel tool calls within one MCP session (the protocol permits
-    it). The lock means concurrent step calls from the same session
-    queue rather than racing on the Application's state pointer.
-    Different sessions still proceed in parallel.
-
-    ``subruns`` holds the timelines of any sub-Applications spawned
-    from inside this session's actions via ``theodosia.spawn_subapp``.
-    Each entry has its own id, label, started/ended timestamps,
-    history list, and optional final state. Subrun ids are surfaced
-    on the parent action's history entry via the ``subruns`` key so
-    a client can correlate "the analyse action spawned subrun X" with
-    "subrun X had the following timeline."
-    """
-
-    application: Application | None
-    history: list[dict[str, Any]] = field(default_factory=list)
-    subruns: dict[str, dict[str, Any]] = field(default_factory=dict)
-    last_access: float = field(default_factory=time.monotonic)
-    lock: asyncio.Lock = field(default_factory=asyncio.Lock)
-
-
-class _SessionStore:
-    """Lazy TTL + max-size session store.
-
-    Eviction is lazy: stale entries are dropped on the next access
-    (``get_or_create`` or any of the helpers). No background thread,
-    no asyncio task, no timer surprises.
-
-    Defaults are chosen so a small interactive server doesn't notice
-    eviction at all. Long-running multi-tenant servers should tune
-    ``ttl_seconds`` and ``max_sessions`` based on real session
-    durations and memory budgets.
-    """
-
-    def __init__(
-        self,
-        *,
-        ttl_seconds: int | None = _DEFAULT_SESSION_TTL_SECONDS,
-        max_sessions: int | None = _DEFAULT_MAX_SESSIONS,
-    ) -> None:
-        self._entries: dict[str, _SessionEntry] = {}
-        self.ttl_seconds = ttl_seconds
-        self.max_sessions = max_sessions
-
-    def _evict_stale(self) -> None:
-        if self.ttl_seconds is None:
-            return
-        now = time.monotonic()
-        stale = [sid for sid, e in self._entries.items() if now - e.last_access > self.ttl_seconds]
-        for sid in stale:
-            del self._entries[sid]
-
-    def _evict_if_full(self) -> None:
-        if self.max_sessions is None:
-            return
-        while len(self._entries) >= self.max_sessions:
-            # Evict the least-recently-accessed entry.
-            oldest = min(self._entries, key=lambda s: self._entries[s].last_access)
-            del self._entries[oldest]
-
-    def get_or_create(
-        self,
-        sid: str,
-        factory: ApplicationFactory | None,
-    ) -> _SessionEntry:
-        self._evict_stale()
-        entry = self._entries.get(sid)
-        if entry is None:
-            self._evict_if_full()
-            app = factory() if factory is not None else None
-            entry = _SessionEntry(application=app)
-            self._entries[sid] = entry
-        entry.last_access = time.monotonic()
-        return entry
-
-    def history(self, sid: str) -> list[dict[str, Any]]:
-        entry = self._entries.get(sid)
-        return list(entry.history) if entry is not None else []
-
-    def __len__(self) -> int:
-        return len(self._entries)
+from theodosia._session import (  # noqa: E402 (re-export for adapter backcompat)
+    _DEFAULT_MAX_SESSIONS,
+    _DEFAULT_SESSION_TTL_SECONDS,
+    _SessionEntry,
+    _SessionStore,
+)
 
 
 def _record_history(
