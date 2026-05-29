@@ -1424,22 +1424,27 @@ def _render_session_report(
     if steps:
         final_state = steps[-1].state_summary
         if final_state:
-            lines.append("## Final state")
-            lines.append("")
+            lines.extend(("## Final state", ""))
             if _terminal_state_may_be_stale(steps):
-                lines.append(
-                    "> Note: the terminal action's post-state cannot be read back "
-                    "from Burr's tracker when the action body is sync (Burr fires "
-                    "`post_run_step` with pre-action state in that case). The "
-                    "snapshot below is one step behind for a sync terminal; for "
-                    "the true post-action state read `theodosia://state` from a "
-                    "live session or write the action body `async def`."
+                lines.extend(
+                    (
+                        "> Note: the terminal action's post-state cannot be read back "
+                        "from Burr's tracker when the action body is sync (Burr fires "
+                        "`post_run_step` with pre-action state in that case). The "
+                        "snapshot below is one step behind for a sync terminal; for "
+                        "the true post-action state read `theodosia://state` from a "
+                        "live session or write the action body `async def`.",
+                        "",
+                    )
                 )
-                lines.append("")
-            lines.append("```json")
-            lines.append(json.dumps(final_state, indent=2, default=str))
-            lines.append("```")
-            lines.append("")
+            lines.extend(
+                (
+                    "```json",
+                    json.dumps(final_state, indent=2, default=str),
+                    "```",
+                    "",
+                )
+            )
 
     if not steps and not refusals:
         lines.extend(("_(no steps or refusals recorded at this session yet)_", ""))
@@ -1448,8 +1453,25 @@ def _render_session_report(
 
 
 def _post_report(webhook_url: str, markdown: str, *, project: str, app_id: str) -> None:
-    """POST the rendered report to a webhook as ``application/markdown``."""
+    """POST the rendered report to a webhook as ``application/markdown``.
+
+    Only http and https URLs are accepted; file:// or custom schemes would
+    let a tampered config exfiltrate report contents to a local path or a
+    side channel.
+    """
+    import urllib.parse
     import urllib.request
+
+    scheme = urllib.parse.urlparse(webhook_url).scheme.lower()
+    if scheme not in ("http", "https"):
+        err_console.print(
+            Text.assemble(
+                ("refused webhook ", "err"),
+                (webhook_url, "subtle"),
+                (f" (only http/https allowed; got {scheme!r})", "muted"),
+            )
+        )
+        return
 
     req = urllib.request.Request(
         webhook_url,
@@ -1462,7 +1484,8 @@ def _post_report(webhook_url: str, markdown: str, *, project: str, app_id: str) 
         },
     )
     try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        # Scheme validated above; nosec is safe here.
+        with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310
             err_console.print(
                 Text.assemble(
                     ("posted to ", "muted"),

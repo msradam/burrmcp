@@ -2344,7 +2344,7 @@ def mount(
                     "values; calling an out-of-state value returns an "
                     "invalid_transition error with the current valid set."
                 ),
-                json_schema_extra={"enum": list(action_names)},  # type: ignore[dict-item]
+                json_schema_extra={"enum": action_names.copy()},  # type: ignore[dict-item]
             ),
         ]
         step_description = f"{step.__doc__}\n\n{action_surface}"

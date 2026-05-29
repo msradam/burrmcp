@@ -14,6 +14,7 @@ the ``ServingMode`` enum keeps ``STEP`` as its only member so callers
 passing ``mode=ServingMode.STEP`` keep working.
 """
 
+import contextlib
 from typing import Any
 
 from theodosia.adapter import (
@@ -67,13 +68,11 @@ def tracker(project: str, storage_dir: str | None = None, **kwargs: Any):
     if storage_dir is None:
         storage_dir = os.environ.get("THEODOSIA_HOME")
     if storage_dir is None:
-        try:
+        with contextlib.suppress(Exception):
             from theodosia.cli import _BRANDING
 
             if _BRANDING.home is not None:
                 storage_dir = str(_BRANDING.home)
-        except Exception:
-            pass
     if storage_dir is None:
         storage_dir = "~/.theodosia"
     return LocalTrackingClient(project=project, storage_dir=storage_dir, **kwargs)
