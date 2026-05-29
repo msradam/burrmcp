@@ -6,6 +6,21 @@ versioning.
 
 ## [Unreleased]
 
+### Fixed (round 7: sixth exploration audit)
+- **`theodosia status` "empty" status actually fires.** The previous round
+  added the "empty" label to `sessions ls` but missed the second code path
+  in `status`, which kept reporting `running` for 0-step sessions. Both
+  paths now emit `empty` consistently, and the rich table maps `empty` to
+  a muted style.
+- **`tutorial.md` drive_rover.py** still passed a built `Application` to
+  `mount()` on one line (line 369) after the prior round caught two of
+  three. Fixed; tutorial.md now uses the factory form throughout, matching
+  `authoring.md`.
+- **`cli.md` observability section** now lists `theodosia status` and
+  `theodosia report` alongside `sessions`, `logs`, and `verify`, with a
+  short note on the `last_status` values (`ok` / `error` / `empty` /
+  `running`).
+
 ### Fixed (round 6: fifth exploration audit)
 - **Personas reference page.** New `website/src/content/docs/personas.md`
   documents the PERSONA.md format, the `personas=` mounting shapes

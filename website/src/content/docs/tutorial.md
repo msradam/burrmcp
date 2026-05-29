@@ -366,7 +366,7 @@ def pick(content):
 
 
 async def main():
-    server = mount(build_application(), name="rover")
+    server = mount(build_application, name="rover")
     async with Client(server) as client:
         graph = json.loads((await client.read_resource("theodosia://graph"))[0].text)
         catalog = json.dumps(graph.get("actions", graph), indent=2)

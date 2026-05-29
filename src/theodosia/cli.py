@@ -1384,7 +1384,7 @@ def status(
                     ),
                     "steps": len(rows),
                     "last_action": rows[-1].action if rows else "(empty)",
-                    "last_status": rows[-1].status if rows else "running",
+                    "last_status": rows[-1].status if rows else "empty",
                 }
             payload["projects"].append(
                 {
@@ -1443,6 +1443,7 @@ def status(
             "ok": "ok",
             "running": "running",
             "failed": "err",
+            "empty": "muted",
         }.get(status_text, "muted")
         table.add_row(
             proj["name"],
