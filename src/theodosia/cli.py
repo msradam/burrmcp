@@ -772,6 +772,32 @@ def _short_ts(ts: str) -> str:
     return ts
 
 
+def _locate_project_home(home: Path | None, project: str | None) -> Path:
+    """Resolve the tracker root, auto-falling back when the project lives under ``~/.burr``.
+
+    A user who wired Burr's ``LocalTrackingClient(project=...)`` directly writes
+    to ``~/.burr/<project>``; the CLI defaults to ``~/.theodosia`` and would
+    report no such project. When a project name is given and exists under
+    ``~/.burr`` but not the resolved default, switch silently and print a
+    one-line hint so the user knows to pass ``--home ~/.burr`` next time.
+    """
+    if home is not None:
+        return _resolve_home(home)
+    default = _resolve_home(None)
+    if project is None:
+        return default
+    if (default / project).is_dir():
+        return default
+    burr_home = Path("~/.burr").expanduser()
+    if burr_home != default and (burr_home / project).is_dir():
+        err_console.print(
+            f"[muted]project {project!r} found under ~/.burr; "
+            f"reading from there. Pass [bold]--home ~/.burr[/] to make it explicit.[/]"
+        )
+        return burr_home
+    return default
+
+
 def _relative_when(ts: str) -> str:
     """Render an ISO timestamp as a short relative-time label (3m, 2h, 4d)."""
     if not ts:
@@ -860,12 +886,22 @@ def sessions_ls(
         int,
         typer.Option("--limit", "-n", help="Max recent apps to show per project."),
     ] = 8,
+    show_all: Annotated[
+        bool,
+        typer.Option(
+            "--all",
+            help=(
+                "Include empty tracker entries (created by FastMCP on connect "
+                "but never advanced). Default hides them."
+            ),
+        ),
+    ] = False,
     as_json: Annotated[
         bool, typer.Option("--json", help="Emit JSON instead of a rich table.")
     ] = False,
 ) -> None:
     """Table of recent tracked sessions, most recent first."""
-    home = _resolve_home(home)
+    home = _locate_project_home(home, project)
     if not home.exists():
         err_console.print(f"[err]No Burr tracker storage at[/] {home}")
         raise typer.Exit(code=1)
@@ -893,6 +929,10 @@ def sessions_ls(
             log = a / "log.jsonl"
             size = log.stat().st_size if log.exists() else 0
             rows = _read_steps(log) if size > 0 else []
+            if not rows and not show_all:
+                # FastMCP creates a tracker entry per Client connect; many
+                # are never advanced. Hide them by default. ``--all`` to see.
+                continue
             last_action = rows[-1].action if rows else "(empty)"
             # An empty tracker dir means the session was created but never
             # took a step. Calling that "running" is wrong; it's idle.

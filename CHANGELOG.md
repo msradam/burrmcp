@@ -6,6 +6,34 @@ versioning.
 
 ## [Unreleased]
 
+### Fixed (round 14: prompt-pattern parallel audits)
+
+Three more parallel sim-agent audits, this round building classic prompt
+patterns as Theodosia FSMs: Reflexion / Self-Refine, Tree-of-Thoughts
+(Game of 24), and Deep Research with classified upstream chaos. All three
+named the same two CLI papercuts; both fixed.
+
+- **`theodosia sessions ls` hides ghost-empty tracker entries by default.**
+  FastMCP creates a tracker directory per `Client` connect even when no
+  step lands; previous behavior listed every one as `(empty)` and
+  drowned the real sessions. New `--all` flag restores the old behavior.
+- **`theodosia sessions ls -p <project>` auto-falls back to `~/.burr`.**
+  A project wired through Burr's own `LocalTrackingClient(project=...)`
+  writes there, not to `~/.theodosia`. The CLI now checks both roots when
+  a project name is given and emits a one-line hint when it auto-switches
+  so users learn to pass `--home ~/.burr` next time.
+- **`theodosia doctor` warns on sync action bodies under a persister or
+  tracker.** Burr's `post_run_step` fires with pre-step state for sync
+  bodies; the on-disk tracker rows record stale state for those rows and
+  `fork_from_past` resumes from the wrong snapshot. Authors writing
+  `async def` avoid the trap; the new check surfaces it at validation
+  time instead of after a confused report run.
+- **`theodosia sessions list`** is now a hidden alias for `sessions ls`
+  (muscle-memory fallback); the previous behavior wrapped a Typer
+  command-not-found error in a giant Rich-rendered traceback panel.
+  `pretty_exceptions_enable=False` on the root CLI also keeps unexpected
+  errors as plain text instead of multi-page panels.
+
 ### Fixed (round 13: three parallel sim-agent audits)
 
 Three doc-only audits ran in parallel (SRE incident triage, content
