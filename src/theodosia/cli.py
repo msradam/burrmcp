@@ -1448,17 +1448,17 @@ def status(
         return
 
     if not payload["projects"]:
+        console.print(Text(f"\nno projects found in {resolved_home}.", style="muted"))
         burr_home = Path("~/.burr").expanduser()
-        hint = ""
-        if home == Path("~/.theodosia").expanduser() and burr_home.exists():
-            hint = (
-                f"\n[muted]Nothing under {home}. If you used Burr's "
-                f"LocalTrackingClient directly, try "
-                f"[bold]theodosia status --home ~/.burr[/].[/]"
+        if (
+            resolved_home == Path("~/.theodosia").expanduser()
+            and burr_home.exists()
+            and any(burr_home.iterdir())
+        ):
+            console.print(
+                "[muted]Sessions exist under [bold]~/.burr[/] (Burr's native default). "
+                "Try [bold]theodosia status --home ~/.burr[/].[/]"
             )
-        console.print(Text(f"\nno projects found in {home}.", style="muted"))
-        if hint:
-            console.print(hint)
         return
 
     table = Table(show_header=True, header_style="header", box=None, expand=False)
