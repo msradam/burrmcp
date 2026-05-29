@@ -96,10 +96,11 @@ Tools land at `orders_step` and `tickets_step`; resources at
 `theodosia://orders/graph` and `theodosia://tickets/graph`. The
 parent `theodosia://apps` index lists what is mounted.
 
-Run it:
+Run it (the demo composes the parent FastMCP server itself and is run
+directly, not through `theodosia serve`):
 
 ```bash
-theodosia serve multi_graph:build_server --app-dir examples
+python examples/multi_graph.py
 ```
 
 Exercises: namespaced multi-app composition, the only demo using
