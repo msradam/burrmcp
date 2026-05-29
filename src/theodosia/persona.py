@@ -192,16 +192,16 @@ def load_personas(source: PersonaSource) -> dict[str, Persona]:
             f"personas source must be a directory, a file, a dict, or a list; "
             f"got {source!r} which exists={path.exists()}"
         )
-    out: dict[str, Persona] = {}
+    dir_out: dict[str, Persona] = {}
     for f in sorted(path.glob("*.md")):
         p = Persona.from_file(f)
-        if p.name in out:
+        if p.name in dir_out:
             raise ValueError(
                 f"duplicate persona name {p.name!r} in {path}: "
                 f"both {f} and a prior file share that name"
             )
-        out[p.name] = p
-    return out
+        dir_out[p.name] = p
+    return dir_out
 
 
 def resolve_default(personas: dict[str, Persona], requested: str | None) -> Persona | None:

@@ -6,6 +6,21 @@ versioning.
 
 ## [Unreleased]
 
+### Fixed (round 9: static-analysis sweep + table widths)
+- **Responsive table widths in `theodosia status` and `theodosia sessions ls`.**
+  Both tables now show a 12-char `app_id` prefix, an 18-char `last action`
+  cell, and a relative `when` column (`3m ago`, `2h ago`, `4d ago`) instead
+  of full ISO timestamps. Previously columns truncated mid-word and the
+  trailing border was garbled on standard terminals. Cosmetic but the most
+  visible CLI surface for daily use, so worth tightening.
+- **Static analysis sweep**: clean across ruff, refurb (3 hits fixed:
+  `dict()` → `.copy()`, redundant `is not True`, comprehension), mypy
+  (21 errors → 0; persona `out` redefined, `_build_persona_frame`
+  None-guard on `entry.application`, transport literal narrowed in
+  `theodosia serve`), and vulture (no live-code dead code). Radon
+  flags `status`, `sessions_ls`, and `_graph_renderable` as D-rank
+  (long but single-purpose render code); deferred to a 0.4.1 refactor.
+
 ### Fixed (round 8: seventh exploration audit)
 - **Persona placeholders render dicts and lists as JSON, not Python
   `repr`.** `{state.order}` for `state.order = {"item": "soda", "qty": 1}`

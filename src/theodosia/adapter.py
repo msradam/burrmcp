@@ -710,6 +710,8 @@ def _build_persona_frame(
         return None
     entry = store.get_or_create(session_id, factory)
     app = entry.application
+    if app is None:
+        return None
     state_fields = dict(app.state.get_all())
     state_fields.pop("__PRIOR_STEP", None)
     last_action = app.state.get("__PRIOR_STEP") or app.entrypoint
@@ -779,7 +781,7 @@ def _coerce_pydantic_inputs(action: Action, inputs: dict[str, Any]) -> dict[str,
         hints = typing.get_type_hints(fn)
     except Exception:
         return inputs
-    out = dict(inputs)
+    out = inputs.copy()
     for name, value in list(out.items()):
         ann = hints.get(name)
         if ann is None or not isinstance(ann, type):
@@ -1931,7 +1933,7 @@ def mount(
             name=name if name is not None else asm.name,
             instructions=instructions if instructions is not None else asm.instructions,
             include_default_instructions=include_default_instructions
-            if include_default_instructions is not True
+            if not include_default_instructions
             else asm.include_default_instructions,
             personas=personas if personas is not None else asm.personas,
             default_persona=default_persona if default_persona is not None else asm.default_persona,
@@ -2077,6 +2079,7 @@ def mount(
     # managers wrapping already-open sessions). Anything with an async
     # ``call`` attribute is treated as a manager; anything else is treated
     # as a config dict.
+    upstream_manager: Any
     if upstream is None:
         upstream_manager = None
     elif hasattr(upstream, "call"):
@@ -2619,7 +2622,7 @@ def mount(
                     "values; calling an out-of-state value returns an "
                     "invalid_transition error with the current valid set."
                 ),
-                json_schema_extra={"enum": action_names.copy()},
+                json_schema_extra={"enum": list(action_names)},  # type: ignore[dict-item]
             ),
         ]
         step_description = f"{step.__doc__}\n\n{action_surface}"

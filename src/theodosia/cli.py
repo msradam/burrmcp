@@ -362,8 +362,12 @@ def serve(
     transport_norm = transport.lower()
     if transport_norm == "stdio":
         server.run(transport="stdio")
-    elif transport_norm in {"http", "sse", "streamable-http"}:
-        server.run(transport=transport_norm, host=host, port=port)
+    elif transport_norm == "http":
+        server.run(transport="http", host=host, port=port)
+    elif transport_norm == "sse":
+        server.run(transport="sse", host=host, port=port)
+    elif transport_norm == "streamable-http":
+        server.run(transport="streamable-http", host=host, port=port)
     else:
         raise typer.BadParameter(
             f"unknown transport {transport!r}; expected stdio, http, sse, or streamable-http"
@@ -747,6 +751,27 @@ def _short_ts(ts: str) -> str:
     return ts
 
 
+def _relative_when(ts: str) -> str:
+    """Render an ISO timestamp as a short relative-time label (3m, 2h, 4d)."""
+    if not ts:
+        return ""
+    try:
+        when = datetime.fromisoformat(ts)
+    except ValueError:
+        return ts
+    delta = datetime.now() - when
+    s = int(delta.total_seconds())
+    if s < 0:
+        return ts.split("T", 1)[-1].split(".", 1)[0]
+    if s < 60:
+        return f"{s}s ago"
+    if s < 3600:
+        return f"{s // 60}m ago"
+    if s < 86400:
+        return f"{s // 3600}h ago"
+    return f"{s // 86400}d ago"
+
+
 def _status_text(status: str) -> Text:
     if status == "ok":
         return Text("✓", style="ok")
@@ -881,20 +906,18 @@ def sessions_ls(
             show_lines=False,
             border_style="muted",
         )
-        table.add_column("app_id", no_wrap=True, style="muted")
-        table.add_column("last touched", no_wrap=True, style="subtle")
+        table.add_column("app_id", no_wrap=True, style="muted", width=12)
+        table.add_column("when", no_wrap=True, style="subtle", width=8)
         table.add_column("steps", justify="right", width=6, no_wrap=True)
         table.add_column("", width=1, no_wrap=True)
         table.add_column("last action", no_wrap=True, style="action")
-        table.add_column("bytes", justify="right", style="muted")
         for app_entry in proj_entry["apps"]:
             table.add_row(
-                app_entry["app_id"],
-                app_entry["mtime"].replace("T", " "),
+                app_entry["app_id"][:12],
+                _relative_when(app_entry["mtime"]),
                 str(app_entry["steps"]),
                 _status_text(app_entry["last_status"]),
-                app_entry["last_action"],
-                str(app_entry["size_bytes"]),
+                (app_entry["last_action"] or "")[:18],
             )
         console.print(table)
         console.print()
@@ -1429,16 +1452,17 @@ def status(
         return
 
     table = Table(show_header=True, header_style="header", box=None, expand=False)
-    table.add_column("project", style="action")
-    table.add_column("sessions", justify="right", style="accent")
-    table.add_column("latest app_id", style="muted", overflow="fold")
-    table.add_column("steps", justify="right")
-    table.add_column("last action")
-    table.add_column("status")
-    table.add_column("when")
+    table.add_column("project", style="action", no_wrap=True)
+    table.add_column("sessions", justify="right", style="accent", no_wrap=True)
+    table.add_column("app_id", style="muted", no_wrap=True)
+    table.add_column("steps", justify="right", no_wrap=True)
+    table.add_column("last action", style="action", no_wrap=True)
+    table.add_column("status", no_wrap=True)
+    table.add_column("when", style="subtle", no_wrap=True)
     for proj in payload["projects"]:
-        latest = proj.get("latest") or {}
-        status_text = latest.get("last_status", "")
+        latest_raw: Any = proj.get("latest") or {}
+        latest_entry: dict[str, Any] = latest_raw if isinstance(latest_raw, dict) else {}
+        status_text = latest_entry.get("last_status", "")
         status_style = {
             "ok": "ok",
             "running": "running",
@@ -1448,11 +1472,11 @@ def status(
         table.add_row(
             proj["name"],
             str(proj["sessions"]),
-            (latest.get("app_id") or "")[:20],
-            str(latest.get("steps", 0)),
-            latest.get("last_action", ""),
+            (latest_entry.get("app_id") or "")[:12],
+            str(latest_entry.get("steps", 0)),
+            (latest_entry.get("last_action") or "")[:18],
             Text(status_text or "(none)", style=status_style),
-            latest.get("mtime", ""),
+            _relative_when(latest_entry.get("mtime") or ""),
         )
     console.print()
     console.print(table)

@@ -107,10 +107,7 @@ def _format_inputs(inputs: dict[str, Any]) -> str:
 
 
 def _diff_state(before: dict[str, Any], after: dict[str, Any]) -> str:
-    changed: list[str] = []
-    for k, v in after.items():
-        if before.get(k) != v:
-            changed.append(f"{k}={v!r}")
+    changed = [f"{k}={v!r}" for k, v in after.items() if before.get(k) != v]
     return ", ".join(changed)
 
 
