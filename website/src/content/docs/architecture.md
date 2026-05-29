@@ -152,6 +152,36 @@ also reaches the loader, so an agent can resurrect any past session by
 `(app_id, sequence_id)` without anything in the factory. See
 `examples/sqlite_persister.py` for both factories side by side.
 
+## Lifting declarative artifacts (Philip)
+
+[Philip](https://github.com/msradam/philip) is a sibling library that
+turns declarative artifacts into Burr Applications `mount()` can consume
+directly. The composition shape is:
+
+```python
+import philip, theodosia
+theodosia.mount(philip.from_playbook("site.yml"), name="ansible-mcp").run()
+```
+
+What Philip lifts to Burr (Theodosia targets):
+
+- `from_playbook(path)`: Ansible YAML. Tasks become actions, `when:`
+  conditions become Burr `Condition.expr` guards, failures classify
+  into transitions. Verified working through the four-tool surface,
+  including refusals derived from YAML preconditions.
+- `from_mermaid(path)`: Mermaid `stateDiagram-v2`. Multi-outbound
+  branches surface through `step(action="<state>", inputs={"choice":
+  "<label>"})`: the passthrough writes `_choice`, the matching outbound
+  guard becomes the only reachable next action.
+- `from_excalidraw(path).to_burr()`: Excalidraw sketches. Same branch
+  semantics as Mermaid via the shared IR projector.
+
+Theodosia's surface is invariant under the lift: the four MCP tools,
+the `theodosia://graph` resource, structured refusals carrying
+`valid_next_actions`. Anything the lifted Application supports passes
+through `mount()` unchanged, including persistence, hooks, and
+upstream composition.
+
 ## Input coercion middleware
 
 `mount()` builds the FastMCP server with `strict_input_validation=False` and

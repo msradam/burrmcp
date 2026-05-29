@@ -230,14 +230,18 @@ Full docs at **[msradam.github.io/theodosia](https://msradam.github.io/theodosia
 
 ## Compose with Philip
 
-[Philip](https://github.com/msradam/philip) is the sibling library that lifts existing operational artifacts into Burr Applications Theodosia can mount. The composition is two lines:
+[Philip](https://github.com/msradam/philip) is the sibling library that lifts existing operational artifacts into Burr Applications Theodosia mounts. Philip handles the lift; Theodosia handles the wire. The composition is one line:
 
 ```python
 import philip, theodosia
-theodosia.mount(philip.from_excalidraw("workflow.excalidraw").to_burr, name="sketch-mcp").run()
+
+# Ansible playbook -> Burr -> MCP server (the canonical path)
+theodosia.mount(philip.from_playbook("backup.yml"), name="backup-mcp").run()
 ```
 
-Philip ships deterministic lifts for Ansible YAML, Mermaid stateDiagram and flowchart, SQL with CTEs, and Excalidraw sketches. The agent driving the resulting server can only walk the graph the source artifact encodes; you draw the workflow, the agent follows it.
+Philip ships deterministic lifts for Ansible YAML (`from_playbook`), Mermaid stateDiagram-v2 (`from_mermaid`), and Excalidraw sketches (`from_excalidraw().to_burr()`), plus Hamilton-target lifts for Mermaid flowcharts and SQL CTEs.
+
+Ansible's `when:`, `register:`, `notify:`, and handlers preserve into the lifted Burr transitions, so a `step()` from the wrong state refuses with `valid_next_actions` derived from the YAML's real preconditions. Mermaid and Excalidraw lifts work the same way through Theodosia: a branched diagram exposes the branch through `step(action="<state>", inputs={"choice": "<label>"})`, the matching outbound transition becomes the only reachable next action, and the wrong choice refuses the same way the rest of the surface does.
 
 ---
 
