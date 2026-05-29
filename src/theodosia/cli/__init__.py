@@ -31,47 +31,39 @@ from __future__ import annotations
 import sys
 
 from theodosia.cli._app import build_cli, doctor, run, serve, ui
-from theodosia.cli._branding import _BRANDING, _Branding, console, err_console
-from theodosia.cli._resolve import (
-    _bail,
-    _burr_ui_url,
-    _import_target,
-    _locate_project_home,
-    _pick_default_app_id,
-    _pick_default_project,
-    _resolve_app,
-    _resolve_app_id_prefix,
-    _resolve_home,
-    _resolve_serve_target,
-)
-from theodosia.cli._steps import (
-    StepRow,
-    _build_steps_table,
-    _duration_ms,
-    _exception_summary,
-    _read_refusals,
-    _read_steps,
-    _relative_when,
-    _scan_app_entry,
-    _short_ts,
-    _short_value,
-    _state_diff_text,
-    _status_text,
-    _terminal_state_may_be_stale,
-)
-from theodosia.cli._topology import (
-    _condition_label,
-    _graph_renderable,
-    _render_dot,
-    _render_mermaid,
-    _session_progress,
-    _Topology,
-    _topology,
-    render,
-)
-from theodosia.cli.reports import _post_report, _render_session_report, report
+
+# Intentional re-exports of underscored helpers that tests and
+# ``theodosia.__init__`` reach for. The ``as X as X`` form tells ruff
+# this isn't a stray import; keeping the names importable from
+# ``theodosia.cli`` is part of the contract with existing call sites.
+from theodosia.cli._branding import _BRANDING as _BRANDING
+from theodosia.cli._branding import _Branding as _Branding
+
+# Public command callables and the public StepRow model.
+from theodosia.cli._branding import console, err_console
+from theodosia.cli._resolve import _burr_ui_url as _burr_ui_url
+from theodosia.cli._resolve import _import_target as _import_target
+from theodosia.cli._resolve import _resolve_app as _resolve_app
+from theodosia.cli._resolve import _resolve_home as _resolve_home
+from theodosia.cli._resolve import _resolve_serve_target as _resolve_serve_target
+from theodosia.cli._steps import StepRow
+from theodosia.cli._steps import _exception_summary as _exception_summary
+from theodosia.cli._steps import _read_refusals as _read_refusals
+from theodosia.cli._steps import _read_steps as _read_steps
+from theodosia.cli._steps import _state_diff_text as _state_diff_text
+from theodosia.cli._topology import _condition_label as _condition_label
+from theodosia.cli._topology import _graph_renderable as _graph_renderable
+from theodosia.cli._topology import _session_progress as _session_progress
+from theodosia.cli._topology import _Topology as _Topology
+
+# Function name collides with submodule path ``theodosia.cli._topology``;
+# this re-export shadows the submodule attribute so ``cli._topology(target,
+# app_dir, name)`` calls the function as it did before the split.
+from theodosia.cli._topology import _topology as _topology
+from theodosia.cli._topology import render
+from theodosia.cli.reports import report
+from theodosia.cli.sessions import _diff_state_dicts as _diff_state_dicts
 from theodosia.cli.sessions import (
-    _diff_state_dicts,
     logs,
     sessions_diff,
     sessions_ls,
@@ -79,53 +71,14 @@ from theodosia.cli.sessions import (
     sessions_tail,
     watch,
 )
-from theodosia.cli.status import (
-    _collect_status_payload,
-    _scan_project_latest,
-    _theodosia_installed_version,
-    status,
-    verify,
-)
+from theodosia.cli.status import status, verify
 
+# Public surface only. Underscored helpers (``_read_steps``, ``_BRANDING``,
+# ``_burr_ui_url`` etc.) are imported at the top of this module and remain
+# importable from ``theodosia.cli`` for tests and downstream tooling, but
+# they are not declared API and may move without notice.
 __all__ = [
-    "_BRANDING",
     "StepRow",
-    "_Branding",
-    "_Topology",
-    "_bail",
-    "_build_steps_table",
-    "_burr_ui_url",
-    "_collect_status_payload",
-    "_condition_label",
-    "_diff_state_dicts",
-    "_duration_ms",
-    "_exception_summary",
-    "_graph_renderable",
-    "_import_target",
-    "_locate_project_home",
-    "_pick_default_app_id",
-    "_pick_default_project",
-    "_post_report",
-    "_read_refusals",
-    "_read_steps",
-    "_relative_when",
-    "_render_dot",
-    "_render_mermaid",
-    "_render_session_report",
-    "_resolve_app",
-    "_resolve_app_id_prefix",
-    "_resolve_home",
-    "_resolve_serve_target",
-    "_scan_app_entry",
-    "_scan_project_latest",
-    "_session_progress",
-    "_short_ts",
-    "_short_value",
-    "_state_diff_text",
-    "_status_text",
-    "_terminal_state_may_be_stale",
-    "_theodosia_installed_version",
-    "_topology",
     "app",
     "build_cli",
     "console",

@@ -7,6 +7,13 @@ import pytest
 from theodosia.cli import _burr_ui_url
 
 
+@pytest.fixture(autouse=True)
+def _clear_ui_env(monkeypatch: pytest.MonkeyPatch):
+    """Don't let a developer's shell exports drive these assertions."""
+    monkeypatch.delenv("BURR_UI_HOST", raising=False)
+    monkeypatch.delenv("BURR_UI_PORT", raising=False)
+
+
 def test_default_url_shape():
     url = _burr_ui_url("my-project", "abc123")
     assert url == "http://localhost:7241/project/my-project/null/abc123"

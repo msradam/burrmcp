@@ -26,9 +26,9 @@ class StepRow:
 
 
 def _read_refusals(log_path: Path) -> list[StepRow]:
-    """Read the refusals.jsonl sidecar (written by the adapter) next to the
-    tracker log. These are blocked transitions the agent attempted; Burr's own
-    log never sees them because the action never ran."""
+    """Blocked transitions the agent attempted; Burr's tracker never sees them
+    because the action body never ran. The adapter writes them to a
+    ``refusals.jsonl`` sidecar so the postmortem timeline still shows them."""
     sidecar = log_path.parent / "refusals.jsonl"
     if not sidecar.exists():
         return []

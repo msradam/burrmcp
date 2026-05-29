@@ -140,6 +140,58 @@ async def test_namespaced_step_returns_app_id_per_app():
 # == parent instructions ==========================================
 
 
+@pytest.mark.asyncio
+async def test_mount_multi_forwards_hooks_to_every_sub_app():
+    """``hooks=[...]`` must thread through to each sub-application's ``mount``."""
+    from burr.lifecycle import PostRunStepHook
+
+    class _SpyHook(PostRunStepHook):
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+
+        def post_run_step(self, *, action, **kwargs):
+            self.calls.append(action.name)
+
+    hook = _SpyHook()
+    server = mount_multi(
+        {"order": _factory_a, "review": _factory_b},
+        mode=ServingMode.STEP,
+        hooks=[hook],
+    )
+    async with Client(server) as c:
+        await c.call_tool("order_step", {"action": "open_session", "inputs": {}})
+        await c.call_tool("review_step", {"action": "open_session", "inputs": {}})
+    assert hook.calls.count("open_session") == 2
+
+
+@pytest.mark.asyncio
+async def test_mount_multi_forwards_middleware_to_every_sub_app():
+    """``middleware=[...]`` must thread through to each sub-application's ``mount``."""
+    from fastmcp.server.middleware import Middleware, MiddlewareContext
+
+    class _SpyMW(Middleware):
+        def __init__(self) -> None:
+            self.tool_calls: list[str] = []
+
+        async def on_call_tool(self, ctx: MiddlewareContext, call_next):
+            self.tool_calls.append(ctx.message.name)
+            return await call_next(ctx)
+
+    mw = _SpyMW()
+    server = mount_multi(
+        {"order": _factory_a, "review": _factory_b},
+        mode=ServingMode.STEP,
+        middleware=[mw],
+    )
+    async with Client(server) as c:
+        await c.call_tool("order_step", {"action": "open_session", "inputs": {}})
+        await c.call_tool("review_step", {"action": "open_session", "inputs": {}})
+    # Sub-server middleware sees the post-routing tool name (FastMCP's
+    # composition strips the namespace before dispatching to the sub-server).
+    # That is "step" for STEP mode, regardless of the namespace.
+    assert mw.tool_calls == ["step", "step"]
+
+
 def test_parent_instructions_mention_each_app():
     server = mount_multi(
         {"order": _factory_a, "review": _factory_b},

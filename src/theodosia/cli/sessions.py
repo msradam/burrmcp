@@ -155,7 +155,10 @@ def sessions_show(
         bool,
         typer.Option(
             "--open",
-            help="Open this session in the Burr UI (http://localhost:7241) in the default browser.",
+            help=(
+                "Open this session in the Burr UI in the default browser "
+                "(honors BURR_UI_HOST / BURR_UI_PORT)."
+            ),
         ),
     ] = False,
 ) -> None:

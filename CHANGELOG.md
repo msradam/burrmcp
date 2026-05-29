@@ -21,8 +21,7 @@ Cross-session post-mortem comparison. Useful when you want to ask
 ### Changed (CLI package split for maintainability)
 
 ``cli.py`` (1,884 lines) is now ``cli/`` (9 modules, largest 348 lines).
-Same public surface; no behavioral change. Same shape Statewright and
-ActiveGraph use: one module per command family.
+Same public surface; no behavioral change. One module per command family.
 
 - ``cli/__init__.py``: public re-exports of every name tests and
   ``theodosia.__init__`` reach for. ``from theodosia.cli import build_cli,
@@ -72,14 +71,13 @@ all consumers lived in one module.
 - ``--json`` output for both commands now carries the URL under
   ``burr_ui_url``.
 
-This stays in scope: we don't ship a Theodosia UI. We point at Burr's,
-which is what ``theodosia ui`` already launches. Deep links make the
-"Burr UI is the untold half of the pitch" point one click away.
+Theodosia does not ship a UI; ``theodosia ui`` launches Burr's. Deep
+links make the replay one click away from any tracked session.
 
-### Added (doing-it-justice pass: streaming, hooks, annotations, drive_claude)
+### Added (streaming, hooks, annotations, drive_claude)
 
-The Burr + FastMCP pairing exposes more depth than `mount()` was making
-visible. This pass surfaces it.
+Surface more of what Burr and FastMCP already do through the ``mount()``
+boundary.
 
 - **`mount(..., hooks=[...])`**: pass a list of Burr ``LifecycleAdapter``
   instances (``PreRunStepHook``, ``PostRunStepHook``, ``PreStartStreamHook``,

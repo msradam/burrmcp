@@ -1592,14 +1592,15 @@ def _attach_hooks(app: Application, hooks: list[Any]) -> None:
 
     Burr's ``ApplicationBuilder.with_hooks(*)`` is the normal path; this
     helper is the post-build version for callers that only see the built
-    Application (factories, deserialized apps). Re-derives the sync/async
-    hook caches so the new adapters fire on the next ``astep``.
+    Application (factories, deserialized apps). Uses Burr's public
+    ``LifecycleAdapterSet.with_new_adapters`` so we don't reach into
+    ``_adapters`` or ``_get_lifecycle_hooks`` ourselves; Burr does the
+    same in ``Application.__init__`` to wire its ``TracerFactoryContextHook``.
     """
     adapter_set = getattr(app, "_adapter_set", None)
     if adapter_set is None:
         return
-    adapter_set._adapters.extend(hooks)
-    adapter_set.sync_hooks, adapter_set.async_hooks = adapter_set._get_lifecycle_hooks()
+    app._adapter_set = adapter_set.with_new_adapters(*hooks)
 
 
 def _resolve_assembly_workflow(workflow: Any) -> Any:
@@ -2877,6 +2878,8 @@ def mount_multi(
     session_ttl_seconds: int | None = _DEFAULT_SESSION_TTL_SECONDS,
     max_sessions: int | None = _DEFAULT_MAX_SESSIONS,
     action_timeout_seconds: float | None = None,
+    hooks: list[Any] | None = None,
+    middleware: list[Any] | None = None,
 ) -> FastMCP:
     """Mount multiple Burr Applications as one MCP server.
 
@@ -2904,6 +2907,18 @@ def mount_multi(
             surface) remain on each sub-server.
         session_ttl_seconds, max_sessions, action_timeout_seconds:
             Forwarded to each sub-application's ``mount()`` call.
+        hooks: Burr ``LifecycleAdapter`` instances forwarded to each
+            sub-application's ``mount()`` call. Attached to every
+            sub-application's sessions; if you need per-app hooks, mount
+            them separately and compose manually.
+        middleware: FastMCP ``Middleware`` instances forwarded to each
+            sub-application's ``mount()`` call. Each sub-server's middleware
+            sees the post-routing tool name (``step``, not ``<app>_step``)
+            because FastMCP composition strips the namespace before
+            dispatching to the sub-server. The parent server is not
+            middleware-wrapped here; add middleware to the returned FastMCP
+            with ``server.add_middleware(...)`` if you want a single
+            wrapper around all sub-servers.
 
     A ``theodosia://apps`` resource on the parent lists the mounted app
     names so a connecting agent can discover the namespace surface in
@@ -2942,6 +2957,8 @@ def mount_multi(
             session_ttl_seconds=session_ttl_seconds,
             max_sessions=max_sessions,
             action_timeout_seconds=action_timeout_seconds,
+            hooks=hooks,
+            middleware=middleware,
         )
         parent.mount(sub, namespace=app_name)
 
