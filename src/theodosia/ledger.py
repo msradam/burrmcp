@@ -191,8 +191,7 @@ def _check_entry(
         missing = [k for k, v in expected_binding.items() if got.get(k) != v]
         if missing:
             problems.append(
-                f"line {i}: binding mismatch on {missing} "
-                f"(ledger does not belong to this session)"
+                f"line {i}: binding mismatch on {missing} (ledger does not belong to this session)"
             )
     return problems
 
