@@ -55,7 +55,6 @@ import re
 import time
 import typing
 import uuid
-import warnings
 from collections.abc import Callable
 from datetime import UTC, datetime
 from enum import Enum
@@ -70,9 +69,7 @@ from burr.core import Application
 from burr.core.action import Action
 from fastmcp import Context, FastMCP
 from fastmcp.tools.base import ToolResult
-from mcp.types import TextContent
 
-from theodosia.ledger import HashChainedLedger
 from theodosia.upstream import UpstreamManager, bind_upstream, reset_upstream
 
 ApplicationFactory = Callable[[], Application]
@@ -95,6 +92,13 @@ class ServingMode(str, Enum):  # noqa: UP042  # (str, Enum) for stable wire seri
 # Step tool response schema (Pydantic models + JSON Schema): see
 # ``theodosia._step_schema``. Re-exported here for backward compat with
 # any code that grabs the underscored shapes off this module.
+from theodosia._introspect import (  # noqa: E402,F401 (re-export)
+    _INTERNAL_STATE_KEYS,
+    _PER_ACTION_TIMEOUT_ATTR,
+    _action_timeout,
+    _public_state,
+    _serializable_state,
+)
 from theodosia._step_schema import (  # noqa: E402,F401
     _step_response_schema,
     _StepActionError,
@@ -107,32 +111,15 @@ from theodosia._step_schema import (  # noqa: E402,F401
 
 # State keys Burr writes itself. Hide them from the public state view so
 # the MCP client sees only the user's domain fields.
-_TRACE_MAX_ENTRIES = 1000  # cap theodosia://trace response to the last N records
-
-from theodosia._introspect import (  # noqa: E402,F401 (re-export)
-    _INTERNAL_STATE_KEYS,
-    _PER_ACTION_TIMEOUT_ATTR,
-    _action_timeout,
-    _public_state,
-    _serializable_state,
+# Tracker disk-location helpers: see ``theodosia._tracker``. Re-exported
+# so anything reaching for ``_tracker_project``, ``_tracker_log_path``, or
+# ``_read_trace`` off this module keeps working.
+from theodosia._tracker import (  # noqa: E402,F401
+    _TRACE_MAX_ENTRIES,
+    _read_trace,
+    _tracker_log_path,
+    _tracker_project,
 )
-
-
-def _tracker_project(app: Application) -> str | None:
-    """Return the LocalTrackingClient project name, or None.
-
-    Surfaced on every step/fork meta-tool response so even collapsed
-    tool-result views in MCP clients carry enough to locate the
-    session's data on disk (``~/.burr/<project>/<app_id>/``).
-    """
-    try:
-        from burr.tracking.client import LocalTrackingClient
-    except ImportError:
-        return None
-    tracker = getattr(app, "_tracker", None)
-    if not isinstance(tracker, LocalTrackingClient):
-        return None
-    return tracker.project_id
 
 
 def _restore_snapshot(
@@ -180,61 +167,6 @@ def _restore_snapshot(
     return new_app, new_state, valid_next
 
 
-def _tracker_log_path(app: Application) -> Path | None:
-    """Locate the on-disk log file for this Application's Burr tracker.
-
-    Reads ``app._tracker`` which is Burr's internal slot for the
-    ``LocalTrackingClient``. We pin Burr to a minor version range
-    because of this and similar internals (see ``pyproject.toml``).
-    Returns ``None`` when the Application has no tracker, or has a
-    non-local one, or the resolved path is outside the tracker's
-    own storage directory.
-    """
-    try:
-        from burr.tracking.client import LocalTrackingClient
-    except ImportError:
-        return None
-    tracker = getattr(app, "_tracker", None)
-    if not isinstance(tracker, LocalTrackingClient):
-        return None
-    try:
-        storage_dir = Path(tracker.storage_dir).expanduser().resolve()
-        log_path = (storage_dir / app.uid / LocalTrackingClient.LOG_FILENAME).resolve()
-    except (OSError, AttributeError):
-        return None
-    # Defence in depth: the computed log path must sit under the tracker's
-    # storage dir. If app.uid contained a traversal sequence (it shouldn't,
-    # Burr generates UUIDs, but belt-and-braces), refuse to read it.
-    try:
-        log_path.relative_to(storage_dir)
-    except ValueError:
-        return None
-    return log_path
-
-
-def _read_trace(path: Path, *, tail: int = _TRACE_MAX_ENTRIES) -> list[dict]:
-    """Read a JSONL trace file and return the last ``tail`` records.
-
-    Malformed lines are skipped silently rather than tanking the whole
-    response. The cap is in place because Burr's tracker is append-only;
-    long-running sessions accumulate; an MCP client doesn't want the
-    full 50 MB log returned over the wire on every read.
-    """
-    entries: list[dict] = []
-    with path.open() as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                entries.append(json.loads(line))
-            except json.JSONDecodeError:
-                continue
-    if tail and len(entries) > tail:
-        entries = entries[-tail:]
-    return entries
-
-
 # The machinery preamble shipped to every Theodosia-served MCP server by
 # default. It teaches the agent how to drive the workflow: one step tool,
 # pick from the listed actions, recover from refusals by reading
@@ -261,183 +193,14 @@ the list, you used a name that does not exist. Pick a name from \
 listed)."""
 
 
-def _render_action_surface(app: Application) -> str:
-    """Render a compact text summary of the FSM's action + transition surface.
-
-    Appended to the server's `instructions` so an MCP client sees the
-    action namespace at connect time, before reading any resources. The
-    first line of each action's docstring (if any) becomes its summary;
-    transitions show source and target, plus a `(when: expr)` clause for
-    conditional edges. Inputs are deliberately omitted; they live on the
-    `step` tool's argument schema (or `theodosia://graph` for full detail).
-    """
-    lines: list[str] = []
-    entry = getattr(app, "entrypoint", None)
-    if entry:
-        lines.append(f"Actions (entry: {entry}):")
-    else:
-        lines.append("Actions:")
-    for a in app.graph.actions:
-        fn = getattr(a, "fn", None)
-        doc = (fn.__doc__ or "").strip() if fn is not None and fn.__doc__ else ""
-        first = doc.splitlines()[0] if doc else ""
-        if first:
-            lines.append(f"  - {a.name}: {first}")
-        else:
-            lines.append(f"  - {a.name}")
-
-    lines.extend(("", "Transitions:"))
-    for t in app.graph.transitions:
-        cond = getattr(t.condition, "_name", None) or getattr(t.condition, "name", None)
-        if cond and cond != "default":
-            lines.append(f"  - {t.from_.name} -> {t.to.name}  (when: {cond})")
-        else:
-            lines.append(f"  - {t.from_.name} -> {t.to.name}")
-    return "\n".join(lines)
-
-
-def _normalize_external_tools(
-    external_tools: dict[str, list[str]] | None, app: Application
-) -> dict[str, list[str]]:
-    """Keep only entries whose action name exists in the graph. Warn on
-    unknowns rather than failing, so a typo is recoverable."""
-    if not external_tools:
-        return {}
-    known = {a.name for a in app.graph.actions}
-    out: dict[str, list[str]] = {}
-    for action_name, tools in external_tools.items():
-        if action_name not in known:
-            warnings.warn(
-                f"external_tools names unknown action {action_name!r}; "
-                f"known actions: {sorted(known)}. Ignoring this entry.",
-                stacklevel=3,
-            )
-            continue
-        out[action_name] = [t for t in (tools or ()) if isinstance(t, str) and t.strip()]
-    return out
-
-
-def _next_external_tools(
-    external_tools_map: dict[str, list[str]], valid_next_actions: list[str]
-) -> dict[str, list[str]]:
-    """Per-reachable-action external tools, for surfacing in step responses.
-
-    Only includes reachable actions that actually declare external tools,
-    so the response stays empty (omitted by the caller) for FSMs that
-    don't use the feature.
-    """
-    return {a: external_tools_map[a] for a in valid_next_actions if external_tools_map.get(a)}
-
-
-def _compute_graph_summary(
-    app: Application,
-    server_name: str,
-    external_tools_map: dict[str, list[str]] | None = None,
-) -> dict[str, Any]:
-    """Build a static description of an Application's graph.
-
-    Computed once at mount time and returned as-is by the
-    ``theodosia://graph`` resource. Includes per-action metadata
-    (description, reads, writes, required/optional inputs) and the
-    full transition table including conditions as printed expressions.
-
-    The point of this surface is cold-start discovery: a model
-    connecting to the server can read one resource and have the full
-    topology without trial-and-error or repeated state probes.
-    """
-    ext_map = external_tools_map or {}
-    actions_meta: list[dict[str, Any]] = []
-    for a in app.graph.actions:
-        required, optional = _action_inputs(a)
-        fn = getattr(a, "fn", None)
-        doc = (fn.__doc__ or "").strip() if fn is not None and fn.__doc__ else ""
-        input_schemas = _input_schemas(a)
-        meta: dict[str, Any] = {
-            "name": a.name,
-            "description": doc,
-            "reads": list(a.reads or []),
-            "writes": list(a.writes or []),
-            "required_inputs": required,
-            "optional_inputs": optional,
-            "input_schemas": input_schemas,
-        }
-        if ext_map.get(a.name):
-            meta["external_tools"] = ext_map[a.name]
-        actions_meta.append(meta)
-
-    transitions_meta: list[dict[str, Any]] = []
-    for t in app.graph.transitions:
-        cond_expr: str | None = None
-        try:
-            cond = t.condition
-            cond_name = getattr(cond, "_name", None) or getattr(cond, "name", None)
-            # Burr's Condition.expr produces a condition whose `name`
-            # is the printed expression, which is exactly what a model
-            # needs to know when to take the edge. ``default`` means
-            # unconditional.
-            if cond_name and cond_name != "default":
-                cond_expr = cond_name
-        except Exception:
-            cond_expr = None
-        transitions_meta.append(
-            {
-                "from": t.from_.name,
-                "to": t.to.name,
-                "condition": cond_expr,
-            }
-        )
-
-    # Optionally surface the Pydantic JSON schema for state if the
-    # user wired up Burr's PydanticTypingSystem. Untyped state shows
-    # up as None here; consumers fall back to inferring shape from
-    # per-action ``reads``/``writes``.
-    state_schema: dict[str, Any] | None = None
-    try:
-        ts = app.state.typing_system
-        state_type = ts.state_type() if hasattr(ts, "state_type") else None
-        if state_type is not None and hasattr(state_type, "model_json_schema"):
-            state_schema = state_type.model_json_schema()
-    except Exception:
-        state_schema = None
-
-    return {
-        "name": server_name,
-        "entrypoint": app.entrypoint,
-        "actions": actions_meta,
-        "transitions": transitions_meta,
-        "state_schema": state_schema,
-        "meta_tools": [
-            {
-                "name": "reset_session",
-                "description": (
-                    "Reset this session's FSM to its entrypoint, clearing "
-                    "sub-runs and appending a reset marker to history. "
-                    "Always callable regardless of FSM state. Refuses in "
-                    "shared-app mode."
-                ),
-            },
-            {
-                "name": "fork_at",
-                "description": (
-                    "Rewind the session to the state captured after a "
-                    "specific history entry (by ``seq`` from "
-                    "``theodosia://history``). Lets an agent explore alternate "
-                    "paths from any checkpoint without losing the audit "
-                    "trail. Refuses in shared-app mode."
-                ),
-            },
-            {
-                "name": "fork_from_past",
-                "description": (
-                    "Resume a past Burr run by loading its state from "
-                    "disk. Requires the Application to have a "
-                    "LocalTrackingClient. Use for resuming sessions "
-                    "across server restarts or forking from any "
-                    "persisted past app_id."
-                ),
-            },
-        ],
-    }
+# Graph summary + action surface: see ``theodosia._graph_summary``.
+# Re-exported so anything reaching for these off this module keeps working.
+from theodosia._graph_summary import (  # noqa: E402
+    _compute_graph_summary,
+    _next_external_tools,
+    _normalize_external_tools,
+    _render_action_surface,
+)
 
 
 def _build_persona_frame(
@@ -754,57 +517,14 @@ def _record_history(
         _append_ledger(durable_app, record)
 
 
-def _ledger_binding(app: Application, log_path: Path) -> dict[str, Any]:
-    """Identity fields hashed into every ledger entry.
-
-    Embedding these in the chain means copying ``ledger.jsonl`` between
-    session directories breaks verification: ``verify`` is called with the
-    on-disk ``app_id`` / ``project`` and refuses entries whose binding does
-    not match.
-    """
-    return {
-        "app_id": log_path.parent.name,
-        "project": log_path.parent.parent.name,
-        "partition_key": getattr(app, "partition_key", None),
-    }
-
-
-def _append_ledger(app: Application, record: dict[str, Any]) -> None:
-    """Chain one attempt (step or refusal) onto the session's tamper-evident
-    ledger, next to the tracker log.
-
-    Unlike ``refusals.jsonl`` (refusals only, for ``theodosia logs --refusals``),
-    the ledger covers every attempt and is hash-chained, so ``theodosia verify``
-    can detect any after-the-fact edit. No-op when the Application has no local
-    tracker.
-    """
-    log_path = _tracker_log_path(app)
-    if log_path is None:
-        return
-    with contextlib.suppress(OSError):
-        ledger = HashChainedLedger(
-            log_path.parent / "ledger.jsonl",
-            binding=_ledger_binding(app, log_path),
-        )
-        ledger.append(record)
-
-
-def _append_refusal_sidecar(app: Application, record: dict[str, Any]) -> None:
-    """Persist a refusal next to the Burr tracker log, so the durable audit
-    trail includes blocked transitions, not just executed steps.
-
-    Burr's ``LocalTrackingClient`` only logs actions that ran, so an
-    ``invalid_transition`` (the graph blocking an out-of-order call) never
-    reaches the on-disk log. We append it to a ``refusals.jsonl`` sidecar in the
-    same app directory; ``theodosia logs --refusals`` reads both. No-op when the
-    Application has no local tracker.
-    """
-    log_path = _tracker_log_path(app)
-    if log_path is None:
-        return
-    sidecar = log_path.parent / "refusals.jsonl"
-    with contextlib.suppress(OSError), sidecar.open("a", encoding="utf-8") as fh:
-        fh.write(json.dumps(record, default=str) + "\n")
+# Ledger + refusal sidecar: see ``theodosia._ledger``. Re-exported so
+# anything reaching for the audit-trail helpers off this module keeps
+# working.
+from theodosia._ledger import (  # noqa: E402,F401
+    _append_ledger,
+    _append_refusal_sidecar,
+    _ledger_binding,
+)
 
 
 def _refusal_payload(
@@ -1148,42 +868,14 @@ async def _step_streaming_action(
     }
 
 
-async def _emit_log(ctx: Context | None, msg: str) -> None:
-    if ctx is None:
-        return
-    with contextlib.suppress(Exception):
-        await ctx.info(msg)
-
-
-def _step_tool_result(body: dict[str, Any], headline: str) -> ToolResult:
-    return ToolResult(
-        content=[
-            TextContent(type="text", text=headline),
-            TextContent(type="text", text=json.dumps(body, default=str)),
-        ],
-        structured_content=body,
-    )
-
-
-def _success_headline(seq: int, action: str, valid_next: list[str]) -> str:
-    if valid_next:
-        peek = ",".join(valid_next[:3])
-        more = "" if len(valid_next) <= 3 else f"+{len(valid_next) - 3}"
-        return f"Step {seq}: {action} ✓ → {peek}{more}"
-    return f"Step {seq}: {action} ✓ (terminal)"
-
-
-def _refusal_headline(seq: int, action: str, refusal_reason: str, detail: str = "") -> str:
-    tail = f" ({detail})" if detail else ""
-    return f"Step {seq}: {action} ✗ {refusal_reason}{tail}"
-
-
-def _has_local_tracker(app: Application) -> bool:
-    try:
-        from burr.tracking.client import LocalTrackingClient
-    except ImportError:
-        return False
-    return isinstance(getattr(app, "_tracker", None), LocalTrackingClient)
+# Response builders + tracker predicate: see ``theodosia._responses``.
+from theodosia._responses import (  # noqa: E402
+    _emit_log,
+    _has_local_tracker,
+    _refusal_headline,
+    _step_tool_result,
+    _success_headline,
+)
 
 
 def _attach_hooks(app: Application, hooks: list[Any]) -> None:
