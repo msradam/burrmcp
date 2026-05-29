@@ -14,9 +14,6 @@ the ``ServingMode`` enum keeps ``STEP`` as its only member so callers
 passing ``mode=ServingMode.STEP`` keep working.
 """
 
-import contextlib
-from typing import Any
-
 from theodosia.adapter import (
     ServingMode,
     ValidationFailed,
@@ -47,7 +44,19 @@ from theodosia.upstream import (
 )
 
 
-def tracker(project: str, storage_dir: str | None = None, **kwargs: Any):
+def _resolve_version() -> str:
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        return version("theodosia")
+    except PackageNotFoundError:
+        return "0+unknown"
+
+
+__version__ = _resolve_version()
+
+
+def tracker(project: str, storage_dir: str | None = None, **kwargs):
     """A Burr ``LocalTrackingClient`` that defaults its store to ``~/.theodosia``.
 
     Use this in your builder (``.with_tracker(theodosia.tracker("my-project"))``)
@@ -62,6 +71,7 @@ def tracker(project: str, storage_dir: str | None = None, **kwargs: Any):
     CLI reads pointed at the same root without forcing every author to
     thread ``storage_dir`` through manually.
     """
+    import contextlib
     import os
 
     from burr.tracking.client import LocalTrackingClient
@@ -91,6 +101,7 @@ __all__ = [
     "UpstreamError",
     "UpstreamManager",
     "ValidationFailed",
+    "__version__",
     "bind_upstream",
     "build_cli",
     "burr_app_from_fastmcp",
