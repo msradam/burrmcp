@@ -1619,13 +1619,16 @@ def build_cli(
         help=help or _DEFAULT_HELP,
         no_args_is_help=True,
         add_completion=False,
+        pretty_exceptions_enable=False,
     )
     sessions = typer.Typer(
         name="sessions",
         help="Inspect Burr tracker storage: list, show, or live-tail a session.",
+        pretty_exceptions_enable=False,
         no_args_is_help=True,
     )
     sessions.command("ls")(sessions_ls)
+    sessions.command("list", hidden=True)(sessions_ls)  # muscle-memory alias
     sessions.command("show")(sessions_show)
     sessions.command("tail")(sessions_tail)
     cli.add_typer(sessions, name="sessions")

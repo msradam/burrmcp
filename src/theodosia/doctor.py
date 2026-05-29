@@ -106,6 +106,7 @@ def run_checks(application: Any, *, runtime: bool = False) -> DoctorReport:
     report.checks.extend(_check_graph_topology(app))
     report.checks.extend(_check_state_contract(app))
     report.checks.extend(_check_initial_state_usage(app))
+    report.checks.extend(_check_sync_actions_with_persister(application, app))
 
     if runtime:
         report.checks.extend(_check_runtime(application, app))
@@ -301,6 +302,57 @@ def _check_initial_state_usage(app: Application) -> list[CheckResult]:
             "Initial state usage",
             CheckStatus.PASS,
             "every initial-state key is read or written by at least one action",
+        )
+    ]
+
+
+def _check_sync_actions_with_persister(application: Any, app: Application) -> list[CheckResult]:
+    """Warn when sync action bodies coexist with a persister or tracker.
+
+    Burr's ``post_run_step`` hook fires with pre-action state when the
+    action body is sync, so persister snapshots and tracker ``end_entry``
+    rows record the wrong state for sync-bodied actions. The CLI works
+    around this for non-terminal rows by forward-scanning, but the
+    terminal row's state stays stale and any session resumed via
+    ``fork_from_past`` resumes from the wrong snapshot. Writing the action
+    body ``async def`` (Burr ``astep`` awaits it; the hook then sees
+    post-state) avoids the trap entirely.
+    """
+    import inspect
+
+    has_persister = getattr(app, "_persister", None) is not None or any(
+        type(h).__name__.endswith("Persister") for h in getattr(app, "_lifecycle_adapters", [])
+    )
+    has_tracker = getattr(app, "_tracker", None) is not None or any(
+        "Tracker" in type(h).__name__ for h in getattr(app, "_lifecycle_adapters", [])
+    )
+    if not (has_persister or has_tracker):
+        return []
+    sync_actions: list[str] = []
+    for a in app.graph.actions:
+        fn = getattr(a, "fn", None)
+        if fn is None:
+            continue
+        if not inspect.iscoroutinefunction(fn):
+            sync_actions.append(a.name)
+    if not sync_actions:
+        return [
+            CheckResult(
+                "Sync action bodies with persister/tracker",
+                CheckStatus.PASS,
+                "all action bodies are async def",
+            )
+        ]
+    return [
+        CheckResult(
+            "Sync action bodies with persister/tracker",
+            CheckStatus.WARN,
+            f"{len(sync_actions)} sync action body/bodies coexist with a persister or tracker",
+            details=[
+                f"{name} is sync; consider 'async def' so Burr's post_run_step "
+                f"records post-action state (Burr's astep+sync bug)."
+                for name in sync_actions
+            ],
         )
     ]
 
