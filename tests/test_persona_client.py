@@ -15,13 +15,7 @@ def _go(state: State) -> State:
 
 
 def _factory():
-    return (
-        ApplicationBuilder()
-        .with_actions(go=_go)
-        .with_state(x=0)
-        .with_entrypoint("go")
-        .build()
-    )
+    return ApplicationBuilder().with_actions(go=_go).with_state(x=0).with_entrypoint("go").build()
 
 
 _PERSONA = "---\nname: careful\ndescription: A careful operator.\n---\nrole: {state.x}"

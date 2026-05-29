@@ -177,9 +177,11 @@ async def _run(console: Console) -> int:
     console.print("[bold]Next steps[/bold]")
     console.print("  Read the docs at https://msradam.github.io/theodosia/")
     console.print(
-        "  Author your own graph: [cyan]theodosia doctor my_module:build_application[/cyan]"
+        "  Validate a graph you authored: [cyan]theodosia doctor my_module:build_application[/cyan]"
     )
-    console.print("  Mount it: [cyan]theodosia serve my_module:build_application[/cyan]")
+    console.print(
+        "  Mount it as an MCP server: [cyan]theodosia serve my_module:build_application[/cyan]"
+    )
     console.print()
     return 0
 

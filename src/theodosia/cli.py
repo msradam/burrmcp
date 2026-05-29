@@ -623,6 +623,7 @@ def _read_steps(log_path: Path) -> list[StepRow]:
                 return later_state
         # Last action with no forward entry; the recorded state is the best we have.
         return candidate
+
     rows: list[StepRow] = []
     for seq in sorted(begins):
         b = begins[seq]

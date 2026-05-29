@@ -35,7 +35,13 @@ history. It refuses in shared mode, where there is no factory to rebuild from.
 
 Rolls this session back to a prior point in its own history and continues from
 there. Use it to retry from before a wrong turn without losing the record of
-what happened.
+what happened. Forking to a refused sequence id raises a structured
+`cannot_fork_to_refusal` response; pick a successful prior step.
+
+The forked run starts a new `app_id`, but the tracker for that new run is
+only written on the next `step` call. Right after `fork_at` returns,
+`theodosia sessions show <new-app-id>` may say "No steps recorded yet";
+take one more step and the audit trail materializes.
 
 ## `fork_from_past(app_id, sequence_id)`
 

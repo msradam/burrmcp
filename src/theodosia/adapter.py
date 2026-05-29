@@ -603,6 +603,7 @@ def _compute_graph_summary(
         required, optional = _action_inputs(a)
         fn = getattr(a, "fn", None)
         doc = (fn.__doc__ or "").strip() if fn is not None and fn.__doc__ else ""
+        input_schemas = _input_schemas(a)
         meta: dict[str, Any] = {
             "name": a.name,
             "description": doc,
@@ -610,6 +611,7 @@ def _compute_graph_summary(
             "writes": list(a.writes or []),
             "required_inputs": required,
             "optional_inputs": optional,
+            "input_schemas": input_schemas,
         }
         if ext_map.get(a.name):
             meta["external_tools"] = ext_map[a.name]
@@ -758,6 +760,66 @@ def _action_inputs(action: Action) -> tuple[list[str], list[str]]:
         req, opt = raw
         return req.copy(), opt.copy()
     return list(raw or []), []
+
+
+def _input_schemas(action: Action) -> dict[str, dict[str, Any]]:
+    """Return a JSON-schema-ish description of each input parameter.
+
+    For a Pydantic-typed input, surfaces ``model_json_schema()`` so an
+    agent can see the nested object shape. For built-in types, surfaces
+    a short ``{"type": "...", "default": ...}``. Anything we can't read
+    falls back to ``{"type": "any"}``.
+
+    Without this, ``theodosia://graph`` would say only
+    ``required_inputs: ["order"]`` and the agent would have no idea
+    ``order`` is ``{"item": str, "qty": int}``.
+    """
+    fn = getattr(action, "fn", None)
+    if fn is None:
+        return {}
+    try:
+        sig = inspect.signature(fn)
+        hints = typing.get_type_hints(fn)
+    except Exception:
+        return {}
+    required, optional = _action_inputs(action)
+    schemas: dict[str, dict[str, Any]] = {}
+    for name in (*required, *optional):
+        ann = hints.get(name)
+        if ann is None and name in sig.parameters:
+            p = sig.parameters[name]
+            ann = p.annotation if p.annotation is not inspect.Parameter.empty else None
+        schemas[name] = _annotation_to_schema(ann)
+        if name in sig.parameters:
+            p = sig.parameters[name]
+            if p.default is not inspect.Parameter.empty:
+                with contextlib.suppress(TypeError, ValueError):
+                    json.dumps(p.default)
+                    schemas[name]["default"] = p.default
+    return schemas
+
+
+def _annotation_to_schema(ann: Any) -> dict[str, Any]:
+    if ann is None:
+        return {"type": "any"}
+    if isinstance(ann, type) and issubclass(ann, pydantic.BaseModel):
+        with contextlib.suppress(Exception):
+            return ann.model_json_schema()
+    type_map = {str: "string", int: "integer", float: "number", bool: "boolean"}
+    if ann in type_map:
+        return {"type": type_map[ann]}
+    if ann in (list, tuple):
+        return {"type": "array"}
+    if ann is dict:
+        return {"type": "object"}
+    origin = typing.get_origin(ann)
+    if origin in (list, tuple):
+        return {"type": "array"}
+    if origin is dict:
+        return {"type": "object"}
+    if origin is typing.Literal:
+        return {"enum": list(typing.get_args(ann))}
+    return {"type": getattr(ann, "__name__", str(ann))}
 
 
 def _action_signature_params(action: Action) -> list[inspect.Parameter]:
@@ -1414,13 +1476,22 @@ def _auto_hint_refusal(refusal: dict[str, Any]) -> str | None:
         )
     if kind == "action_error":
         err_type = refusal.get("error_type") or "Exception"
-        err_msg = refusal.get("error_message") or ""
+        err_msg = _truncate_words(refusal.get("error_message") or "", 160)
         return (
-            f"Action {requested!r} raised {err_type}: {err_msg[:160]}. "
+            f"Action {requested!r} raised {err_type}: {err_msg}. "
             f"Vary the inputs, or pick a different reachable action: "
             f"{head}{more}."
         )
     return None
+
+
+def _truncate_words(text: str, limit: int) -> str:
+    """Truncate ``text`` to at most ``limit`` chars, on a word boundary, with an ellipsis."""
+    if len(text) <= limit:
+        return text
+    head = text[:limit]
+    cut = head.rsplit(None, 1)[0] if " " in head else head
+    return f"{cut.rstrip(',.;:!?')}..."
 
 
 def _compose_next_hint(

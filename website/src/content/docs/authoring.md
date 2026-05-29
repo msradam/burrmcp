@@ -110,6 +110,53 @@ finds your runs with no extra flags. If you instead wire Burr's native tracker
 point the CLI at it: `theodosia sessions ls --home ~/.burr -p incident`. Pick
 one and stay consistent.
 
+## Typed inputs
+
+Action functions can declare inputs with Pydantic models or built-in types.
+Theodosia surfaces each input's JSON schema at `theodosia://graph` under
+`input_schemas` so an agent can see the shape before calling.
+
+```python
+from pydantic import BaseModel
+
+class OrderInput(BaseModel):
+    item: str
+    qty: int = 1
+
+@action(reads=[], writes=["order"])
+def take_order(state: State, order: OrderInput) -> State:
+    return state.update(order=order.model_dump())
+```
+
+`theodosia://graph` for the action above:
+
+```json
+{
+  "name": "take_order",
+  "required_inputs": ["order"],
+  "input_schemas": {
+    "order": {
+      "type": "object",
+      "properties": {
+        "item": {"type": "string"},
+        "qty": {"type": "integer", "default": 1}
+      },
+      "required": ["item"]
+    }
+  }
+}
+```
+
+The agent then calls `step` with the parameter name as the outer key:
+
+```json
+{"action": "take_order", "inputs": {"order": {"item": "mocha", "qty": 2}}}
+```
+
+Common trap: calling `step("take_order", {"item": "mocha"})` (without the
+`order` wrapper) raises `missing required inputs: {'order'}`. The input keys
+are parameter names, not the fields of the typed model.
+
 ## Bundling: `theodosia.Assembly`
 
 An Assembly is a frozen dataclass bundling the workflow plus its mount-time

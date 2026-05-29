@@ -6,6 +6,28 @@ versioning.
 
 ## [Unreleased]
 
+### Fixed (round 4: third exploration audit)
+- **Typed-input discoverability.** `theodosia://graph` now carries an
+  `input_schemas` field per action: for Pydantic-typed inputs it surfaces
+  `model_json_schema()`; for built-in types a `{type: ...}` shorthand. An
+  agent reading the graph resource now sees that `take_order` requires an
+  `order` parameter shaped like `{item: str, qty: int}`, so the call shape
+  `step("take_order", {"order": {...}})` is reachable from the docs the
+  agent can read at cold start. `authoring.md` gets a "Typed inputs"
+  section with the common-trap example.
+- **`next_hint` no longer truncates mid-word.** The 160-char limit on the
+  embedded action_error message used a hard slice; now uses
+  `_truncate_words` for a word-boundary cut with an ellipsis.
+- **`theodosia primer` "Next steps" wording.** Was "Author your own graph"
+  pointing at `doctor` (which validates, not authors); now reads
+  "Validate a graph you authored: theodosia doctor ..." and "Mount it as
+  an MCP server: theodosia serve ...".
+- **`sessions.md` fork doc** clarified: the forked run gets a new
+  `app_id`, but the tracker for it is written on the next `step`. Right
+  after `fork_at`, `theodosia sessions show <new-app-id>` may report
+  "no steps recorded yet" until you take one more step.
+- **`cannot_fork_to_refusal`** documented in `sessions.md`.
+
 ### Fixed (round 3: second exploration audit)
 - **`theodosia sessions show` state diff was off by one.** Burr records
   pre-step state for sync action bodies via `post_run_step`, so the on-disk
