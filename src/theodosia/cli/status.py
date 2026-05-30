@@ -220,9 +220,9 @@ def verify(
         raise typer.Exit(code=1)
     ok, problems = verify_ledger(ledger_path)
     if ok:
-        console.print(f"[ok]✓ ledger intact[/]  {proj}/{aid}")
+        console.print(f"[ok]⊢ ledger intact[/]  {proj}/{aid}")
         return
-    err_console.print(f"[err]✗ ledger TAMPERED[/]  {proj}/{aid}")
+    err_console.print(f"[err]× ledger TAMPERED[/]  {proj}/{aid}")
     for p in problems:
         err_console.print(f"  [err]{p}[/]")
     raise typer.Exit(code=1)

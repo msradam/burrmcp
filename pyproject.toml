@@ -1,6 +1,6 @@
 [project]
 name = "theodosia"
-version = "0.3.0"
+version = "0.4.0"
 description = "Mount Burr state-machine Applications as MCP servers."
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
@@ -48,7 +48,7 @@ dependencies = [
 [project.urls]
 Homepage = "https://github.com/msradam/theodosia"
 Repository = "https://github.com/msradam/theodosia"
-Documentation = "https://github.com/msradam/theodosia#readme"
+Documentation = "https://msradam.github.io/theodosia/"
 Issues = "https://github.com/msradam/theodosia/issues"
 Changelog = "https://github.com/msradam/theodosia/blob/main/CHANGELOG.md"
 
@@ -107,6 +107,10 @@ extend-exclude = ["examples/data"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "C4", "UP", "SIM", "RUF", "PERF", "PIE", "RET", "FURB"]
+# Brand glyphs: ⊢ (turnstile, allowed) and × (multiplication, refused) are
+# Theodosia's wire-shape markers. Ruff's ambiguous-Unicode lint flags them as
+# look-alikes; that ambiguity is the point of using them as glyphs.
+allowed-confusables = ["×", "⊢"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["E402"]

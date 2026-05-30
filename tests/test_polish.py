@@ -90,9 +90,11 @@ async def test_step_emits_log_notification_per_call():
         # Refusal: not reachable, should still log a line.
         await client.call_tool("step", {"action": "take_order", "inputs": {"item": "espresso"}})
 
-    assert any("Step 0:" in m and "take_order" in m and "✓" in m for m in captured)
-    assert any("Step 1:" in m and "pay" in m and "✓" in m for m in captured)
-    assert any("Step 2:" in m and "take_order" in m and "✗" in m for m in captured)
+    # Per-step notifications carry the brand glyphs: ⊢ for allowed
+    # transitions, × for refused ones. See src/theodosia/_responses.py.
+    assert any("Step 0:" in m and "take_order" in m and "⊢" in m for m in captured)
+    assert any("Step 1:" in m and "pay" in m and "⊢" in m for m in captured)
+    assert any("Step 2:" in m and "take_order" in m and "×" in m for m in captured)
 
 
 @pytest.mark.asyncio

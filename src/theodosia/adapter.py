@@ -1583,7 +1583,7 @@ def mount(
                     refusal_reason="unknown_action",
                     app=app,
                 )
-                headline = f"Step {seq}: {action} ✗ unknown_action"
+                headline = f"Step {seq}: {action} × unknown_action"
                 await _emit_log(ctx, headline)
                 return _step_tool_result(response, headline)
             app, lock, entry = _session_app_and_lock(ctx, shared_app, shared_lock, factory, store)
@@ -1755,10 +1755,10 @@ def mount(
                         "the server with a factory: mount(() -> Application, ...)"
                     ),
                 },
-                "reset_session ✗ shared-app mode",
+                "reset_session × shared-app mode",
             )
         if ctx is None:
-            return _step_tool_result({"error": "no_session"}, "reset_session ✗ no_session")
+            return _step_tool_result({"error": "no_session"}, "reset_session × no_session")
 
         entry = store.get_or_create(ctx.session_id, factory)
         async with entry.lock:
@@ -1851,10 +1851,10 @@ def mount(
                         "Remount with a factory to enable fork_at."
                     ),
                 },
-                "fork_at ✗ shared-app mode",
+                "fork_at × shared-app mode",
             )
         if ctx is None:
-            return _step_tool_result({"error": "no_session"}, "fork_at ✗ no_session")
+            return _step_tool_result({"error": "no_session"}, "fork_at × no_session")
 
         entry = store.get_or_create(ctx.session_id, factory)
         async with entry.lock:
@@ -1865,7 +1865,7 @@ def mount(
                         "requested": sequence_id,
                         "history_length": len(entry.history),
                     },
-                    f"fork_at ✗ unknown_sequence_id ({sequence_id})",
+                    f"fork_at × unknown_sequence_id ({sequence_id})",
                 )
             target = entry.history[sequence_id]
             if target.get("refused"):
@@ -1875,7 +1875,7 @@ def mount(
                         "sequence_id": sequence_id,
                         "refusal_reason": target.get("refusal_reason"),
                     },
-                    f"fork_at ✗ cannot_fork_to_refusal (seq={sequence_id})",
+                    f"fork_at × cannot_fork_to_refusal (seq={sequence_id})",
                 )
             if target.get("action") in {"fork_at", "reset_session"}:
                 return _step_tool_result(
@@ -1884,13 +1884,13 @@ def mount(
                         "sequence_id": sequence_id,
                         "action": target.get("action"),
                     },
-                    f"fork_at ✗ cannot_fork_to_meta_entry (seq={sequence_id})",
+                    f"fork_at × cannot_fork_to_meta_entry (seq={sequence_id})",
                 )
             saved_state = target.get("state_after")
             if saved_state is None:
                 return _step_tool_result(
                     {"error": "no_state_snapshot", "sequence_id": sequence_id},
-                    f"fork_at ✗ no_state_snapshot (seq={sequence_id})",
+                    f"fork_at × no_state_snapshot (seq={sequence_id})",
                 )
             target_action = target.get("action")
 
@@ -2004,10 +2004,10 @@ def mount(
                         "isolation. Remount with a factory."
                     ),
                 },
-                "fork_from_past ✗ shared-app mode",
+                "fork_from_past × shared-app mode",
             )
         if ctx is None:
-            return _step_tool_result({"error": "no_session"}, "fork_from_past ✗ no_session")
+            return _step_tool_result({"error": "no_session"}, "fork_from_past × no_session")
 
         entry = store.get_or_create(ctx.session_id, factory)
         # Bind ``partition_key`` to the calling session's identity. Without
@@ -2029,7 +2029,7 @@ def mount(
                     ),
                     "requested": partition_key,
                 },
-                f"fork_from_past ✗ partition_mismatch ({partition_key})",
+                f"fork_from_past × partition_mismatch ({partition_key})",
             )
         partition_key = bound_partition_key
         async with entry.lock:
@@ -2057,7 +2057,7 @@ def mount(
                             "app_id": app_id,
                             "sequence_id": sequence_id,
                         },
-                        f"fork_from_past ✗ unknown_past_run ({app_id})",
+                        f"fork_from_past × unknown_past_run ({app_id})",
                     )
                 if loaded is None:
                     return _step_tool_result(
@@ -2067,7 +2067,7 @@ def mount(
                             "app_id": app_id,
                             "sequence_id": sequence_id,
                         },
-                        f"fork_from_past ✗ unknown_past_run ({app_id})",
+                        f"fork_from_past × unknown_past_run ({app_id})",
                     )
                 # PersistedStateData has state as a burr State; pull
                 # the dict out and let the rebuild path normalise.
@@ -2079,7 +2079,7 @@ def mount(
                 try:
                     from burr.tracking.client import LocalTrackingClient
                 except ImportError:
-                    return _step_tool_result({"error": "no_tracker"}, "fork_from_past ✗ no_tracker")
+                    return _step_tool_result({"error": "no_tracker"}, "fork_from_past × no_tracker")
                 tracker = getattr(entry.application, "_tracker", None)
                 if not isinstance(tracker, LocalTrackingClient):
                     return _step_tool_result(
@@ -2093,7 +2093,7 @@ def mount(
                                 "to the factory."
                             ),
                         },
-                        "fork_from_past ✗ no_tracker",
+                        "fork_from_past × no_tracker",
                     )
                 try:
                     import warnings
@@ -2114,7 +2114,7 @@ def mount(
                             "app_id": app_id,
                             "sequence_id": sequence_id,
                         },
-                        f"fork_from_past ✗ unknown_past_run ({app_id})",
+                        f"fork_from_past × unknown_past_run ({app_id})",
                     )
 
             # In-memory subruns belonged to the previous session state,

@@ -43,9 +43,7 @@ def test_env_expands_tilde(monkeypatch: pytest.MonkeyPatch) -> None:
     assert _resolve_home(None) == Path("~/.my-store").expanduser()
 
 
-def test_env_suppresses_burr_fallback(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_env_suppresses_burr_fallback(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """When the env is set, the implicit ``~/.burr`` fallback does not fire,
     even if ``~/.theodosia`` would not exist and ``~/.burr`` would have content.
     The whole point of the env is "I have chosen explicitly; stop hinting."

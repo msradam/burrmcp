@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import contextlib
 import json
+import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +27,33 @@ from burr.core import Application
 
 from theodosia._tracker import _tracker_log_path
 from theodosia.ledger import HashChainedLedger
+
+_LOG = logging.getLogger("theodosia")
+_KEY_WARNING_EMITTED = False
+
+
+def _warn_unkeyed_once() -> None:
+    """Emit a single startup warning when the ledger is running in unkeyed mode.
+
+    Logged once per process the first time a ledger row is written without
+    ``THEODOSIA_LEDGER_KEY``. SHA-only mode still detects edits, reorders, and
+    middle-deletions, but cannot defend against an operator with write access
+    who mints a chain from scratch. The warning surfaces the gap so operators
+    deploying to production set the HMAC key intentionally rather than by
+    accident. ``theodosia doctor`` carries the same finding statically.
+    """
+    global _KEY_WARNING_EMITTED
+    if _KEY_WARNING_EMITTED:
+        return
+    if os.environ.get("THEODOSIA_LEDGER_KEY"):
+        _KEY_WARNING_EMITTED = True
+        return
+    _KEY_WARNING_EMITTED = True
+    _LOG.warning(
+        "Theodosia ledger is running in unkeyed SHA-256 mode; this detects "
+        "edits, reorders, and middle-deletions but not whole-cloth forgery. "
+        "Set THEODOSIA_LEDGER_KEY=<hex> for HMAC-keyed chains in production."
+    )
 
 
 def _ledger_binding(app: Application, log_path: Path) -> dict[str, Any]:
@@ -54,6 +83,7 @@ def _append_ledger(app: Application, record: dict[str, Any]) -> None:
     log_path = _tracker_log_path(app)
     if log_path is None:
         return
+    _warn_unkeyed_once()
     with contextlib.suppress(OSError):
         ledger = HashChainedLedger(
             log_path.parent / "ledger.jsonl",

@@ -107,10 +107,44 @@ def run_checks(application: Any, *, runtime: bool = False) -> DoctorReport:
     report.checks.extend(_check_state_contract(app))
     report.checks.extend(_check_initial_state_usage(app))
     report.checks.extend(_check_sync_actions_with_persister(application, app))
+    report.checks.extend(_check_ledger_key_mode())
 
     if runtime:
         report.checks.extend(_check_runtime(application, app))
     return report
+
+
+def _check_ledger_key_mode() -> list[CheckResult]:
+    """Warn when the ledger is running in unkeyed SHA-only mode.
+
+    Detects in-place edits, reorderings, and middle-deletions; does NOT detect
+    whole-cloth forgery (an operator with write access to ``ledger.jsonl`` can
+    mint a chain from scratch). Setting ``THEODOSIA_LEDGER_KEY`` to a hex string
+    in the environment switches the chain to HMAC-SHA-256; forgery then
+    requires the key. See ``src/theodosia/ledger.py`` for the threat model.
+    """
+    import os
+
+    if os.environ.get("THEODOSIA_LEDGER_KEY"):
+        return [
+            CheckResult(
+                name="Ledger integrity mode",
+                status=CheckStatus.PASS,
+                message="THEODOSIA_LEDGER_KEY set: ledger writes use HMAC-SHA-256.",
+            )
+        ]
+    return [
+        CheckResult(
+            name="Ledger integrity mode",
+            status=CheckStatus.WARN,
+            message=("THEODOSIA_LEDGER_KEY not set: ledger writes use plain SHA-256."),
+            details=[
+                "Catches in-place edits, reorderings, and middle-deletions.",
+                "Does NOT catch whole-cloth forgery by an operator with write access.",
+                "Set THEODOSIA_LEDGER_KEY=<hex bytes> to switch the chain to HMAC mode.",
+            ],
+        )
+    ]
 
 
 def _resolve_application(application: Any, report: DoctorReport) -> Application | None:

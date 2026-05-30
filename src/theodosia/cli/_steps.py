@@ -266,9 +266,9 @@ def _relative_when(ts: str) -> str:
 
 def _status_text(status: str) -> Text:
     if status == "ok":
-        return Text("✓", style="ok")
+        return Text("⊢", style="ok")
     if status == "error":
-        return Text("✗", style="err")
+        return Text("×", style="err")
     if status == "empty":
         return Text("∅", style="muted")
     return Text("•", style="running")
