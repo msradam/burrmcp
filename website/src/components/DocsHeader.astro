@@ -75,12 +75,23 @@ const isApi = ['tools', 'cli', 'compatibility', 'upstream', 'observability'].inc
     gap: 10px;
     text-decoration: none;
   }
-  .thd-docs-header .brand .mark { font-family: var(--thd-display); font-size: 22px; font-weight: 400; color: var(--thd-seal); line-height: 1; flex: 0 0 auto; }
+  .thd-docs-header .brand .mark {
+    font-family: var(--thd-display);
+    font-size: 24px;
+    font-weight: 400;
+    color: var(--thd-seal);
+    line-height: 1;
+    flex: 0 0 auto;
+    /* Optical baseline nudge: the turnstile glyph sits high in Inria Serif
+       (horizontal bar at cap line), so we pull it down to match the wordmark
+       x-height visually. */
+    transform: translateY(2px);
+  }
   .thd-docs-header .brand .wm {
     font-family: var(--thd-display);
-    font-size: 22px;
-    font-weight: 400;
-    letter-spacing: -0.015em;
+    font-size: 21px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
     color: var(--thd-ink);
   }
   .thd-docs-header .brand .ver {
