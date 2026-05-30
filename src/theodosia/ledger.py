@@ -52,7 +52,9 @@ def _canonical(entry: dict[str, Any]) -> str:
 
 def _resolve_key(explicit: bytes | None) -> bytes | None:
     """Return the HMAC key from ``explicit`` or the ``THEODOSIA_LEDGER_KEY`` env
-    var (hex-encoded). ``None`` means plain SHA256."""
+    var. The env var must be hex-encoded; a non-hex value raises ``ValueError``
+    so a typo cannot silently produce a different chain than the operator
+    intended. ``None`` means plain SHA256."""
     if explicit is not None:
         return explicit
     env = os.environ.get("THEODOSIA_LEDGER_KEY")
@@ -60,8 +62,11 @@ def _resolve_key(explicit: bytes | None) -> bytes | None:
         return None
     try:
         return bytes.fromhex(env)
-    except ValueError:
-        return env.encode()
+    except ValueError as exc:
+        raise ValueError(
+            "THEODOSIA_LEDGER_KEY must be hex-encoded bytes (e.g. the output "
+            "of `openssl rand -hex 32`). Got a value that is not valid hex."
+        ) from exc
 
 
 def _digest(prev: str, entry_without_hash: dict[str, Any], key: bytes | None) -> str:
@@ -82,6 +87,14 @@ class HashChainedLedger:
     ``key`` is an optional HMAC key. ``None`` (the default) uses plain
     SHA256; pass bytes (or set ``THEODOSIA_LEDGER_KEY`` in the env as a hex
     string) to switch to HMAC-SHA256, which makes forgery require the key.
+
+    **Stability**: the on-disk format (canonical JSON, ``prev`` / ``hash`` /
+    ``binding`` field names, genesis string) is stable for the v0.x series
+    but considered provisional. A future major release may add a
+    ``schema_version`` field and version-gated verification; older ledger
+    files will continue to verify under their original schema. Do not
+    serialize the ``HashChainedLedger`` class itself; treat the JSONL file
+    as the contract.
     """
 
     def __init__(
@@ -90,15 +103,23 @@ class HashChainedLedger:
         *,
         binding: dict[str, Any] | None = None,
         key: bytes | None = None,
+        last_hash: str | None = None,
     ):
         self.path = Path(path)
         self.binding = dict(binding or {})
         self.key = _resolve_key(key)
+        # Optional caller-supplied last hash; lets a single-process repeat
+        # appender skip the O(n) file re-read between writes. Caller is
+        # responsible for keeping the cache consistent. Leave ``None`` to
+        # always read from disk.
+        self._cached_last_hash: str | None = last_hash
 
     def _genesis(self) -> str:
         return GENESIS_HMAC if self.key is not None else GENESIS
 
     def _last_hash(self) -> str:
+        if self._cached_last_hash is not None:
+            return self._cached_last_hash
         if not self.path.exists():
             return self._genesis()
         last = self._genesis()
@@ -120,6 +141,8 @@ class HashChainedLedger:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.path.open("a", encoding="utf-8") as fh:
             fh.write(_canonical(entry) + "\n")
+        # Keep cache consistent for the next append on this instance.
+        self._cached_last_hash = entry["hash"]
         return entry
 
 

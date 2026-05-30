@@ -20,12 +20,20 @@ Format (mirrors SKILL.md from the Agent Skills Open Standard):
 
 A persona ships as a PERSONA.md file. Theodosia mounts a directory of them
 and exposes each as an MCP prompt the client can pick at session-start,
-plus resources for inspection and (with allow_runtime_swap) a set_persona
-tool for mid-session changes.
+plus resources for inspection.
+
+**Trust model**: a PERSONA.md is *trusted code*. Persona bodies are
+interpolated against the live session frame (``{state.x}``,
+``{action.name}``, ``{graph.y}``) and the rendered result is fed to the
+LLM as a system-style prompt. Any persona file in the mounted directory
+can read any state field the FSM has written. Only mount persona
+directories whose contents you author or audit; do not load PERSONA.md
+files from untrusted users.
 """
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -199,8 +207,15 @@ def load_personas(source: PersonaSource) -> dict[str, Persona]:
             f"got {source!r} which exists={path.exists()}"
         )
     dir_out: dict[str, Persona] = {}
+    _log = logging.getLogger("theodosia")
     for f in sorted(path.glob("*.md")):
-        p = Persona.from_file(f)
+        try:
+            p = Persona.from_file(f)
+        except (ValueError, yaml.YAMLError, OSError) as exc:
+            # One malformed PERSONA.md should not take down the whole mount;
+            # log and continue so the rest of the directory still loads.
+            _log.warning("skipping persona %s: %s", f, exc)
+            continue
         if p.name in dir_out:
             raise ValueError(
                 f"duplicate persona name {p.name!r} in {path}: "

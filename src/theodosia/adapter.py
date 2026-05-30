@@ -1464,10 +1464,9 @@ def mount(
             async def _active_persona_resource() -> str:
                 """The persona currently active for this server.
 
-                For v0.3 the active persona is whichever was chosen at mount
-                time via ``default_persona=`` (or the lexically first one).
-                Mid-session swap via a ``set_persona`` tool is planned for
-                v0.3.1 and will make this per-session.
+                Whichever persona was chosen at mount time via
+                ``default_persona=`` (or, if not specified, the lexically
+                first persona in the loaded directory).
                 """
                 p = personas_map[default_name]
                 return json.dumps(

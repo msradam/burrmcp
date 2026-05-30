@@ -107,7 +107,11 @@ def run_checks(application: Any, *, runtime: bool = False) -> DoctorReport:
     report.checks.extend(_check_state_contract(app))
     report.checks.extend(_check_initial_state_usage(app))
     report.checks.extend(_check_sync_actions_with_persister(application, app))
-    report.checks.extend(_check_ledger_key_mode())
+    # The ledger-mode check only applies if the application actually writes a
+    # ledger (i.e. a LocalTrackingClient is wired). Without a tracker, the
+    # ledger code path is a no-op and the warning would be a false positive.
+    if getattr(app, "_tracker", None) is not None:
+        report.checks.extend(_check_ledger_key_mode())
 
     if runtime:
         report.checks.extend(_check_runtime(application, app))
