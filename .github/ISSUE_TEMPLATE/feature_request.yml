@@ -1,0 +1,22 @@
+name: Feature request
+description: A capability you want Theodosia to add or extend.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: motivation
+    attributes:
+      label: What problem are you trying to solve
+      description: The agent workflow you cannot express cleanly today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed shape
+      description: API sketch, action signature, or behavior outline. Snippets welcome.
+      render: python
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds you tried in Burr or FastMCP directly.

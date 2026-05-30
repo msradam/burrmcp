@@ -1,0 +1,68 @@
+name: Bug report
+description: Something does not work the way the docs say it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug. Please include enough
+        detail to reproduce.
+  - type: input
+    id: version
+    attributes:
+      label: Theodosia version
+      description: Output of `theodosia --version`.
+      placeholder: "0.4.1"
+    validations:
+      required: true
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      description: Output of `python --version`.
+      placeholder: "3.13.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: client
+    attributes:
+      label: MCP client
+      options:
+        - Claude Code
+        - Cursor
+        - fast-agent
+        - mcphost
+        - Gemini CLI
+        - IBM Bob (IDE)
+        - IBM Bob (Shell)
+        - fastmcp.Client (in-process)
+        - Other (mention in description)
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: A minimal Burr Application or shell sequence that triggers the bug.
+      render: python
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened
+      description: Error message, traceback, or unexpected wire response.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else
+      description: Related session id, ledger excerpt, tracker path, doctor output.

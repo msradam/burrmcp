@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security issue
+    url: https://github.com/msradam/theodosia/blob/main/SECURITY.md
+    about: For vulnerabilities, follow the private disclosure process in SECURITY.md.
+  - name: Question or discussion
+    url: https://github.com/msradam/theodosia/discussions
+    about: Open-ended questions and design discussion belong in Discussions.

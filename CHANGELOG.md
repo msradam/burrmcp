@@ -8,6 +8,94 @@ versioning.
 
 _Nothing yet._
 
+## [0.4.1] - 2026-05-30
+
+Patch release addressing reliability and correctness findings from a code
+review of v0.4.0. No API breakage; same surface, tightened internals.
+
+### Fixed
+
+- `_resolve_key` now raises `ValueError` on a non-hex
+  `THEODOSIA_LEDGER_KEY` instead of falling back to ASCII bytes. A typo in
+  the hex key used to produce a different chain than the operator
+  intended.
+- `_append_ledger` replaces `contextlib.suppress(OSError)` (silent drop on
+  disk-full / permission-denied) with WARNING-level logging on the
+  `theodosia` logger. The step that ran on the wire is never blocked by
+  an audit-log write failure, but the failure is visible to operators.
+- `_warn_unkeyed_once` no longer flips the sentinel in the keyed branch,
+  so a runtime env-var unset still emits the first warning at the next
+  write. Wrapped in a `threading.Lock`.
+- `load_personas` isolates per-file errors so one malformed PERSONA.md no
+  longer takes down the whole mount; bad files are logged and skipped.
+- `doctor`'s `_check_ledger_key_mode` only runs when the resolved
+  application has a tracker wired. Without one, the ledger code path is a
+  no-op, so the warning would have been a false positive on every check.
+- Stale docstring claims about `allow_runtime_swap` and a `set_persona`
+  tool that did not ship in v0.4.0 removed from `persona.py` and
+  `adapter.py`.
+
+### Added
+
+- `HashChainedLedger.__init__` accepts an optional `last_hash` so a
+  single-process repeat appender skips the O(n) file re-read between
+  writes. `append` keeps the cache consistent.
+- Process-local last-hash cache in `_ledger.py` keyed by ledger path,
+  guarded by a `threading.Lock`. Same-process same-path appenders now
+  O(1) per append instead of O(n^2) over a session.
+- PERSONA.md trust model spelled out in the module docstring: persona
+  files are trusted code; `{state.x}` placeholders can read any state
+  field the FSM has written. Only mount directories you author or audit.
+
+## [0.4.0] - 2026-05-30
+
+v0.4 rebrand: the site stands on what Theodosia is. Every competitor
+mention, defensive carve-out, and slogan tagline removed. The wire shape
+gets a consistent brand glyph. The ledger story gets honest framing.
+
+### Added
+
+- `Persona`: PERSONA.md identity layer mounted as MCP prompts.
+  Frame-aware placeholder interpolation (`{state.x}`, `{action.name}`)
+  against live session state.
+- `theodosia.tokens`: single-source design tokens shared by the docs CSS,
+  the Burr UI overlay, and the TUI palette.
+- Brand glyphs on every wire response. Success headlines use `⊢`;
+  refusals use `×`. Consistent across `step`, the CLI sessions table, the
+  TUI, and the audit-log surface.
+- `_ledger` emits one startup WARNING when running unkeyed (SHA-only),
+  naming what the chain does and does not catch. `theodosia doctor`
+  surfaces the same finding statically.
+- New example: `examples/the_proposal.py` (Chekhov one-act, two
+  terminals, no LLM, no network).
+
+### Changed
+
+- `pyproject` Documentation URL points at the docs site instead of the
+  GitHub README.
+- README rewritten in the peer-Python-library register (Burr, FastMCP,
+  Pydantic, Typer, FastAPI). Dropped "Why this shape works" defensive
+  section, "What this is not" five-bullet list, "Compose with Philip"
+  cross-promotion section, "Agents built with Theodosia" cross-promotion
+  table.
+- Site landing rewritten: comparison table, "From Statewright" doc, and
+  landscape competitor roll-call deleted. Hero descriptor rewritten as a
+  declarative sentence. Tagline removed.
+- `architecture.md` no longer names IBM Bob or uses "monkey-patches"
+  framing; rewrote "The graph is the contract" heading to "Graph
+  topology" and "The action-selection trick" to "Action selection".
+- `cli.md` softens "any MCP client" with a pointer to the verified
+  configs and the compatibility page.
+- `security-model.md` lede now describes the trust boundary directly
+  instead of stating the point of Theodosia.
+- `case-study.md` title changed from "the rails make the agent finish"
+  to "Kimi K2.6 on o11y-bench, free-ranging vs gated".
+
+### Removed
+
+- `from-statewright.md` doc and all sidebar/header references to it.
+- Em dashes across all authored prose (CLAUDE.md rule).
+
 ## [0.3.0] - 2026-05-29
 
 This release closes the gap between "code exists and tests pass" and

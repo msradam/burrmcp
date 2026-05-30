@@ -13,11 +13,14 @@ Theodosia mounts a [Burr](https://burr.dagworks.io/) `Application` as an MCP ser
 
 ## Install
 
+Python 3.11, 3.12, or 3.13 (Burr does not yet support 3.14). On a fresh Python 3.14 install you will see "no version that satisfies the requirement theodosia"; create a 3.11–3.13 venv first.
+
 ```bash
-uv pip install theodosia     # or: pip install theodosia
+uv venv --python 3.13       # or: python3.13 -m venv .venv
+uv pip install theodosia    # or: pip install theodosia
 ```
 
-Python 3.11 through 3.13. Optional extras: `theodosia[observability]`, `theodosia[ui]`, `theodosia[claude]`, `theodosia[mellea]`, `theodosia[all]`.
+Optional extras: `theodosia[observability]`, `theodosia[ui]`, `theodosia[claude]`, `theodosia[mellea]`, `theodosia[all]`.
 
 On a slim Docker image (`python:3.13-slim`, Alpine) the install pulls a `psutil` build that needs `gcc` and `python3-dev`. Either use the full `python:3.13` image, or `apt-get install -y gcc python3-dev` before `pip install`.
 

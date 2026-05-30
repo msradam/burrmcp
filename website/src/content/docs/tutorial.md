@@ -3,8 +3,7 @@ title: 'Build your own agent with Burr and Theodosia'
 description: 'End to end: describe a workflow, have a coding model write the Burr state machine, mount it with Theodosia, drive it with an agent, and read the recorded session.'
 ---
 
-Theodosia is a Python adapter that hands a workflow to any AI agent over **MCP
-(Model Context Protocol)**. You write the workflow once as a [Burr](https://burr.dagworks.io)
+Theodosia is a Python adapter that hands a workflow to a standards-compliant MCP client over **MCP (Model Context Protocol)**. See the [compatibility](compatibility.md) page for the clients verified so far (Claude Code, Cursor, fast-agent, Gemini CLI). You write the workflow once as a [Burr](https://burr.dagworks.io)
 `Application` (a small Python state machine: actions + transitions); Theodosia
 serves it so the agent can only take steps the workflow allows. When the agent
 tries an illegal step it gets a structured refusal naming the legal next moves
