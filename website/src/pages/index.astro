@@ -161,11 +161,14 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
   /* Mermaid diagram styling, match the v15 paper register and FILL the column.
      Mermaid stamps fixed width/height attrs on the SVG; we override to 100%. */
-  .diagram{min-height:280px;width:100%;overflow-x:auto;display:flex;justify-content:center}
+  .diagram{min-height:280px;width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;display:flex;justify-content:center;
+    /* Subtle right-edge fade so mobile users see there is more to scroll. */
+    background:linear-gradient(to right, transparent calc(100% - 24px), rgba(10,10,10,0.04) 100%);
+  }
   .diagram pre.mermaid{background:transparent;border:0;padding:0;margin:0;font-family:var(--sans);font-size:14px;display:flex;align-items:center;justify-content:center;overflow:visible}
   /* Let Mermaid render at its intrinsic computed size, just bounded, keeps
      node content readable instead of stretching to a flat aspect ratio. */
-  .diagram pre.mermaid > svg{width:auto !important;height:auto !important;max-width:100% !important;min-width:min(720px, 100%);min-height:240px}
+  .diagram pre.mermaid > svg{width:auto !important;height:auto !important;max-width:none !important;min-width:720px;min-height:240px}
   .diagram pre.mermaid .nodeLabel{font-family:var(--display) !important;font-weight:500;font-size:15px !important}
   .diagram pre.mermaid .edgeLabel{font-family:var(--mono) !important;font-size:11.5px !important}
   /* Edge labels get a paper fill + small padding so they sit ON TOP of the
@@ -189,7 +192,6 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
   .mech-head .meta .pill.cur{color:#7a5212;border-color:rgba(234,157,52,0.3);background:var(--gold-tint)}
   .mech-body{padding:40px 32px;display:grid;grid-template-columns:1fr;gap:28px;align-items:start;min-width:0}
   .mech-body .diagram{min-width:0;width:100%}
-  .mech-body .diagram svg{width:100%;height:auto;display:block}
   .mech-body .legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px;padding-top:8px;border-top:1px solid var(--edge)}
   .mech-body .legend .row{display:grid;grid-template-columns:28px 1fr;gap:12px;align-items:start;font-family:var(--sans);font-size:13.5px;line-height:1.55;color:var(--subtle)}
   .mech-body .legend .glyph{font-family:var(--mono);font-size:14px;font-weight:600;text-align:center;line-height:24px}
@@ -265,6 +267,13 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
   @media(max-width:560px){
     .wrap,.nav .in{padding:0 22px}
     .lp-footer{grid-template-columns:1fr}
+    /* Diagram: keep nodes/edge labels readable; container scrolls horizontally
+       (overflow-x:auto + min-width:720px on the SVG above). Mech-body padding
+       is reduced so the scroll area uses more of the viewport. */
+    .mech-body{padding:24px 16px}
+    .diagram pre.mermaid .nodeLabel{font-size:16px !important}
+    .diagram pre.mermaid .edgeLabel{font-size:12.5px !important}
+    .diagram{margin:0 -16px;padding:0 16px}
   }
 </style>
 </head>
