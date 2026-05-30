@@ -7,20 +7,16 @@
 [![Built on Apache Burr](https://img.shields.io/badge/built%20on-Apache%20Burr-c4a7e7?style=flat-square)](https://github.com/apache/burr)
 [![Built on FastMCP](https://img.shields.io/badge/built%20on-FastMCP-c4a7e7?style=flat-square)](https://github.com/jlowin/fastmcp)
 
-**Theodosia puts an AI agent on rails.** You define a workflow once as a [Burr](https://burr.dagworks.io/) state machine, and Theodosia serves it over [MCP](https://modelcontextprotocol.io/) so the agent can only take the next allowed step, with every step recorded and replayable.
-
-> **The model can be wrong; the model cannot lie about state.**
+Theodosia serves a [Burr](https://burr.dagworks.io/) state machine as an MCP server. The agent calls one `step` tool; the server checks reachability against the graph before each action runs, refuses out-of-order calls with the legal next moves, and records every attempt.
 
 ![A real Kimi K2.6 run driven through a gated SRE incident investigation by Theodosia](demos/hero.gif)
 
 *An open 1T-parameter model (Kimi K2.6) investigating a live incident on rails: each Grafana query is recorded as evidence, out-of-phase calls are refused, and the conclusion stays gated until the evidence cross-references. The investigation FSM ([Phoebe](https://github.com/msradam/phoebe)) is the workflow; Theodosia is what makes the model drive it.*
 
-| What you get | Why it holds |
-|---|---|
-| **Stays on the rails** | The server enforces the graph. An unreachable action returns a structured refusal listing the ones that are reachable, and the agent self-corrects from it. |
-| **Auditable and replayable** | Every step, its inputs, the state change, refusals, and timing are recorded. Replay any session step by step (`theodosia sessions show`, the Burr UI) and fork from any past state. |
-| **One portable contract** | Drive the same graph from your own Python or hand it to an external LLM over MCP. The workflow is a versioned artifact, not tied to either. |
-| **Built on mature parts** | Apache Burr is the workflow engine; FastMCP is the MCP layer. Theodosia is the thin layer that makes one drive the other. |
+- The server enforces the graph. An unreachable action returns a structured refusal listing the ones that are reachable, and the agent self-corrects from it.
+- Every step, its inputs, the state change, refusals, and timing are recorded. Replay any session step by step (`theodosia sessions show`, the Burr UI) and fork from any past state.
+- Drive the same graph from your own Python or hand it to an external LLM over MCP. The workflow is a versioned artifact, not tied to either.
+- Apache Burr is the workflow engine; FastMCP is the MCP layer. Theodosia is the thin layer that makes one drive the other.
 
 ---
 
@@ -42,13 +38,7 @@ conclusion every time. o11y-bench's own grader is the witness: *"There is no
 final response message in the transcript, it ends with tool calls and thinking
 blocks."*
 
-On these tasks the rails did not cost accuracy; what they added is that the agent
-finished the ones it would otherwise abandon, and that every run is a recorded,
-replayable, forkable artifact (every step, input, state change, and refusal) that
-a free-ranging agent at the same accuracy cannot hand you. A full aggregate
-across the category is pending a clean benchmark run; the design rationale,
-including what rails do not fix, is in the
-[research foundation](https://msradam.github.io/theodosia/research-foundation/).
+On these two cases the rails did not cost accuracy, and the agent finished the ones it would otherwise abandon. Every run is a recorded, replayable, forkable artifact (every step, input, state change, and refusal). A full aggregate across the category is pending a clean benchmark run. Design rationale is in the [research foundation](https://msradam.github.io/theodosia/research-foundation/).
 
 ---
 
@@ -145,7 +135,7 @@ The vocabulary you meet, in roughly the order you reach for it. Every Theodosia 
 
 - **`mount(application, *, hooks=[...], middleware=[...], upstream=..., personas=...)`**: wraps a Burr `Application` (or factory) as a FastMCP server. Returns the server; call `.run()` to serve, or pass to FastMCP's in-memory `Client` for tests. The optional kwargs forward Burr `LifecycleAdapter` instances, FastMCP `Middleware` instances, upstream MCP clients, and PERSONA.md identity layers without making you reach into the underlying objects.
 - **The four-tool surface**: every mounted server exposes `step(action, inputs)`, `reset_session`, `fork_at(sequence_id)`, and `fork_from_past(app_id, sequence_id)`, each carrying FastMCP `ToolAnnotations` (`destructiveHint`, `idempotentHint`, `openWorldHint`) so capable clients can render the right confirmations. The action namespace lives in `step`'s argument schema; FSM complexity changes the schema, not the tool count. FastMCP's `ResourcesAsTools` transform adds two more (`list_resources`, `read_resource`) for clients that don't implement native `resources/read`; the architectural surface is still four.
-- **Structured refusals**: `invalid_transition`, `unknown_action`, `validation_failed`, `action_timeout`, `action_error`, plus the fork refusals `cannot_fork_to_refusal`, `unknown_past_run`, and `no_tracker` when the session has no persister or tracker wired. Every refusal carries `valid_next_actions` so the agent self-corrects from the response.
+- **Structured refusals**: five `refusal_reason` values from `step`: `invalid_transition`, `unknown_action`, `validation_failed`, `action_timeout`, `action_error`. Every refusal carries `valid_next_actions` so the agent self-corrects from the response. `fork_at` / `fork_from_past` return their own `error` codes (`cannot_fork_to_refusal`, `unknown_past_run`, `no_tracker`, ...) on the same wire shape.
 - **`theodosia://` resources**: `graph`, `state`, `next`, `history`, `subruns`, `trace`, `session`. The agent reads state from these instead of guessing.
 - **`upstream`**: a Burr action body calling tools on other MCP servers via `call_upstream(server, tool, args)`. The agent never sees those servers; only Theodosia's `step`.
 - **`Persona`**: PERSONA.md identity layer mounted as MCP prompts. Same FSM, different actor; same audit trail. Frame-aware placeholders (`{state.x}`, `{action.name}`) interpolate against the live session.
@@ -156,13 +146,9 @@ The vocabulary you meet, in roughly the order you reach for it. Every Theodosia 
 - **Middleware**: FastMCP `Middleware` instances attach via `mount(..., middleware=[mw1, mw2])`. Use for OpenTelemetry spans, rate limiting, structured logging, per-call metrics.
 - **`drive_claude(server, anthropic, *, prompt, ...)`**: one-line glue between a mounted server and the Anthropic SDK. Lists the FSM's tools, injects `theodosia://graph` / `state` / `next` into the system prompt, loops turn-by-turn until terminal or `max_turns`. Optional `[claude]` extra.
 
-## What this is not
+## Scope
 
-- Not a workflow engine. Workflows model control flow; Theodosia mounts an existing state machine and gates the agent's access to it.
-- Not a tool router. The agent calls `step`; Theodosia decides what's reachable. Routing is a side effect of the graph.
-- Not a chat framework. If your problem fits in one conversation, use a chat framework.
-- Not an agent harness. The agent and its model live in the client. Theodosia is the server it talks to.
-- Not magic. A loose graph produces a loose agent. The rails are only as tight as the FSM you author.
+Theodosia does not include an agent, a model, or a workflow engine. It mounts an existing Burr `Application` and gates an MCP client's access to it. The rails are only as tight as the graph you author.
 
 ---
 
@@ -179,7 +165,7 @@ theodosia sessions diff <a> <b>                  # cross-session: action path di
 theodosia watch                                  # live-tail a running session
 theodosia logs --refusals                        # only the steps that were refused
 theodosia status                                 # tracker storage + recent activity snapshot
-theodosia verify                                 # check the session's tamper-evident ledger
+theodosia verify                                 # recompute the ledger's hash chain; catches edits/reorders/copies
 theodosia primer                                 # 30-second offline tour, no API key needed
 theodosia ui                                     # open the Burr UI (auto-bootstraps via uvx, or install `theodosia[ui]`)
 ```
@@ -268,8 +254,6 @@ Standalone repositories, each a real agent you can clone and run:
 ## Acknowledgements
 
 Theodosia is glue between two libraries that do the hard parts: [Apache Burr](https://github.com/apache/burr) provides the state-machine `Application`, the transition graph, and the tracking UI; [FastMCP](https://github.com/jlowin/fastmcp) provides the MCP server, the transforms, and the client behind `upstream`. The SKILL demos under `examples/skills/` are reproduced verbatim from Anthropic and Trail of Bits with attribution.
-
-On the name: Theodosia was Aaron Burr's daughter, known for her correspondence with him. The project sits in the same family as Burr and reaches it, which is the role it plays here.
 
 Theodosia is an independent project, not affiliated with or endorsed by the Apache Software Foundation, DAGWorks, the Apache Burr project, or FastMCP.
 

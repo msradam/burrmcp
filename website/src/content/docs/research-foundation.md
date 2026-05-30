@@ -149,21 +149,6 @@ becomes the more relevant problem, not less. Theodosia is a position on the
 autonomy slider chosen for domains where silent failure is unacceptable, not
 a bet that models stay weak.
 
-## Where this sits in the landscape
-
-Agent frameworks overwhelmingly run the loop themselves and invoke the model
-as a subroutine inside a node. LangGraph, Burr, Temporal, AWS Step Functions,
-Semantic Kernel, AutoGen, CrewAI, the OpenAI Agents SDK and Assistants API,
-DSPy, and Pydantic-AI all work this way.
-
-Exposing a graph's individual transitions as an external surface that an LLM
-client drives, with the server refusing out-of-order moves, appears only in a
-small cluster of MCP-native projects. Theodosia's specific combination is its
-distinguishing contribution: lifting an existing framework's state-machine
-`Application` (Burr) into MCP so each action becomes a named, condition-gated
-transition, with structured refusals that carry the reachable actions for
-self-correction.
-
 ## References
 
 - Cemri et al., *Why Do Multi-Agent LLM Systems Fail?* (MAST), arXiv:2503.13657. <https://arxiv.org/abs/2503.13657>

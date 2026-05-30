@@ -1,0 +1,152 @@
+---
+/**
+ * Theodosia docs header. Replaces Starlight's default Header to match the v15
+ * docs mockup: ⊢ mark + wordmark + version pill, center nav links, search box,
+ * GitHub button. Look matches the landing nav so the surfaces feel like one
+ * product, not a marketing page bolted to a docs site.
+ */
+import Search from '@astrojs/starlight/components/Search.astro';
+import { VERSION, REPO_URL } from '../lib/site';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const currentPath = Astro.url.pathname.replace(base, '') || '/';
+
+// Section detection from URL slug. Used to highlight the matching top-nav link.
+const slugMatch = currentPath.match(/^\/([^/]+)/);
+const slug = slugMatch ? slugMatch[1] : '';
+const conceptSlugs = new Set([
+  'introduction', 'tutorial', 'authoring', 'examples', 'deployment',
+  'architecture', 'refusals', 'sessions', 'security-model', 'personas',
+  'research-foundation', 'case-study',
+]);
+const isConcepts = conceptSlugs.has(slug);
+const isApi = ['tools', 'cli', 'compatibility', 'upstream', 'observability'].includes(slug);
+---
+
+<div class="thd-docs-header">
+  <div class="brand">
+    <a class="brand-link" href={`${base}/`}>
+      <span class="mark" aria-hidden="true">⊢</span>
+      <span class="wm">Theodosia</span>
+    </a>
+    <span class="ver">v{VERSION}</span>
+  </div>
+
+  <nav class="links">
+    <a href={`${base}/introduction/`} class={isConcepts ? 'active' : ''}>Docs</a>
+    <a href={`${base}/tools/`} class={isApi ? 'active' : ''}>API</a>
+    <a href={`${base}/examples/`}>Examples</a>
+    <a href={`${base}/case-study/`} class={slug === 'case-study' ? 'active' : ''}>Case study</a>
+    <a href={`${base}/research-foundation/`} class={slug === 'research-foundation' ? 'active' : ''}>Research</a>
+  </nav>
+
+  <div class="right">
+    <div class="search-slot"><Search /></div>
+    <a class="gh-link" href={REPO_URL}>
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path
+          d="M8 0a8 8 0 0 0-2.53 15.59c.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.42 7.42 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8a8 8 0 0 0-8-8Z"
+          fill="currentColor"
+        />
+      </svg>
+      <span>GitHub</span>
+    </a>
+  </div>
+</div>
+
+<style is:global>
+  .thd-docs-header {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    width: 100%;
+    height: 60px;
+    padding: 0 28px;
+  }
+  .thd-docs-header .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 0 0 auto;
+  }
+  .thd-docs-header .brand-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+  }
+  .thd-docs-header .brand .mark { font-family: var(--thd-display); font-size: 22px; font-weight: 400; color: var(--thd-seal); line-height: 1; flex: 0 0 auto; }
+  .thd-docs-header .brand .wm {
+    font-family: var(--thd-display);
+    font-size: 22px;
+    font-weight: 400;
+    letter-spacing: -0.015em;
+    color: var(--thd-ink);
+  }
+  .thd-docs-header .brand .ver {
+    font-family: var(--thd-mono);
+    font-size: 11px;
+    color: var(--thd-muted);
+    padding: 3px 9px;
+    border: 1px solid var(--thd-edge);
+    border-radius: 999px;
+    background: var(--thd-sheet);
+  }
+  .thd-docs-header .links {
+    display: flex;
+    align-items: center;
+    gap: 26px;
+    margin-left: 16px;
+  }
+  .thd-docs-header .links a {
+    color: var(--thd-subtle);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: -0.005em;
+    font-family: var(--thd-sans);
+  }
+  .thd-docs-header .links a:hover { color: var(--thd-ink); }
+  .thd-docs-header .links a.active { color: var(--thd-pine); font-weight: 600; }
+  .thd-docs-header .right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 0 0 auto;
+  }
+  .thd-docs-header .search-slot { min-width: 200px; }
+  .thd-docs-header .gh-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--thd-sans);
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--thd-paper);
+    background: var(--thd-ink);
+    padding: 9px 16px;
+    border-radius: var(--thd-r-md);
+    text-decoration: none;
+  }
+  .thd-docs-header .gh-link:hover { background: #1a1a1a; }
+
+  @media (max-width: 1080px) {
+    .thd-docs-header .links { gap: 18px; margin-left: 14px; }
+    .thd-docs-header .links a { font-size: 13.5px; }
+  }
+  @media (max-width: 820px) {
+    .thd-docs-header .links { display: none; }
+    .thd-docs-header .brand .ver { display: none; }
+  }
+
+  /* Make Starlight's header use the v15 sticky blurred styling */
+  :root[data-theme="light"] header.header {
+    background: rgba(250,250,250,0.92);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--thd-edge);
+    height: 60px;
+    padding: 0;
+  }
+</style>

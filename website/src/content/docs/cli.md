@@ -6,7 +6,7 @@ description: 'serve, doctor, render, the observability commands, and build_cli.'
 `pip install theodosia` registers a `theodosia` console script with four groups of
 commands: first-touch, serve, validate, and observe.
 
-## primer
+## Primer
 
 `primer` is the 30-second offline first-touch. It mounts the bundled
 [`coffee_order`](https://github.com/msradam/theodosia/tree/main/examples/coffee_order.py)
@@ -20,7 +20,7 @@ theodosia primer
 
 No API key, no LLM, byte-deterministic. The first thing to run after `pip install`.
 
-## serve and doctor
+## Serve and doctor
 
 ```bash
 theodosia serve module:attr            # mount an Application or factory as an MCP server
@@ -87,7 +87,7 @@ theodosia sessions tail [app-id]      # live-tail a running session
 theodosia watch [app-id]              # alias for `sessions tail`
 theodosia logs [app-id]               # compact one-line-per-step, greppable
 theodosia logs --refusals --plain     # only steps that errored, pipe-friendly
-theodosia verify [app-id]             # check the tamper-evident ledger; nonzero if broken
+theodosia verify [app-id]             # recompute the ledger hash chain; nonzero on edit/reorder/middle-deletion
 theodosia report <app-id>             # markdown post-mortem; optional webhook delivery
 ```
 
@@ -143,7 +143,7 @@ Use it when wiring a new client, debugging a misbehaving action body, or
 recording a demo where the per-step trace is the point. Default off keeps
 production logs clean.
 
-## ui
+## UI
 
 ```bash
 theodosia ui
@@ -206,9 +206,10 @@ See [Driving other MCP servers](upstream.md) for the action-body side.
 
 ## Drive it from any MCP client
 
-`theodosia serve module:attr` is a stdio MCP server, so any MCP client can launch
-it. The same server is driven by each client through its own config mechanism.
-Verified against a fresh `pip install theodosia`:
+`theodosia serve module:attr` is a stdio MCP server. Any standards-compliant MCP
+client can launch it. The three configs below are verified against a fresh
+`pip install theodosia`; see the [compatibility](compatibility.md) page for
+known client quirks.
 
 ```bash
 # fast-agent (Python REPL). Define the server in fastagent.config.yaml:

@@ -1,6 +1,6 @@
 ---
 title: Deployment recipes
-description: Run a Theodosia-mounted FSM under every common MCP client transport: stdio (Claude Code, Cursor), HTTP/SSE (hosted), Lambda, k8s. One artifact, many deployment shapes.
+description: 'Run a Theodosia-mounted FSM under every common MCP client transport: stdio (Claude Code, Cursor), HTTP/SSE (hosted), Lambda, k8s. One artifact, many deployment shapes.'
 ---
 
 A Theodosia-mounted FSM is a FastMCP server. FastMCP speaks stdio, HTTP, and

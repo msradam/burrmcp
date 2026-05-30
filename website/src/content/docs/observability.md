@@ -73,7 +73,7 @@ theodosia watch [app-id]              # alias for `sessions tail`
 theodosia logs [app-id]               # compact one-line-per-step, greppable
 theodosia logs --refusals --plain     # only steps that errored, pipe-friendly
 theodosia report <app-id>             # markdown post-mortem, optional webhook
-theodosia verify [app-id]             # check the tamper-evident ledger
+theodosia verify [app-id]             # recompute the ledger hash chain
 ```
 
 `app-id` defaults to the most-recently-touched session and accepts a uuid prefix.

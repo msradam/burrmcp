@@ -1,0 +1,76 @@
+---
+/**
+ * Sidebar override that renders Starlight's default sidebar plus a state-indicator
+ * card at the bottom, the ⊢ YOU ARE AT pill from the v15 docs mockup.
+ */
+import Default from '@astrojs/starlight/components/Sidebar.astro';
+
+const { entry } = Astro.locals.starlightRoute;
+const rawId: string = entry?.id ?? entry?.slug ?? '';
+const slug: string = rawId.replace(/\.(md|mdx)$/, '').replace(/^.*\//, '');
+const title: string = entry?.data?.title ?? 'Theodosia';
+
+const SECTIONS: Record<string, string> = {
+  introduction: 'Start',
+  tutorial: 'Start',
+  authoring: 'Start',
+  examples: 'Start',
+  deployment: 'Start',
+  architecture: 'Concepts',
+  refusals: 'Concepts',
+  sessions: 'Concepts',
+  'security-model': 'Concepts',
+  'research-foundation': 'Concepts',
+  'case-study': 'Concepts',
+  deployment: 'Concepts',
+  tools: 'Reference',
+  cli: 'Reference',
+  compatibility: 'Integration',
+  upstream: 'Integration',
+  observability: 'Integration',
+  personas: 'Integration',
+};
+const section: string = SECTIONS[slug] ?? 'Docs';
+---
+
+<Default {...Astro.props} />
+
+<div class="thd-state-indicator">
+  <span class="k">YOU ARE AT</span>
+  <span class="v">{section} <span class="ar">→</span> {title}</span>
+</div>
+
+<style is:global>
+  .thd-state-indicator {
+    margin: 24px 12px 12px;
+    padding: 14px;
+    border: 1px dashed var(--thd-pine-line);
+    border-radius: var(--thd-r-md);
+    background: var(--thd-pine-tint);
+    font-family: var(--thd-mono);
+    font-size: 11px;
+    color: var(--thd-pine);
+    line-height: 1.6;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .thd-state-indicator .k {
+    font-size: 9.5px;
+    color: var(--thd-muted);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  .thd-state-indicator .v {
+    color: var(--thd-ink);
+    font-weight: 600;
+    letter-spacing: 0;
+  }
+  .thd-state-indicator .v .ar { color: var(--thd-pine); margin: 0 4px; }
+  .thd-state-indicator .meta {
+    color: var(--thd-muted);
+    font-size: 10px;
+    letter-spacing: 0.04em;
+  }
+</style>

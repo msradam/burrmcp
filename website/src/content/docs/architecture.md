@@ -3,8 +3,7 @@ title: 'Architecture'
 description: 'How mount() turns a Burr Application into an MCP server.'
 ---
 
-How `mount()` turns a Burr `Application` into an MCP server, and the load-bearing
-internals behind the four-tool surface.
+What `mount()` actually does, and the four MCP tools it always registers.
 
 ## The graph is the contract
 
@@ -70,11 +69,12 @@ action-body failure is `{"error": "action_error", "error_message": "..."}`.
 ## The action-selection trick
 
 Burr's `astep` picks the next action via `app.get_next_action()`, which returns
-the first transition whose condition is true. But under MCP the *client* named
-the action to run, not Burr. `_step_application` monkey-patches
-`app.get_next_action` to a lambda returning the client-named action, calls
-`astep`, then restores the original. This is the translation between MCP's
-"client chose X" semantics and Burr's transition-condition semantics.
+the first transition whose condition is true. Under MCP the *client* named the
+action to run. `_step_application` overrides `get_next_action` for the duration
+of one step to return the client-named action, calls `astep`, then restores the
+original. This is the bridge between MCP's "client chose X" semantics and
+Burr's transition-condition semantics, and the only Burr internal Theodosia
+touches.
 
 Before running, the step checks reachability against the live transitions. An
 unreachable action is refused with `invalid_transition` and the response carries
@@ -152,36 +152,6 @@ also reaches the loader, so an agent can resurrect any past session by
 `(app_id, sequence_id)` without anything in the factory. See
 `examples/sqlite_persister.py` for both factories side by side.
 
-## Lifting declarative artifacts (Philip)
-
-[Philip](https://github.com/msradam/philip) is a sibling library that
-turns declarative artifacts into Burr Applications `mount()` can consume
-directly. The composition shape is:
-
-```python
-import philip, theodosia
-theodosia.mount(philip.from_playbook("site.yml"), name="ansible-mcp").run()
-```
-
-What Philip lifts to Burr (Theodosia targets):
-
-- `from_playbook(path)`: Ansible YAML. Tasks become actions, `when:`
-  conditions become Burr `Condition.expr` guards, failures classify
-  into transitions. Verified working through the four-tool surface,
-  including refusals derived from YAML preconditions.
-- `from_mermaid(path)`: Mermaid `stateDiagram-v2`. Multi-outbound
-  branches surface through `step(action="<state>", inputs={"choice":
-  "<label>"})`: the passthrough writes `_choice`, the matching outbound
-  guard becomes the only reachable next action.
-- `from_excalidraw(path).to_burr()`: Excalidraw sketches. Same branch
-  semantics as Mermaid via the shared IR projector.
-
-Theodosia's surface is invariant under the lift: the four MCP tools,
-the `theodosia://graph` resource, structured refusals carrying
-`valid_next_actions`. Anything the lifted Application supports passes
-through `mount()` unchanged, including persistence, hooks, and
-upstream composition.
-
 ## Input coercion middleware
 
 `mount()` builds the FastMCP server with `strict_input_validation=False` and
@@ -190,8 +160,8 @@ objects when the tool's declared schema allows object or array. The `step`
 tool's `inputs` parameter is typed `dict | str | None` so the advertised schema
 includes `string` in its `anyOf`.
 
-Both moves are needed for IBM Bob: it validates outbound requests against the
-advertised schema (so the schema must accept the string form) and it serializes
+Both moves are needed for clients that validate outbound requests against the
+advertised schema (so the schema must accept the string form) and serialize
 nested-object arguments as JSON strings (so the middleware must coerce them
 before the action body runs).
 

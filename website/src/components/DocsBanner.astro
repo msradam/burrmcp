@@ -1,0 +1,63 @@
+---
+/**
+ * Crumb banner: renders the v15 docs breadcrumb above the page title.
+ * Reuses Starlight's Banner slot which fires once per page at the top of
+ * the main column, above the h1.
+ */
+const { entry } = Astro.locals.starlightRoute;
+// Starlight v0.x: entry.id is e.g. "tutorial" or "tutorial.md" depending on
+// loader. Strip extension and any leading directory.
+const rawId: string = entry?.id ?? entry?.slug ?? '';
+const slug: string = rawId.replace(/\.(md|mdx)$/, '').replace(/^.*\//, '');
+const title: string = entry?.data?.title ?? '';
+
+const SECTIONS: Record<string, string> = {
+  introduction: 'Start',
+  tutorial: 'Start',
+  authoring: 'Start',
+  examples: 'Start',
+  deployment: 'Start',
+  architecture: 'Concepts',
+  refusals: 'Concepts',
+  sessions: 'Concepts',
+  'security-model': 'Concepts',
+  'research-foundation': 'Concepts',
+  'case-study': 'Concepts',
+  deployment: 'Concepts',
+  tools: 'Reference',
+  cli: 'Reference',
+  compatibility: 'Integration',
+  upstream: 'Integration',
+  observability: 'Integration',
+  personas: 'Integration',
+};
+const section: string = SECTIONS[slug] ?? 'Docs';
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+---
+
+<div class="thd-doc-crumb">
+  <a href={`${base}/tutorial/`}>Docs</a>
+  <span class="ar">/</span>
+  <span class="section">{section}</span>
+  <span class="ar">/</span>
+  <span class="here">{title}</span>
+</div>
+
+<style is:global>
+  .thd-doc-crumb {
+    font-family: var(--thd-mono);
+    font-size: 11.5px;
+    color: var(--thd-muted);
+    letter-spacing: 0.04em;
+    margin: 0 0 24px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .thd-doc-crumb a { color: var(--thd-muted); text-decoration: none; }
+  .thd-doc-crumb a:hover { color: var(--thd-ink); }
+  .thd-doc-crumb .section { color: var(--thd-muted); }
+  .thd-doc-crumb .ar { color: var(--thd-dim); }
+  .thd-doc-crumb .here { color: var(--thd-pine); font-weight: 500; }
+</style>

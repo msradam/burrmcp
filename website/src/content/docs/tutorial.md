@@ -3,26 +3,30 @@ title: 'Build your own agent with Burr and Theodosia'
 description: 'End to end: describe a workflow, have a coding model write the Burr state machine, mount it with Theodosia, drive it with an agent, and read the recorded session.'
 ---
 
-This is the whole loop in one sitting. You describe a workflow in plain English,
-let a coding model turn it into a Burr state machine, mount that file as an MCP
-server with one command, point an agent at it, and watch the agent drive the
-workflow one enforced step at a time. At the end you have a recorded, replayable
-session you can open in a UI.
+Theodosia is a Python adapter that hands a workflow to any AI agent over **MCP
+(Model Context Protocol)**. You write the workflow once as a [Burr](https://burr.dagworks.io)
+`Application` (a small Python state machine: actions + transitions); Theodosia
+serves it so the agent can only take steps the workflow allows. When the agent
+tries an illegal step it gets a structured refusal naming the legal next moves
+and recovers. Every step it takes, and every step it tried but couldn't, is
+recorded.
 
-We are building an autonomous planetary rover. It is a good first agent because
-the rules are physical and obvious: you cannot deploy the sample arm before
-diagnostics pass, and you cannot drive while the arm is still out. Those are
-safety interlocks, the same shape real robots use, and they map exactly onto
-what Theodosia enforces. Every output below is from a real run against the
+Want to see it work first with zero setup? `pip install theodosia && theodosia
+primer` walks a bundled coffee-order example offline, no API key, same output
+every run. Come back here when you want to build your own.
+
+The rest of this page builds an autonomous planetary rover from scratch with a
+coding model and drives it with a real agent. Rules are physical and obvious:
+you cannot deploy the sample arm before diagnostics pass, and you cannot drive
+while the arm is still out. Those are safety interlocks, and they map exactly
+onto what Theodosia enforces. Every output below is from a real run against the
 [Together](https://www.together.ai/) API, refusals included.
 
-One thing to hold onto before you start: because every piece here speaks MCP,
-none of the specific tools are load-bearing. Use any coding model to write the
-graph and any agent or MCP client to drive it. This guide picks a Qwen coder to
-write the state machine and [fast-agent](https://fast-agent.ai) (running Claude
-haiku) to drive it, but you could swap in GPT, Gemini, a local model, Claude
-Code, Cursor, or your own loop and change nothing about the rover. The choices
-below are examples, not requirements.
+Because every piece here speaks MCP, the specific tools are interchangeable.
+This guide picks a Qwen coder to write the state machine and
+[fast-agent](https://fast-agent.ai) (running Claude haiku) to drive it. Swap in
+GPT, Gemini, a local model, Claude Code, Cursor, or your own loop and nothing
+about the rover changes.
 
 What you need:
 
@@ -554,7 +558,7 @@ is the audit trail you do not get from a chat transcript. Two more ways in:
 ```bash
 theodosia watch                  # live-tail a run as it happens
 theodosia ui                     # the Burr web UI: graph view, state diffing, time travel
-theodosia verify <id>            # check the session's tamper-evident ledger
+theodosia verify <id>            # recompute the ledger hash chain; nonzero on edit/reorder/middle-deletion
 ```
 
 ## What you actually built
@@ -568,7 +572,7 @@ You could enforce ordering with a pile of `if` statements inside one big tool.
 What you would not get for free: a structured refusal the agent recovers from
 without you writing retry logic, a transition graph you can render and validate
 before shipping, a recorded session with per-step state diffs, replay, forking,
-and a tamper-evident ledger, and the ability to hand the exact same workflow to
+and a hash-chained ledger plus a sidecar of every refused attempt, and the ability to hand the exact same workflow to
 Claude Code, Cursor, or your own loop over MCP without rewriting any of it. The
 gate is the easy part. The recover-and-audit loop around it is the work, and that
 is what mounting a state machine gives you instead of an if-statement.

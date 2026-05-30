@@ -22,8 +22,8 @@ of Theodosia is to make those failures safe and visible rather than silent.
   current state. An out-of-order or unknown action comes back as a structured
   [refusal](refusals.md) with the reachable actions; it never executes.
 - **State integrity.** State lives on the server, keyed per session. The agent
-  cannot assert a state it is not in. "The model can be wrong; it cannot lie
-  about state" is a property, not a slogan.
+  cannot assert a state it is not in; every state change is the recorded result
+  of a server-executed action.
 - **Boundary validation.** Inputs are coerced to the declared schema, and
   optional `input_validators` reject bad inputs before the action body runs.
 - **An honest, verifiable record.** Every attempt, including refusals, is
@@ -60,6 +60,31 @@ or transparency log), and an append-only object store with retention
 locks on top. `ledger.jsonl` alone detects accidental corruption and the
 naive editor; it does not survive a motivated insider with filesystem
 write access.
+
+## Per-session isolation
+
+Each MCP session gets its own `Application` instance, keyed by FastMCP's
+`ctx.session_id`. The store lives in a closure scope inside `mount()`,
+not in a module global, so two `mount()` calls in the same process do
+not bleed sessions into each other.
+
+`fork_from_past(app_id, partition_key=...)` reaches into a different
+session's persisted state through the persister. To prevent a tenant-A
+session from loading tenant-B's state by guessing an `app_id`, the
+caller-supplied `partition_key` is compared against the session's bound
+`_partition_key` (set by `ApplicationBuilder.with_identifiers(...)`).
+A mismatch returns a `partition_mismatch` refusal *before* the persister
+is reached, so a malicious tenant cannot even confirm whether the
+requested `app_id` exists in another partition. See
+`tests/test_fork_from_past_partition_binding.py` for the regression that
+pins this behaviour.
+
+## Supply chain
+
+Releases publish a CycloneDX SBOM as a workflow artifact
+(`.github/workflows/release.yml`). Direct runtime deps are Apache 2.0
+or MIT (no copyleft); pin `uv.lock` and mirror to your own index for an
+auditable build.
 
 ## What `reads=` enforces and what it does not
 

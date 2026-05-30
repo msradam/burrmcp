@@ -1,0 +1,582 @@
+---
+// Theodosia landing page (v15). Custom Astro page, bypasses Starlight's splash
+// template. Mirrors `brand/Theodosia Landing.html` from the engineering handoff.
+// Styles are scoped to this page only via the inline <style> block; tokens.css
+// is the source of truth for color and type variables but is also redeclared
+// here so this page can ship standalone if the site CSS ever moves.
+import { VERSION, YEAR, REPO_URL } from '../lib/site';
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+---
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Theodosia · Durable AI agents, by construction</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="description" content="Theodosia is a Python adapter that hands your workflow to any AI agent over MCP. The agent can only take steps your workflow allows; every step it takes and every step it tried but couldn't gets recorded." />
+<link rel="icon" type="image/svg+xml" href={`${base}/favicon.svg`} />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Funnel+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=Inria+Serif:ital,wght@0,300;0,400;0,700;1,300;1,400;1,700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style is:global>
+  :root{
+    --paper:#fafafa;
+    --sheet:#ffffff;
+    --raised:#f5f5f3;
+    --edge:#e6e6e2;
+    --rule:#d4d4cf;
+    --ink:#0a0a0a;
+    --subtle:#3a3a38;
+    --muted:#65655f;
+    --dim:#a8a8a4;
+    --pine:#286983;
+    --pine-soft:#3d8aa3;
+    --pine-tint:#eaf3f6;
+    --pine-line:rgba(40,105,131,0.18);
+    --foam:#56949f;
+    --seal:#7a3c4a;
+    --seal-tint:#f6ebed;
+    --gold:#ea9d34;
+    --gold-tint:#fcefd5;
+    --love:#b4637a;
+    --r-sm:6px;
+    --r-md:10px;
+    --r-lg:16px;
+    --r-pill:999px;
+    --shadow-card:0 1px 2px rgba(10,10,10,0.04), 0 4px 12px rgba(10,10,10,0.04);
+    --shadow-node:0 1px 1px rgba(10,10,10,0.05), 0 2px 6px rgba(10,10,10,0.05);
+    --display:"Inria Serif", "Iowan Old Style", Georgia, serif;
+    --sans:"Funnel Sans", -apple-system, system-ui, sans-serif;
+    --mono:"JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  /* Skip link - first focusable, sits offscreen until focused */
+  .skip-link{position:absolute;left:8px;top:-40px;z-index:100;background:var(--ink);color:var(--paper);padding:9px 14px;border-radius:var(--r-md);font-family:var(--sans);font-size:13px;font-weight:500;text-decoration:none;transition:top .15s}
+  .skip-link:focus{top:8px;outline:2px solid var(--pine);outline-offset:2px}
+  /* Respect prefers-reduced-motion: still useful pages, no spin */
+  @media (prefers-reduced-motion: reduce){
+    *,*::before,*::after{animation-duration:0.001ms !important;animation-iteration-count:1 !important;transition-duration:0.001ms !important;scroll-behavior:auto !important}
+    .hero-asset img{animation-play-state:paused}
+  }
+  html,body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-weight:400;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  body{font-size:15px;line-height:1.6;letter-spacing:-0.005em}
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background-image:radial-gradient(circle at 1px 1px, rgba(10,10,10,0.05) 1px, transparent 0);
+    background-size:24px 24px;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:0 48px;position:relative;z-index:1}
+
+  /* NAV */
+  .nav{position:sticky;top:0;z-index:30;background:rgba(250,250,250,0.86);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--edge)}
+  .nav .in{max-width:1180px;margin:0 auto;padding:0 48px;height:64px;display:flex;align-items:center;justify-content:space-between;gap:20px}
+  .brand{display:flex;align-items:center;gap:10px;flex:0 0 auto;text-decoration:none}
+  .brand .mark{font-family:var(--display);font-size:22px;font-weight:400;color:var(--seal);line-height:1;flex:0 0 auto}
+  .brand .wm{font-family:var(--display);font-size:21px;font-weight:600;letter-spacing:-0.02em;color:var(--ink)}
+  .nav .links{display:flex;align-items:center;gap:26px}
+  .nav .links a{font-family:var(--sans);font-size:14px;color:var(--subtle);text-decoration:none;font-weight:500}
+  .nav .links a:hover{color:var(--ink)}
+  .nav .right{display:flex;align-items:center;gap:14px;flex:0 0 auto}
+  .nav .ver{font-family:var(--mono);font-size:11px;color:var(--muted);padding:3px 9px;border:1px solid var(--edge);border-radius:var(--r-pill);background:var(--sheet)}
+  .nav .gh{font-family:var(--sans);font-size:13.5px;font-weight:500;color:var(--paper);background:var(--ink);padding:9px 16px;border-radius:var(--r-md);text-decoration:none;transition:background .15s}
+  .nav .gh:hover{background:#1a1a1a}
+  @media(max-width:820px){.nav .links{display:none}}
+
+  /* HERO */
+  .hero{display:grid;grid-template-columns:1.05fr 0.95fr;gap:56px;align-items:center;padding:80px 0 72px}
+  .hero .eyebrow{display:inline-flex;align-items:center;gap:8px;white-space:nowrap;font-family:var(--mono);font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:var(--pine);background:var(--pine-tint);border:1px solid var(--pine-line);padding:5px 12px;border-radius:var(--r-pill);font-weight:600;margin-bottom:24px}
+  .hero h1{font-family:var(--display);font-weight:500;font-size:clamp(46px,5.4vw,76px);line-height:1.0;letter-spacing:-0.03em;color:var(--ink);margin-bottom:18px;max-width:13ch}
+  .hero h1 em{font-style:italic;font-weight:400;color:var(--pine)}
+  .hero .tagline2{font-family:var(--display);font-style:italic;font-weight:400;color:var(--pine);font-size:clamp(21px,2.4vw,29px);line-height:1.25;letter-spacing:-0.01em;margin-bottom:26px;max-width:24ch}
+  .hero .tagline{font-family:var(--display);font-style:italic;font-weight:400;color:var(--pine);font-size:clamp(20px,2.1vw,24px);line-height:1.3;margin-bottom:20px;max-width:34ch}
+  .hero .subhead{display:none}
+  .hero .descriptor{font-family:var(--sans);font-size:17px;line-height:1.62;color:var(--subtle);max-width:54ch;margin-bottom:28px}
+  .hero .descriptor strong{color:var(--ink);font-weight:600}
+  .hero .descriptor code{font-family:var(--mono);font-size:13.5px;color:var(--pine);background:var(--pine-tint);padding:1px 6px;border-radius:var(--r-sm)}
+  .hero .primer-hint{font-family:var(--sans);font-size:13.5px;color:var(--muted);margin-top:14px;max-width:60ch}
+  .hero .primer-hint code{font-family:var(--mono);font-size:12.5px;color:var(--ink);background:var(--raised);padding:1px 6px;border-radius:var(--r-sm)}
+  .ctas{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+  .ctas .install{display:flex;align-items:center;gap:12px;background:var(--sheet);border:1px solid var(--edge);border-radius:var(--r-md);overflow:hidden}
+  .ctas .install .p{padding:13px 0 13px 16px;font-family:var(--mono);font-size:13px;font-weight:600;color:var(--pine);white-space:nowrap}
+  .ctas .install code{padding:13px 16px 13px 0;font-family:var(--mono);font-size:13px;color:var(--ink);white-space:nowrap}
+  .ctas .docs{display:inline-flex;align-items:center;gap:8px;padding:13px 20px;background:var(--ink);color:var(--paper);font-family:var(--sans);font-size:14px;font-weight:500;border-radius:var(--r-md);text-decoration:none;transition:background .15s}
+  .ctas .docs:hover{background:#1a1a1a}
+  .ctas .docs .ar{color:var(--paper);opacity:0.7}
+  .ctas .repo{display:inline-flex;align-items:center;gap:8px;padding:13px 20px;background:var(--sheet);color:var(--ink);font-family:var(--sans);font-size:14px;font-weight:500;border:1px solid var(--edge);border-radius:var(--r-md);text-decoration:none}
+  .ctas .repo:hover{background:var(--raised)}
+
+  /* HERO RIGHT, Phoebe terminal render in place of the demo-slot placeholder.
+     Keeps the dashed-frame aesthetic but anchors a real artifact. */
+  .hero-asset{border:1px solid var(--edge);background:var(--sheet);border-radius:var(--r-lg);padding:18px;box-shadow:var(--shadow-card);display:flex;flex-direction:column;gap:10px;min-height:320px;overflow:hidden}
+  .hero-asset .tag{font-family:var(--mono);font-size:9.5px;color:var(--pine);letter-spacing:0.18em;text-transform:uppercase;background:var(--pine-tint);padding:4px 12px;border:1px solid var(--pine-line);border-radius:var(--r-pill);font-weight:600;align-self:flex-start}
+  .hero-asset .title{font-family:var(--display);font-size:15px;font-style:italic;color:var(--ink);line-height:1.2}
+  .hero-asset img{width:100%;height:auto;border-radius:var(--r-md);display:block}
+  .hero-asset .meta{font-family:var(--mono);font-size:10.5px;color:var(--muted);letter-spacing:0.04em;margin-top:auto;padding-top:6px}
+
+  /* LEDGER EXCERPT - proof artifact under the hero */
+  .ledger-show{margin-top:-16px;margin-bottom:8px}
+  .ledger-frame{background:var(--sheet);border:1px solid var(--edge);border-radius:var(--r-lg);overflow:hidden;box-shadow:var(--shadow-card)}
+  .ledger-head{padding:12px 24px;background:var(--raised);border-bottom:1px solid var(--edge)}
+  .ledger-label{font-family:var(--mono);font-size:10.5px;color:var(--muted);letter-spacing:0.14em;text-transform:uppercase;font-weight:600}
+  .ledger-frame pre{margin:0;padding:18px 22px;font-family:var(--mono);font-size:11.5px;line-height:1.9;color:var(--subtle);overflow-x:auto;background:var(--paper);white-space:pre}
+  .ledger-frame .lj.k{color:var(--pine);font-weight:500}
+  .ledger-frame .lj.s{color:var(--ink)}
+  .ledger-frame .lj.refused{color:var(--seal);font-weight:600}
+  .ledger-cap{padding:14px 24px;font-family:var(--sans);font-size:13.5px;line-height:1.55;color:var(--subtle);border-top:1px solid var(--edge);margin:0}
+  .ledger-cap code{font-family:var(--mono);font-size:12.5px;color:var(--pine);background:var(--pine-tint);padding:1px 6px;border-radius:var(--r-sm)}
+
+  /* SECTION SCAFFOLD */
+  .section{padding:74px 0;border-top:1px solid var(--edge)}
+  .lp-head{text-align:center;max-width:62ch;margin:0 auto 48px}
+  .lp-head .k{font-family:var(--mono);font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:var(--pine);font-weight:600;margin-bottom:16px;display:block}
+  .lp-head h2{font-family:var(--display);font-weight:500;font-size:clamp(32px,3.6vw,46px);line-height:1.1;letter-spacing:-0.022em;color:var(--ink);margin-bottom:16px}
+  .lp-head h2 em{font-style:italic;font-weight:400;color:var(--pine)}
+  .lp-head p{font-family:var(--sans);font-size:16.5px;color:var(--subtle);line-height:1.6}
+  .lp-head p strong{color:var(--ink);font-weight:600}
+
+  /* FEATURES */
+  .features{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+  .feature{background:var(--sheet);border:1px solid var(--edge);border-radius:var(--r-lg);padding:30px 28px;box-shadow:var(--shadow-card);display:flex;flex-direction:column;gap:13px;min-width:0}
+  .feature .fg{font-family:var(--display);font-size:30px;color:var(--seal);line-height:1}
+  .feature h3{font-family:var(--display);font-size:22px;font-weight:500;color:var(--ink);letter-spacing:-0.012em;line-height:1.2}
+  .feature h3 em{font-style:italic;color:var(--pine);font-weight:400}
+  .feature p{font-family:var(--sans);font-size:14px;color:var(--subtle);line-height:1.62}
+  .feature p strong{color:var(--ink);font-weight:600}
+  .feature .seq{font-family:var(--mono);font-size:11.5px;color:var(--pine);background:var(--pine-tint);border:1px solid var(--pine-line);padding:9px 13px;border-radius:var(--r-md);margin-top:auto;letter-spacing:0;overflow-x:auto}
+
+  /* PHILIP BRAG above the mechanism frame, pine-tinted (positive feature,
+     not a warning). Oxblood is reserved for the refused state and heritage
+     callouts; using it here read as an alert. */
+  .lift-brag{display:flex;flex-direction:column;gap:10px;background:var(--pine-tint);border:1px solid var(--pine-line);border-left:3px solid var(--pine);border-radius:var(--r-md);padding:18px 22px;margin:0 0 18px;max-width:none}
+  .lift-brag .lift-pill{font-family:var(--mono);font-size:10.5px;color:var(--pine);letter-spacing:0.14em;text-transform:uppercase;font-weight:700;align-self:flex-start;background:var(--sheet);padding:5px 12px;border:1px solid var(--pine-line);border-radius:var(--r-pill)}
+  .lift-brag p{font-family:var(--sans);font-size:14.5px;line-height:1.55;color:var(--subtle);margin:0;max-width:64ch}
+  .lift-brag p strong{color:var(--ink);font-weight:600}
+  .lift-brag p code{font-family:var(--mono);font-size:13px;color:var(--pine);background:rgba(40,105,131,0.08);padding:1px 6px;border-radius:var(--r-sm)}
+  .lift-brag .lift-code{font-family:var(--mono);font-size:13px;color:var(--ink);background:var(--sheet);border:1px solid var(--edge);padding:12px 14px;border-radius:var(--r-md);display:block;overflow-x:auto;line-height:1.7}
+  .lift-brag .lift-code a{color:var(--pine);text-decoration:underline;text-underline-offset:2px}
+  .lift-brag .lift-foot{font-family:var(--sans);font-size:13px;color:var(--muted);margin:0;margin-top:2px}
+  .lift-brag .lift-foot a{color:var(--pine);text-decoration:underline;text-underline-offset:2px}
+  .lift-brag .lift-foot code{font-family:var(--mono);font-size:12px;color:var(--seal);background:rgba(122,60,74,0.06);padding:1px 5px;border-radius:var(--r-sm)}
+
+  /* Mermaid diagram styling, match the v15 paper register and FILL the column.
+     Mermaid stamps fixed width/height attrs on the SVG; we override to 100%. */
+  .diagram{min-height:280px;width:100%;overflow-x:auto;display:flex;justify-content:center}
+  .diagram pre.mermaid{background:transparent;border:0;padding:0;margin:0;font-family:var(--sans);font-size:14px;display:flex;align-items:center;justify-content:center;overflow:visible}
+  /* Let Mermaid render at its intrinsic computed size, just bounded, keeps
+     node content readable instead of stretching to a flat aspect ratio. */
+  .diagram pre.mermaid > svg{width:auto !important;height:auto !important;max-width:100% !important;min-width:min(720px, 100%);min-height:240px}
+  .diagram pre.mermaid .nodeLabel{font-family:var(--display) !important;font-weight:500;font-size:15px !important}
+  .diagram pre.mermaid .edgeLabel{font-family:var(--mono) !important;font-size:11.5px !important}
+  /* Edge labels get a paper fill + small padding so they sit ON TOP of the
+     transition line instead of being struck through by it. */
+  .diagram pre.mermaid .edgeLabel{background-color:var(--paper) !important;padding:2px 6px !important;border-radius:3px}
+  .diagram pre.mermaid .edgeLabel rect{fill:var(--paper) !important}
+  .diagram pre.mermaid .edgeLabel foreignObject > div,
+  .diagram pre.mermaid .edgeLabel foreignObject span,
+  .diagram pre.mermaid .edgeLabel foreignObject p{background-color:var(--paper) !important;padding:1px 6px !important;border-radius:3px}
+  .diagram pre.mermaid .note{font-family:var(--mono) !important;font-size:11.5px !important}
+
+  /* MECHANISM */
+  .mech-frame{background:var(--sheet);border:1px solid var(--edge);border-radius:var(--r-lg);overflow:hidden;box-shadow:var(--shadow-card)}
+  .mech-head{padding:18px 28px;border-bottom:1px solid var(--edge);background:var(--raised);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px}
+  .mech-head .title{font-family:var(--sans);font-size:14.5px;font-weight:600;color:var(--ink);display:flex;align-items:center;gap:10px}
+  .mech-head .title .ic{color:var(--pine)}
+  .mech-head .meta{display:flex;gap:12px;flex-wrap:wrap}
+  .mech-head .meta .pill{font-family:var(--mono);font-size:10.5px;padding:4px 10px;border-radius:var(--r-pill);letter-spacing:0.04em;background:var(--sheet);border:1px solid var(--edge);color:var(--muted)}
+  .mech-head .meta .pill.ok{color:var(--pine);border-color:var(--pine-line);background:var(--pine-tint)}
+  .mech-head .meta .pill.no{color:var(--seal);border-color:rgba(122,60,74,0.18);background:var(--seal-tint)}
+  .mech-head .meta .pill.cur{color:#7a5212;border-color:rgba(234,157,52,0.3);background:var(--gold-tint)}
+  .mech-body{padding:40px 32px;display:grid;grid-template-columns:1fr;gap:28px;align-items:start;min-width:0}
+  .mech-body .diagram{min-width:0;width:100%}
+  .mech-body .diagram svg{width:100%;height:auto;display:block}
+  .mech-body .legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px;padding-top:8px;border-top:1px solid var(--edge)}
+  .mech-body .legend .row{display:grid;grid-template-columns:28px 1fr;gap:12px;align-items:start;font-family:var(--sans);font-size:13.5px;line-height:1.55;color:var(--subtle)}
+  .mech-body .legend .glyph{font-family:var(--mono);font-size:14px;font-weight:600;text-align:center;line-height:24px}
+  .mech-body .legend .glyph.ok{color:var(--pine)}
+  .mech-body .legend .glyph.no{color:var(--seal)}
+  .mech-body .legend .glyph.cur{color:#7a5212}
+  .mech-body .legend .desc strong{color:var(--ink);font-weight:600}
+  .mech-body .legend .desc em{font-style:italic;color:var(--seal)}
+  .audit-table{border-top:1px solid var(--edge);font-family:var(--mono);font-size:12.5px;background:var(--paper);overflow-x:auto}
+  .audit-table .lbl{padding:14px 28px 10px;font-size:10.5px;color:var(--muted);letter-spacing:0.16em;text-transform:uppercase;border-bottom:1px solid var(--edge);display:flex;align-items:center;gap:10px}
+  .audit-table .lbl::before{content:"//";color:var(--dim)}
+  .audit-table .head{display:grid;grid-template-columns:200px 180px 160px 1fr 100px;gap:18px;padding:10px 28px;font-size:9.5px;letter-spacing:0.16em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--edge);background:var(--raised);min-width:760px}
+  .audit-table .row{display:grid;grid-template-columns:200px 180px 160px 1fr 100px;gap:18px;padding:11px 28px;color:var(--subtle);border-bottom:1px solid var(--edge);font-size:12.5px;line-height:1.5;min-width:760px;align-items:baseline}
+  .audit-table .row:last-child{border-bottom:0}
+  .audit-table .row .ts{color:var(--muted)}
+  .audit-table .row .act{color:var(--ink);font-weight:500}
+  .audit-table .row .ft .ar{color:var(--pine);padding:0 6px;font-weight:600}
+  .audit-table .row .rsn{color:var(--muted);font-size:11.5px}
+  .audit-table .row .out{font-weight:600;letter-spacing:0.04em;text-transform:uppercase;text-align:right;font-size:11px;padding:3px 8px;border-radius:var(--r-pill);justify-self:end;align-self:center}
+  .audit-table .row .out.ok{color:var(--pine);background:var(--pine-tint)}
+  .audit-table .row .out.no{color:var(--seal);background:var(--seal-tint)}
+  .audit-table .row.refused .act{color:var(--seal)}
+
+  /* COMPARISON */
+
+  /* QUICKSTART */
+  .quick{display:grid;grid-template-columns:0.9fr 1.1fr;gap:48px;align-items:center}
+  .quick .copy h2{font-family:var(--display);font-weight:500;font-size:clamp(30px,3.4vw,42px);line-height:1.12;letter-spacing:-0.02em;color:var(--ink);margin-bottom:18px}
+  .quick .copy h2 em{font-style:italic;font-weight:400;color:var(--pine)}
+  .quick .copy p{font-family:var(--sans);font-size:16px;color:var(--subtle);line-height:1.65;margin-bottom:18px;max-width:46ch}
+  .quick .copy p strong{color:var(--ink);font-weight:600}
+  .quick .steps{display:flex;flex-direction:column;gap:12px;margin-top:24px}
+  .quick .steps .step{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:baseline}
+  .quick .steps .n{font-family:var(--display);font-style:italic;font-size:18px;color:var(--pine);line-height:1}
+  .quick .steps .t{font-family:var(--sans);font-size:14px;color:var(--subtle);line-height:1.5}
+  .quick .steps .t strong{color:var(--ink);font-weight:600}
+  .terminal-stack{display:flex;flex-direction:column;gap:14px;min-width:0}
+  .terminal{background:#10131c;border:1px solid #2a2f3c;border-radius:var(--r-lg);overflow:hidden;box-shadow:var(--shadow-card)}
+  .terminal .bar{display:flex;gap:7px;padding:14px 18px;border-bottom:1px solid #2a2f3c;align-items:center}
+  .terminal .bar i{width:11px;height:11px;border-radius:50%;background:#2a2f3c;display:inline-block}
+  .terminal .bar .ttl{margin-left:10px;font-family:var(--mono);font-size:11px;color:#6e7a90;letter-spacing:0.04em}
+  .terminal pre{margin:0;padding:22px 22px;font-family:var(--mono);font-size:12.5px;line-height:1.7;color:#cdd6e4;white-space:pre;overflow-x:auto}
+  .terminal .pr{color:var(--foam)}
+  .terminal .cm{color:#6e7a90;font-style:italic}
+  .terminal .ac{color:#9ccfd8}
+  .terminal .ok{color:#9bd1a3}
+  .terminal .no{color:#d98a9e}
+  .terminal .kw{color:#c4a7e7;font-weight:500}
+  .terminal .str{color:#ebbcba}
+  .terminal.app-py pre{font-size:12px;line-height:1.6}
+
+  /* FOOTER */
+  .lp-footer{border-top:1px solid var(--edge);padding:54px 0 24px;margin-top:24px;display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:40px;align-items:start}
+  .lp-footer .blurb{font-family:var(--sans);font-size:14px;line-height:1.7;color:var(--subtle);max-width:42ch}
+  .lp-footer .blurb .bmk{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .lp-footer .blurb .bmk .wm{font-family:var(--display);font-size:20px;font-weight:600;letter-spacing:-0.02em;color:var(--ink)}
+  .lp-footer .blurb .bmk .mark{color:var(--seal)}
+  .lp-footer .col h4{font-family:var(--mono);font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:14px}
+  .lp-footer .col a{display:block;font-family:var(--sans);font-size:14px;color:var(--subtle);text-decoration:none;padding:5px 0}
+  .lp-footer .col a:hover{color:var(--pine)}
+  .foot-base{border-top:1px solid var(--edge);margin-top:36px;padding:22px 0 0;display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap}
+  .foot-base .lic{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:0.02em}
+  .foot-base .stamp{font-family:var(--display);font-style:italic;font-size:14px;color:var(--muted)}
+  .foot-base .stamp em{color:var(--seal);font-style:normal}
+
+  @media(max-width:900px){
+    .hero{grid-template-columns:1fr;gap:40px;padding:56px 0 48px}
+    .mech-body{grid-template-columns:1fr;gap:32px}
+    .features{grid-template-columns:1fr}
+    .quick{grid-template-columns:1fr;gap:32px}
+    .lp-footer{grid-template-columns:1fr 1fr;gap:32px}
+  }
+  @media(max-width:560px){
+    .wrap,.nav .in{padding:0 22px}
+    .lp-footer{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+
+<a class="skip-link" href="#top">Skip to content</a>
+
+<nav class="nav">
+  <div class="in">
+    <a class="brand" href={`${base}/`}>
+      <span class="mark" aria-hidden="true">⊢</span>
+      <span class="wm">Theodosia</span>
+    </a>
+    <div class="links">
+      <a href="#how">How it works</a>
+      <a href="#start">Quickstart</a>
+      <a href={`${base}/architecture/`}>Docs</a>
+    </div>
+    <div class="right">
+      <span class="ver">v{VERSION}</span>
+      <a class="gh" href={REPO_URL}>GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<main id="top" class="wrap">
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-copy">
+      <h1>Durable AI agents, <em>by construction</em>.</h1>
+      <p class="descriptor"><strong>You write the workflow once</strong> as a <a href="https://burr.dagworks.io">Burr</a> Application. Theodosia serves it over Model Context Protocol; any MCP client can drive it, and the server only lets the agent take steps the graph allows. Every step it takes, <strong>and every step it tried but couldn&apos;t</strong>, is on the record.</p>
+      <div class="ctas">
+        <div class="install">
+          <span class="p">$</span>
+          <code>pip install theodosia</code>
+        </div>
+        <a class="docs" href={`${base}/introduction/`}>Read the docs <span class="ar">&rarr;</span></a>
+        <a class="repo" href={REPO_URL}>View on GitHub</a>
+      </div>
+      <p class="primer-hint">No API key needed. <code>theodosia primer</code> walks a tiny coffee-order example offline and prints the same output every run.</p>
+    </div>
+    <div class="hero-asset">
+      <span class="tag">&#x22A2; Live run</span>
+      <span class="title">Kimi K2.6 on rails through an SRE investigation</span>
+      <img src={`${base}/hero_tall_light.gif`} alt="A real Kimi K2.6 run stepping through a gated SRE investigation on rails" width="860" height="600" loading="eager" />
+      <span class="meta">Per-session ledger &middot; 12 steps &middot; 1 refusal recorded</span>
+    </div>
+  </section>
+
+
+  <!-- FEATURES -->
+  <section class="section" id="how">
+    <div class="lp-head">
+      <span class="k">How it works</span>
+      <h2>The state machine <em>decides</em> which steps are legal.</h2>
+      <p>Theodosia sits between any MCP client and your workflow, enforcing the legal-step boundary at the server.</p>
+    </div>
+    <div class="features">
+      <div class="feature">
+        <div class="fg">&#x22A2;</div>
+        <h3>Only <em>legal</em> steps.</h3>
+        <p>Your Burr workflow defines what&apos;s allowed from each state. A step that isn&apos;t reachable from the current state is refused before the action body runs. The agent gets back a structured refusal naming the legal next moves and self-corrects.</p>
+        <div class="seq">&#x22A2; legal step only</div>
+      </div>
+      <div class="feature">
+        <div class="fg">&#x25CB;</div>
+        <h3>Refused attempts are <em>kept</em>.</h3>
+        <p>Burr&apos;s tracker logs the actions that ran. Theodosia adds a <code>refusals.jsonl</code> sidecar so the attempts that were refused are <strong>also</strong> on the record. The trail reflects what the agent tried, not its own account.</p>
+        <div class="seq">refusals.jsonl &rarr; on the record</div>
+      </div>
+      <div class="feature">
+        <div class="fg">&#x21BA;</div>
+        <h3>Forkable, chain-verified <em>sessions</em>.</h3>
+        <p>Every entry is hash-chained with the session identity in the payload, so <code>theodosia verify</code> catches edits, reorders, and copies between sessions. Resume or branch from any past step with the <code>fork_at</code> / <code>fork_from_past</code> MCP tools.</p>
+        <div class="seq">fork_at(seq) &rarr; same workflow</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MECHANISM -->
+  <section class="section">
+    <div class="lp-head">
+      <span class="k">How it works</span>
+      <h2>A state machine you can <em>see</em>, and a log you can <em>read</em>.</h2>
+      <p>An incident-response workflow: five states, four allowed transitions, one refusal. The agent attempted <strong>close_incident</strong> from <strong>engaged</strong>; the machine refused, recorded the attempt, and did not advance.</p>
+    </div>
+
+    <div class="lift-brag">
+      <span class="lift-pill">&#x22A2; Same source, three surfaces</span>
+      <p>The diagram below is generated from the same Burr <code>Application</code> that <code>theodosia.mount()</code> serves over MCP and that <code>theodosia verify</code> checks the ledger against. One source of truth, three views.</p>
+      <code class="lift-code">incident = build_application()  # see <a href="#start">Quickstart</a> for the 15 lines<br/>theodosia.mount(incident).run()</code>
+      <p class="lift-foot">Got a Mermaid diagram already? <a href="https://github.com/msradam/philip">Philip</a>, a sibling library, lifts <code>.mmd</code> files into the same Burr <code>Application</code>.</p>
+    </div>
+
+    <div class="mech-frame">
+      <div class="mech-head">
+        <div class="title">
+          <svg class="ic" width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <rect x="2" y="6" width="4" height="4" rx="1" stroke="currentColor" stroke-width="1.4"/>
+            <rect x="10" y="6" width="4" height="4" rx="1" stroke="currentColor" stroke-width="1.4"/>
+            <line x1="6" y1="8" x2="10" y2="8" stroke="currentColor" stroke-width="1.4"/>
+          </svg>
+          incident-response · state machine
+        </div>
+        <div class="meta">
+          <span class="pill ok">&#x22A2; 4 allowed</span>
+          <span class="pill no">&#x25CB; 1 refused</span>
+          <span class="pill cur">&#9733; current: engaged</span>
+        </div>
+      </div>
+
+      <div class="mech-body">
+        <div class="diagram" role="img" aria-label="State diagram of the incident-response workflow: triaged transitions to engaged via page_oncall, engaged to verified via verify, verified to resolved via resolve, resolved to closed via archive; close_incident is refused from engaged because it requires verified first.">
+          <pre class="mermaid">stateDiagram-v2
+    direction LR
+    [*] --> triaged
+    triaged --> engaged: page_oncall
+    engaged --> verified: verify
+    verified --> resolved: resolve
+    resolved --> closed: archive
+    closed --> [*]
+    note right of engaged
+      close_incident · refused
+      not allowed from engaged; requires verified first
+    end note
+    classDef cur fill:#fcefd5,stroke:#ea9d34,stroke-width:2px,color:#0a0a0a
+    class engaged cur
+          </pre>
+        </div>
+
+        <div class="legend">
+          <div class="row">
+            <div class="glyph ok">&#x22A2;</div>
+            <div class="desc"><strong>allowed.</strong> Transitions defined by Burr. State advances; entry is recorded with <strong>outcome: "allowed"</strong>.</div>
+          </div>
+          <div class="row">
+            <div class="glyph no">&#x25CB;</div>
+            <div class="desc"><strong>refused.</strong> The proposed action was not in <strong>legal(state)</strong>. Recorded with a reason; state does not advance. The agent learns of the refusal <em>after</em> it lands in the log.</div>
+          </div>
+          <div class="row">
+            <div class="glyph cur">&#9733;</div>
+            <div class="desc"><strong>current.</strong> The workflow's persisted state across calls. Theodosia is the source of truth; the agent's idea of the state is incidental.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="audit-table" role="table" aria-label="Excerpt of the hash-chained ledger.jsonl for the incident-response session">
+        <div class="lbl">~/.theodosia/incident-response/&lt;app-id&gt;/ledger.jsonl &middot; excerpt</div>
+        <div class="head" role="row">
+          <div role="columnheader">TIMESTAMP</div>
+          <div role="columnheader">ACTION</div>
+          <div role="columnheader">FROM &rarr; TO</div>
+          <div role="columnheader">REASON</div>
+          <div role="columnheader">OUTCOME</div>
+        </div>
+        <div class="row" role="row">
+          <div role="cell" class="ts">2026-05-25T14:30:12.183Z</div>
+          <div role="cell" class="act">page_oncall</div>
+          <div role="cell" class="ft">triaged <span class="ar">&rarr;</span> engaged</div>
+          <div role="cell" class="rsn">&mdash;</div>
+          <div role="cell" class="out ok">&#x22A2; allowed</div>
+        </div>
+        <div class="row refused" role="row">
+          <div role="cell" class="ts">2026-05-25T14:31:45.902Z</div>
+          <div role="cell" class="act">close_incident</div>
+          <div role="cell" class="ft">engaged <span class="ar" style="color:var(--seal)">&rarr;</span> &mdash;</div>
+          <div role="cell" class="rsn">not allowed from engaged; requires verified first</div>
+          <div role="cell" class="out no">&#x25CB; refused</div>
+        </div>
+        <div class="row" role="row">
+          <div role="cell" class="ts">2026-05-25T14:33:20.418Z</div>
+          <div role="cell" class="act">verify</div>
+          <div role="cell" class="ft">engaged <span class="ar">&rarr;</span> verified</div>
+          <div role="cell" class="rsn">&mdash;</div>
+          <div role="cell" class="out ok">&#x22A2; allowed</div>
+        </div>
+        <div class="row" role="row">
+          <div role="cell" class="ts">2026-05-25T14:40:01.077Z</div>
+          <div role="cell" class="act">resolve</div>
+          <div role="cell" class="ft">verified <span class="ar">&rarr;</span> resolved</div>
+          <div role="cell" class="rsn">&mdash;</div>
+          <div role="cell" class="out ok">&#x22A2; allowed</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="start">
+    <div class="quick">
+      <div class="copy">
+        <h2>Quickstart in <em>30 seconds</em>.</h2>
+        <p>Install the adapter, point it at a Burr state machine, and serve it over MCP. <strong>Your existing agent connects unchanged.</strong></p>
+        <div class="steps">
+          <div class="step"><span class="n">1</span><span class="t"><strong>Install</strong> the package from PyPI.</span></div>
+          <div class="step"><span class="n">2</span><span class="t"><strong>Write</strong> a Burr <code>Application</code> with actions and gated transitions.</span></div>
+          <div class="step"><span class="n">3</span><span class="t"><strong>Serve</strong> it as an MCP server with one command.</span></div>
+          <div class="step"><span class="n">4</span><span class="t"><strong>Connect</strong> any MCP client; verify the audit log anytime.</span></div>
+        </div>
+      </div>
+      <div class="terminal-stack">
+        <div class="terminal app-py">
+          <div class="bar"><i></i><i></i><i></i><span class="ttl">app.py</span></div>
+<pre set:html={`<span class="cm"># A minimum-viable Burr workflow: 5 states, 4 transitions.</span>
+<span class="kw">from</span> burr.core <span class="kw">import</span> ApplicationBuilder, State, action
+
+<span class="kw">@action</span>(reads=[<span class="str">"status"</span>], writes=[<span class="str">"status"</span>])
+<span class="kw">def</span> <span class="ac">page_oncall</span>(state): <span class="kw">return</span> state.update(status=<span class="str">"engaged"</span>)
+
+<span class="kw">@action</span>(reads=[<span class="str">"status"</span>], writes=[<span class="str">"status"</span>])
+<span class="kw">def</span> <span class="ac">verify</span>(state): <span class="kw">return</span> state.update(status=<span class="str">"verified"</span>)
+
+<span class="cm"># plus resolve, archive ...</span>
+
+incident = (
+    ApplicationBuilder()
+    .with_actions(page_oncall, verify, resolve, archive)
+    .with_transitions(
+        (<span class="str">"triaged"</span>,  <span class="str">"engaged"</span>,  <span class="str">"page_oncall"</span>),
+        (<span class="str">"engaged"</span>,  <span class="str">"verified"</span>, <span class="str">"verify"</span>),
+        (<span class="str">"verified"</span>, <span class="str">"resolved"</span>, <span class="str">"resolve"</span>),
+        (<span class="str">"resolved"</span>, <span class="str">"closed"</span>,   <span class="str">"archive"</span>),
+    )
+    .with_state(status=<span class="str">"triaged"</span>)
+    .with_terminal(<span class="str">"closed"</span>)
+    .build()
+)`} />
+        </div>
+        <div class="terminal">
+          <div class="bar"><i></i><i></i><i></i><span class="ttl">bash &middot; theodosia</span></div>
+<pre set:html={`<span class="pr">$</span> pip install theodosia
+<span class="cm"># mount the Application as an MCP server</span>
+<span class="pr">$</span> theodosia serve <span class="ac">app.py:incident</span>
+  <span class="ok">⊢</span> serving incident-response on stdio
+  <span class="ok">⊢</span> 4 actions, 1 terminal ('closed')
+  <span class="ok">⊢</span> ledger → ~/.theodosia/incident-response/&lt;app-id&gt;/
+
+<span class="cm"># later, confirm the ledger chain is intact</span>
+<span class="pr">$</span> theodosia verify
+  <span class="ok">⊢</span> ledger intact &middot; incident-response/&lt;app-id&gt;`} />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="lp-footer">
+    <div class="blurb">
+      <div class="bmk">
+        <span class="mark" aria-hidden="true">⊢</span>
+        <span class="wm">Theodosia</span>
+      </div>
+      A Python adapter that hands your Burr workflow to any AI agent over Model Context Protocol. Every step it takes and every step it tried gets recorded.
+    </div>
+    <div class="col">
+      <h4>Product</h4>
+      <a href="#how">How it works</a>
+      <a href="#start">Quickstart</a>
+      <a href={`${base}/tutorial/`}>Tutorial</a>
+      <a href={`${base}/architecture/`}>Concepts</a>
+    </div>
+    <div class="col">
+      <h4>Project</h4>
+      <a href={REPO_URL}>GitHub</a>
+      <a href={`${base}/research-foundation/`}>Research foundation</a>
+      <a href={`${REPO_URL}/blob/main/LICENSE`}>Apache 2.0 license</a>
+      <a href={`${base}/cli/`}>CLI reference</a>
+    </div>
+    <div class="foot-base" style="grid-column:1 / -1">
+      <span class="lic">© {YEAR} · Apache 2.0 · github.com/msradam/theodosia</span>
+      <span class="stamp"><em>&#x22A2;</em> Theodosia</span>
+    </div>
+  </footer>
+
+</main>
+
+<script>
+  import mermaid from 'mermaid';
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'base',
+    securityLevel: 'loose',
+    fontFamily: 'Inria Serif, Georgia, serif',
+    fontSize: 18,
+    flowchart: { useMaxWidth: false, htmlLabels: true, padding: 24, nodeSpacing: 60, rankSpacing: 70 },
+    state: { useMaxWidth: false, padding: 24, nodeSpacing: 60, rankSpacing: 70 },
+    themeVariables: {
+      primaryColor: '#ffffff',
+      primaryTextColor: '#0a0a0a',
+      primaryBorderColor: '#d4d4cf',
+      lineColor: '#286983',
+      secondaryColor: '#eaf3f6',
+      tertiaryColor: '#f5f5f3',
+      noteBkgColor: '#f6ebed',
+      noteBorderColor: '#7a3c4a',
+      noteTextColor: '#7a3c4a',
+      labelTextColor: '#286983',
+      transitionColor: '#286983',
+      transitionLabelColor: '#286983',
+      altBackground: '#f5f5f3',
+    },
+    themeCSS: `
+      .nodeLabel { font-family: 'Inria Serif', Georgia, serif !important; font-weight: 500 !important; font-size: 18px !important; }
+      .edgeLabel { font-family: 'JetBrains Mono', ui-monospace, monospace !important; font-size: 13px !important; background-color: #fafafa !important; }
+      .edgeLabel rect { fill: #fafafa !important; }
+      .edgeLabel foreignObject > div, .edgeLabel foreignObject span, .edgeLabel foreignObject p { background-color: #fafafa !important; padding: 1px 6px !important; border-radius: 3px; }
+      .note { font-family: 'JetBrains Mono', ui-monospace, monospace !important; font-size: 13px !important; }
+      .stateLabel { font-size: 18px !important; }
+      .state-end { stroke: #286983 !important; fill: #286983 !important; }
+      .start-state, .end-state { fill: #286983 !important; stroke: #286983 !important; }
+    `,
+  });
+</script>
+</body>
+</html>

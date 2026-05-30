@@ -22,16 +22,14 @@
 
   --thd-ink:      #0a0a0a;  /* primary text - pure near-black */
   --thd-subtle:   #3a3a38;  /* body paragraphs */
-  --thd-muted:    #7a7a76;  /* captions, meta, labels */
+  --thd-muted:    #65655f;  /* captions, meta, labels - WCAG AA on paper (4.95:1) */
   --thd-dim:      #a8a8a4;  /* disabled, very low emphasis */
 
   /* ── Accents ───────────────────────────────────────────────── */
-  /* PRIMARY brand accent: deep Burr purple (Aaron Burr's coat). The token is
-     still named --thd-pine for continuity across the stylesheets. */
-  --thd-pine:       #573e8a;  /* PRIMARY brand accent - deep purple */
-  --thd-pine-soft:  #6e54a6;  /* hover/active variant */
-  --thd-pine-tint:  #efebf7;  /* pill bg, callout bg, inline-code bg */
-  --thd-pine-line:  rgba(87,62,138,0.2);
+  --thd-pine:       #286983;  /* PRIMARY brand accent - pine teal */
+  --thd-pine-soft:  #3d8aa3;  /* hover/active variant */
+  --thd-pine-tint:  #eaf3f6;  /* pill bg, callout bg, inline-code bg */
+  --thd-pine-line:  rgba(40,105,131,0.18);
   --thd-foam:       #56949f;  /* support accent */
 
   --thd-seal:       #7a3c4a;  /* HERITAGE oxblood - seal & section markers only */

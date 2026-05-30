@@ -1,7 +1,7 @@
 /* Theodosia v14 - Starlight reskin.
- * Keeps the Rose Pine dark theme (it matches the v14 dark palette and the
- * demo gifs) and rebrands light mode to the v14 neutral-paper + pine-teal
- * register (no warm cream), with the v14 typography across both modes.
+ * Light is default. Both modes share the pine teal identity: pine #286983 in
+ * light, brightened foam-teal #9ccfd8 in dark. Oxblood #7a3c4a is reserved
+ * for the seal device and heritage callouts only, never the page accent.
  * Loaded after the rose-pine plugin via customCss, so same-specificity
  * selectors win. Tokens come from theodosia.css. */
 
@@ -18,60 +18,65 @@
 }
 
 /* Inria Serif for display: site title, the per-page title (h1#_top, rendered
-   outside .sl-markdown-content), content headings, and the splash hero. */
+   outside .sl-markdown-content), content headings, and the splash hero.
+   Per v15 brand spec: display sits at weight 500 (medium), italic em drops
+   to weight 400 + pine. NOT bold. The point is sober confidence, not shout. */
 .site-title,
 h1#_top,
 .sl-markdown-content :is(h1, h2, h3, h4),
 .hero h1 {
   font-family: var(--thd-display);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
 }
-h1#_top,
-.sl-markdown-content :is(h1, h2) { font-weight: 700; }
-.hero h1 { font-weight: 700; letter-spacing: -0.02em; }
+h1#_top { font-weight: 500; letter-spacing: -0.022em; line-height: 1.08; }
+.sl-markdown-content h1 { font-weight: 500; letter-spacing: -0.022em; line-height: 1.08; }
+.sl-markdown-content h2 { font-weight: 500; letter-spacing: -0.018em; line-height: 1.15; margin-top: 3.5rem; }
+.sl-markdown-content h3 { font-weight: 400; font-style: italic; letter-spacing: -0.01em; }
+.hero h1 {
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1.0;
+  max-width: 14ch;
+  font-size: clamp(56px, 7vw, 88px);
+  margin-bottom: 28px;
+}
 
 /* Italic emphasis inside a heading reads in the accent (v14 signature). */
-.sl-markdown-content :is(h1, h2, h3) em {
+.sl-markdown-content :is(h1, h2, h3) em,
+.hero h1 em {
   font-style: italic;
   font-weight: 400;
   color: var(--thd-pine);
 }
-:root:not([data-theme="light"]) .sl-markdown-content :is(h1, h2, h3) em {
-  color: var(--thd-dark-iris);
+:root:not([data-theme="light"]) .sl-markdown-content :is(h1, h2, h3) em,
+:root:not([data-theme="light"]) .hero h1 em {
+  color: var(--thd-dark-foam);
 }
 
-/* ── Light mode: v14 neutral paper + pine teal (not Rose Pine dawn) ──
-   A full neutral gray ramp (Starlight: white = darkest text, black = lightest
-   surface; gray-1 dark → gray-7 near-bg). This both kills the warm-cream cast
-   and restores legible sidebar contrast (links use --sl-color-gray-2). */
+/* ── Light mode: v14 neutral paper + pine teal ──
+   Page bg #fafafa pure neutral (NOT warm cream, the anti-Anthropic rule),
+   ink #0a0a0a, pine teal as the single accent. Cool-neutral grays for the
+   sidebar/TOC; oxblood is held back for the seal and heritage callouts only. */
 :root[data-theme="light"] {
-  /* Light mode is its own register: cool, crisp "enterprise", white content,
-     cool slate neutrals, deep purple as a single restrained accent. Deliberately
-     distinct from the warm Rose Pine dark theme, not a washed-out copy of it.
-     The warm base surface/ink tokens are overridden cool here so any direct
-     --thd-* use in light mode stays coherent. */
-  --thd-paper:  #ffffff;
+  --thd-paper:  #fafafa;                   /* pure neutral, not warm cream */
   --thd-sheet:  #ffffff;
-  --thd-raised: #f2f5f8;                   /* sidebar / raised - cool light slate */
-  --thd-edge:   #e3e8ee;
-  --thd-rule:   #d3dae2;
-  --thd-ink:    #0d1117;                   /* primary text - cool near-black */
-  --thd-subtle: #2f3742;                   /* body */
-  --thd-muted:  #6b7280;                   /* captions, meta - cool slate */
-  --thd-pine-tint: #eef1f5;                /* cool neutral fill (inline-code, pills, hover), not lavender */
+  --thd-raised: #f5f5f3;                   /* sidebar / raised */
+  --thd-edge:   #e6e6e2;
+  --thd-rule:   #d4d4cf;
+  --thd-ink:    #0a0a0a;                   /* primary text - pure near-black */
+  --thd-subtle: #3a3a38;                   /* body */
+  --thd-muted:  #7a7a76;                   /* captions, meta */
 
   --sl-color-white: var(--thd-ink);        /* darkest text - page title, strong text */
-  /* Text on a solid-accent surface (active sidebar/TOC item) must stay true
-     white, or the current-page item renders dark-on-purple = invisible. */
-  --sl-color-text-invert: #ffffff;
-  --sl-color-gray-1: #1c2128;
-  --sl-color-gray-2: #2f3742;              /* sidebar links - dark, readable */
-  --sl-color-gray-3: #4a5260;              /* secondary text */
+  --sl-color-text-invert: #ffffff;         /* text on solid accent (active sidebar item) */
+  --sl-color-gray-1: #1c1c1a;
+  --sl-color-gray-2: #2f2f2d;              /* sidebar links - dark, readable */
+  --sl-color-gray-3: #4a4a47;              /* secondary text */
   --sl-color-gray-4: var(--thd-muted);     /* captions/meta */
-  --sl-color-gray-5: #cbd1d9;              /* borders, dim */
-  --sl-color-gray-6: #e9edf2;              /* faint panel bg */
-  --sl-color-gray-7: var(--thd-raised);    /* cool light slate */
-  --sl-color-black: var(--thd-paper);      /* crisp white page bg */
+  --sl-color-gray-5: #cbcbc6;              /* borders, dim */
+  --sl-color-gray-6: #ededea;              /* faint panel bg */
+  --sl-color-gray-7: var(--thd-raised);
+  --sl-color-black: var(--thd-paper);      /* page bg */
 
   --sl-color-bg: var(--thd-paper);
   --sl-color-bg-nav: var(--thd-paper);
@@ -81,17 +86,44 @@ h1#_top,
   --sl-color-text-accent: var(--thd-pine);
   --sl-color-accent: var(--thd-pine);
   --sl-color-accent-low: var(--thd-pine-tint);
-  --sl-color-accent-high: #3e2a66;
+  --sl-color-accent-high: #1c4d5e;          /* darker pine for emphasis on accent */
   --sl-color-hairline: var(--thd-edge);
   --sl-color-hairline-light: var(--thd-edge);
   --sl-color-hairline-shade: var(--thd-rule);
 }
 
-/* ── Dark mode: keep Rose Pine, accent on lavender iris (the purple identity) ── */
+/* ── Dark mode: re-map every theodosia surface token to a slate equivalent,
+   then swap the Starlight accent from iris-lavender to foam-teal. The page
+   tokens stay coherent with the v15 register: ink-on-slate, foam where pine
+   was, oxblood-soft where seal was. */
 :root[data-theme="dark"],
 :root:not([data-theme="light"]) {
-  --sl-color-accent: var(--thd-dark-iris);
-  --sl-color-text-accent: var(--thd-dark-iris);
+  --thd-paper:   var(--thd-slate-0);            /* page bg */
+  --thd-sheet:   var(--thd-slate-1);
+  --thd-raised:  var(--thd-slate-2);
+  --thd-edge:    var(--thd-slate-edge);
+  --thd-rule:    var(--thd-slate-edge);
+  --thd-ink:     var(--thd-dark-text);
+  --thd-subtle:  #c4c2e0;
+  --thd-muted:   var(--thd-dark-muted);
+  --thd-dim:     #585376;
+
+  --thd-pine:        var(--thd-dark-foam);      /* primary accent: foam teal */
+  --thd-pine-soft:   #56949f;
+  --thd-pine-tint:   rgba(156,207,216,0.10);    /* faint foam wash */
+  --thd-pine-line:   rgba(156,207,216,0.28);
+
+  --thd-seal:        #c8889b;                   /* oxblood-soft on slate */
+  --thd-seal-soft:   #d8a0b0;
+  --thd-seal-tint:   rgba(200,136,155,0.10);
+
+  --thd-gold:        var(--thd-dark-gold);
+  --thd-gold-tint:   rgba(246,193,119,0.10);
+  --thd-love:        var(--thd-dark-love);
+  --thd-love-tint:   rgba(235,111,146,0.10);
+
+  --sl-color-accent: var(--thd-dark-foam);
+  --sl-color-text-accent: var(--thd-dark-foam);
 }
 
 /* Sidebar legibility. Links read in body ink; hover shows a soft tint; the
@@ -131,18 +163,470 @@ starlight-toc a[aria-current="true"] {
   --sl-color-asides-text-accent: var(--thd-dark-foam);
 }
 :root:not([data-theme="light"]) .starlight-aside--note   { --sl-color-asides-text-accent: var(--thd-dark-foam); --sl-color-asides-border: var(--thd-dark-foam); }
-:root:not([data-theme="light"]) .starlight-aside--tip    { --sl-color-asides-text-accent: var(--thd-dark-iris); --sl-color-asides-border: var(--thd-dark-iris); }
+:root:not([data-theme="light"]) .starlight-aside--tip    { --sl-color-asides-text-accent: var(--thd-dark-foam); --sl-color-asides-border: var(--thd-dark-foam); }
 :root:not([data-theme="light"]) .starlight-aside--caution { --sl-color-asides-text-accent: var(--thd-dark-gold); --sl-color-asides-border: var(--thd-dark-gold); }
 :root:not([data-theme="light"]) .starlight-aside--danger { --sl-color-asides-text-accent: var(--thd-dark-love); --sl-color-asides-border: var(--thd-dark-love); }
 
-/* Tighten the splash hero: less dead vertical space, art aligned with copy. */
-.hero { padding-block: 2rem 1rem; gap: 2rem; align-items: center; }
-.hero > img, .hero .hero-html { align-self: center; }
+/* Splash hero: left-aligned typography, generous breathing room. The v15 brand
+   cover is left-anchored content (not centered Starlight defaults); text sits
+   left, hero asset to the right on wide screens. */
+.hero {
+  padding-block: 3rem 1.5rem;
+  gap: 3rem;
+  align-items: start;
+  text-align: left;
+}
+.hero > img, .hero .hero-html { align-self: start; }
+.hero .stack { align-items: start; text-align: left; }
+.hero .tagline { text-align: left; }
+.hero .actions { justify-content: flex-start; gap: 0.75rem; }
+
+/* CTA pill restyling: primary is ink-filled (Read the docs), minimal/secondary
+   is bordered cream box (View on GitHub), per v15 brand cover. */
+.hero .actions .action {
+  border-radius: var(--thd-r-md);
+  font-family: var(--thd-sans);
+  font-weight: 500;
+  font-size: 0.95rem;
+  padding: 0.75rem 1.25rem;
+  border: 1px solid var(--thd-edge);
+  transition: none;
+}
+.hero .actions .action.primary {
+  background: var(--thd-ink);
+  color: var(--thd-paper);
+  border-color: var(--thd-ink);
+}
+.hero .actions .action.primary:hover {
+  background: var(--thd-subtle);
+  border-color: var(--thd-subtle);
+}
+.hero .actions .action.minimal,
+.hero .actions .action.secondary {
+  background: var(--thd-sheet);
+  color: var(--thd-ink);
+  border-color: var(--thd-edge);
+}
+:root:not([data-theme="light"]) .hero .actions .action.primary {
+  background: var(--thd-dark-foam);
+  color: var(--thd-slate-0);
+  border-color: var(--thd-dark-foam);
+}
+:root:not([data-theme="light"]) .hero .actions .action.minimal,
+:root:not([data-theme="light"]) .hero .actions .action.secondary {
+  background: transparent;
+  color: var(--thd-dark-text);
+  border-color: var(--thd-slate-edge);
+}
 
 /* Hero gif follows the theme: dark Rose Pine render in dark mode, light render
    in light mode. Only one is shown. */
 :root[data-theme="light"] .thd-hero-dark { display: none; }
 :root:not([data-theme="light"]) .thd-hero-light { display: none; }
+
+/* Faint dot-grid canvas (v14 spec: Figma/Excalidraw register, not a press release). */
+body {
+  background-image: var(--thd-canvas-grid);
+  background-size: var(--thd-canvas-grid-size);
+}
+
+/* Code blocks: light raised panel (NOT a dark terminal). Rose-pine's plugin
+   already paints expressive-code with --sl-color-gray-6; we just tune it to
+   the theodosia raised tone with a hairline pine-line border. */
+.sl-markdown-content .expressive-code .frame {
+  background: var(--thd-raised) !important;
+  border: 1px solid var(--thd-edge);
+  border-radius: var(--thd-r-md);
+  box-shadow: var(--thd-shadow-card);
+}
+.sl-markdown-content .expressive-code pre {
+  background: var(--thd-raised) !important;
+  --code-background: var(--thd-raised) !important;
+}
+.sl-markdown-content .expressive-code .title {
+  background: var(--thd-sheet) !important;
+  border-bottom: 1px solid var(--thd-edge);
+  font-family: var(--thd-mono);
+  font-size: 11.5px;
+  color: var(--thd-subtle);
+}
+.sl-markdown-content :not(pre) > code {
+  /* keep existing pine-tint pill style */
+}
+
+/* Descriptor paragraph: v15 brand cover voice, bold first sentence flows
+   into lighter continuation. Single block, sits between the headline and
+   the CTAs. Matches .cover .descriptor in the brand HTML. */
+.sl-markdown-content .thd-lede {
+  font-family: var(--thd-sans);
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--thd-subtle);
+  max-width: 60ch;
+  margin: 0 0 32px;
+  font-weight: 400;
+}
+.sl-markdown-content .thd-lede strong { color: var(--thd-ink); font-weight: 600; }
+
+/* Install pill: bordered cream box, pine $ prefix, ink command, per v15
+   brand cover. NOT a dark code block; this is a CTA-shaped artifact. */
+.sl-markdown-content .thd-install {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--thd-sheet);
+  border: 1px solid var(--thd-edge);
+  border-radius: var(--thd-r-md);
+  font-family: var(--thd-mono);
+  font-size: 0.875rem;
+  margin: 0.75rem 0 2rem;
+}
+.sl-markdown-content .thd-install .thd-install-prompt {
+  color: var(--thd-pine);
+  font-weight: 600;
+}
+.sl-markdown-content .thd-install code {
+  background: transparent !important;
+  border: 0 !important;
+  color: var(--thd-ink) !important;
+  padding: 0 !important;
+  font-weight: 500;
+}
+:root:not([data-theme="light"]) .sl-markdown-content .thd-install {
+  background: var(--thd-slate-1);
+  border-color: var(--thd-slate-edge);
+}
+:root:not([data-theme="light"]) .sl-markdown-content .thd-install .thd-install-prompt {
+  color: var(--thd-dark-foam);
+}
+:root:not([data-theme="light"]) .sl-markdown-content .thd-install code {
+  color: var(--thd-dark-text) !important;
+}
+/* Inline code in pine tint on cream, the gentler accent for prose. */
+.sl-markdown-content :not(pre) > code {
+  background: var(--thd-pine-tint);
+  color: var(--thd-pine);
+  border: 1px solid var(--thd-pine-line);
+  font-weight: 500;
+  padding: 1px 7px;
+  border-radius: var(--thd-r-sm);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   v15 DOCS PAGE STYLING, matches Theodosia Docs.html structure.
+   Applies to all Starlight pages (anything that's not the landing).
+   ────────────────────────────────────────────────────────────────── */
+
+/* H1, 54px, Inria 400, max-width 18ch, pine italic em (mode-agnostic; tokens
+   handle the color flip between light and dark). */
+h1#_top {
+  font-family: var(--thd-display);
+  font-weight: 400;
+  font-size: 54px;
+  line-height: 1.05;
+  letter-spacing: -0.022em;
+  color: var(--thd-ink);
+  max-width: 18ch;
+  margin-bottom: 18px;
+}
+h1#_top em {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--thd-pine);
+}
+
+.sl-markdown-content h1 {
+  font-size: 54px;
+  font-weight: 400;
+  line-height: 1.05;
+  letter-spacing: -0.022em;
+  max-width: 18ch;
+}
+.sl-markdown-content h2 {
+  font-family: var(--thd-display);
+  font-weight: 400;
+  font-size: 32px;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+  color: var(--thd-ink);
+  margin-top: 56px;
+  margin-bottom: 14px;
+}
+.sl-markdown-content h3 {
+  font-family: var(--thd-display);
+  font-weight: 400;
+  font-size: 22px;
+  font-style: italic;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--thd-ink);
+  margin-top: 32px;
+  margin-bottom: 10px;
+}
+.sl-markdown-content p {
+  font-family: var(--thd-sans);
+  font-size: 15.5px;
+  line-height: 1.7;
+  color: var(--thd-subtle);
+  margin-bottom: 14px;
+  max-width: 64ch;
+}
+.sl-markdown-content p strong { color: var(--thd-ink); font-weight: 600; }
+
+/* The first paragraph after the h1 acts as the lede, 18px, 62ch, ink-strong */
+.sl-markdown-content > p:first-of-type {
+  font-size: 18px;
+  line-height: 1.55;
+  max-width: 62ch;
+  margin-bottom: 30px;
+}
+
+/* Lists with the ▸ pine bullet */
+.sl-markdown-content ul {
+  list-style: none;
+  padding-left: 0;
+  margin: 8px 0 20px;
+  max-width: 62ch;
+}
+.sl-markdown-content ul > li {
+  padding: 5px 0 5px 24px;
+  position: relative;
+  color: var(--thd-subtle);
+  font-size: 15px;
+  line-height: 1.65;
+}
+.sl-markdown-content ul > li::before {
+  content: "▸";
+  color: var(--thd-pine);
+  position: absolute;
+  left: 6px;
+  font-size: 11px;
+  top: 7px;
+}
+.sl-markdown-content ul > li strong { color: var(--thd-ink); font-weight: 600; }
+.sl-markdown-content ul ul { margin: 4px 0 0 0; }
+
+/* Sidebar token override (scoped). Starlight's SidebarSublist applies a
+   `@layer starlight.core` rule that paints aria-current="page" with
+   `--sl-color-text-invert` on `--sl-color-text-accent` (solid pine + white).
+   Redefining both tokens INSIDE the sidebar nav makes the SAME rule render
+   pine text on pine-tint background, without touching the tokens elsewhere. */
+:root[data-theme="light"] nav.sidebar,
+starlight-toc {
+  --sl-color-text-invert: var(--thd-pine);
+  --sl-color-text-accent: var(--thd-pine-tint);
+}
+
+/* Defeat the rose-pine plugin's sidebar active rule. Rose-pine declares its
+   own cascade layer (`@layer rose-pine`) with `!important` on aria-current,
+   which beats any plain rule. Writing our override INSIDE the same layer at
+   higher specificity makes us win the cascade cleanly. */
+@layer rose-pine {
+  :root[data-theme="light"] nav.sidebar .sidebar-content a[aria-current="page"],
+  :root[data-theme="light"] nav.sidebar .sidebar-content a[aria-current="page"]:hover,
+  :root[data-theme="light"] nav.sidebar .sidebar-content a[aria-current="page"]:focus {
+    color: var(--thd-pine) !important;
+    background-color: var(--thd-pine-tint) !important;
+    border-left: 2px solid var(--thd-pine) !important;
+    padding-left: 10px !important;
+    font-weight: 600 !important;
+  }
+  starlight-toc .right-sidebar-panel a[aria-current="true"] {
+    color: var(--thd-pine) !important;
+    background-color: transparent !important;
+    border-left: 2px solid var(--thd-pine) !important;
+    font-weight: 600 !important;
+  }
+  /* Sidebar links default ink subtle, not white-on-cream (rose-pine sets
+     these to var(--sl-color-white) with !important). */
+  :root[data-theme="light"] nav.sidebar .sidebar-content a,
+  :root[data-theme="light"] nav.sidebar .sidebar-content summary {
+    color: var(--thd-subtle) !important;
+  }
+  :root[data-theme="light"] nav.sidebar .sidebar-content a:hover {
+    color: var(--thd-ink) !important;
+    background: var(--thd-raised) !important;
+  }
+}
+
+/* Sidebar (left rail), matches paper background; mono-uppercase section
+   heads with NO disclosure chevron; flat pine-tint active item with a
+   2px pine left border. */
+.sidebar-pane,
+nav.sidebar {
+  background: var(--thd-paper) !important;
+  border-right: 1px solid var(--thd-edge);
+}
+.sidebar-content { padding-top: 8px; }
+.sidebar-content ul li a {
+  padding: 6px 12px;
+  color: var(--thd-subtle);
+  font-size: 13.5px;
+  border-radius: var(--thd-r-sm);
+  font-weight: 400;
+  letter-spacing: -0.003em;
+  background: transparent;
+  border-left: 2px solid transparent;
+}
+.sidebar-content ul li a:hover {
+  background: var(--thd-raised);
+  color: var(--thd-ink);
+}
+/* Active item: pine-tint background, pine text, 2px pine left border.
+   !important to beat the rose-pine plugin's solid-accent + text-invert rule. */
+.sidebar-content a[aria-current="page"],
+.sidebar-content a[aria-current="page"]:hover {
+  background: var(--thd-pine-tint) !important;
+  color: var(--thd-pine) !important;
+  font-weight: 600 !important;
+  border-left: 2px solid var(--thd-pine) !important;
+  padding-left: 10px;
+}
+/* Section heads (details > summary) in mono uppercase, NO chevron. */
+.sidebar-content details > summary,
+.sidebar-content .group-label {
+  font-family: var(--thd-mono);
+  font-size: 10.5px;
+  color: var(--thd-muted);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-weight: 600;
+  list-style: none;
+  cursor: default;
+  padding: 0 12px;
+  margin: 18px 0 8px;
+}
+.sidebar-content details > summary::marker,
+.sidebar-content details > summary::-webkit-details-marker {
+  display: none;
+}
+.sidebar-content details > summary .caret,
+.sidebar-content details > summary svg.caret {
+  display: none !important;
+}
+/* Force all details groups open so the user sees the full nav at once,
+   matching the flat-list look of the mockup. */
+.sidebar-content details { open: true; }
+.sidebar-content details[open] > summary,
+.sidebar-content details > summary {
+  pointer-events: none;
+}
+
+/* Right rail (table of contents), thin border, pine active */
+starlight-toc nav h2,
+starlight-toc nav > .heading {
+  font-family: var(--thd-mono);
+  font-size: 10.5px;
+  color: var(--thd-muted);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+starlight-toc nav ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  border-left: 1px solid var(--thd-edge);
+}
+starlight-toc nav ul li a {
+  display: block;
+  padding: 4px 12px;
+  color: var(--thd-muted);
+  font-size: 13px;
+  line-height: 1.45;
+  border-left: 2px solid transparent;
+  margin-left: -1px;
+  letter-spacing: -0.003em;
+}
+starlight-toc nav ul li a:hover { color: var(--thd-ink); }
+starlight-toc nav ul li a[aria-current="true"] {
+  color: var(--thd-pine);
+  border-left-color: var(--thd-pine);
+  font-weight: 600;
+  background: transparent;
+}
+
+/* Callouts (Starlight asides), 22×22 circle icon + small-caps label per v15 */
+.sl-markdown-content .starlight-aside {
+  margin: 18px 0 24px;
+  padding: 18px 22px;
+  border-radius: var(--thd-r-md);
+  border: 1px solid;
+  background: var(--thd-sheet);
+  max-width: 64ch;
+}
+.sl-markdown-content .starlight-aside__title {
+  font-family: var(--thd-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.sl-markdown-content .starlight-aside__content {
+  font-family: var(--thd-sans);
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--thd-subtle);
+}
+.sl-markdown-content .starlight-aside--note {
+  background: var(--thd-pine-tint);
+  border-color: var(--thd-pine-line);
+}
+.sl-markdown-content .starlight-aside--note .starlight-aside__title { color: var(--thd-pine); }
+.sl-markdown-content .starlight-aside--tip {
+  background: var(--thd-seal-tint);
+  border-color: rgba(122,60,74,0.18);
+}
+.sl-markdown-content .starlight-aside--tip .starlight-aside__title { color: var(--thd-seal); }
+.sl-markdown-content .starlight-aside--caution {
+  background: var(--thd-gold-tint);
+  border-color: rgba(234,157,52,0.3);
+}
+.sl-markdown-content .starlight-aside--caution .starlight-aside__title { color: #a06e1a; }
+.sl-markdown-content .starlight-aside--danger {
+  background: var(--thd-love-tint);
+  border-color: rgba(180,99,122,0.3);
+}
+.sl-markdown-content .starlight-aside--danger .starlight-aside__title { color: var(--thd-love); }
+
+/* Doc page bottom pager (prev / next links) */
+.pagination-links a {
+  background: var(--thd-sheet);
+  border: 1px solid var(--thd-edge);
+  border-radius: var(--thd-r-md);
+  padding: 18px 22px;
+}
+.pagination-links a:hover { border-color: var(--thd-pine); }
+.pagination-links a .link-title {
+  font-family: var(--thd-display);
+  font-style: italic;
+  font-size: 18px;
+  font-weight: 400;
+  color: var(--thd-ink);
+}
+.pagination-links a:hover .link-title { color: var(--thd-pine); }
+.pagination-links a span:not(.link-title) {
+  font-family: var(--thd-mono);
+  font-size: 10.5px;
+  color: var(--thd-muted);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+/* Main content area padding per v15 docs spec */
+.main-pane > .content-panel {
+  padding: 48px 56px 96px;
+}
+@media (max-width: 900px) {
+  .main-pane > .content-panel { padding: 32px 22px 64px; }
+}
+
+/* Faint dot-grid extends to docs pages too, already declared body-level */
+
 
 /* ── Cards: white sheet, hairline, soft shadow (not muddy grey) ── */
 .sl-markdown-content .card {
@@ -150,7 +634,7 @@ starlight-toc a[aria-current="true"] {
   border-radius: 12px;
   box-shadow: 0 1px 2px rgba(10, 10, 10, 0.04), 0 4px 12px rgba(10, 10, 10, 0.04);
 }
-:root[data-theme="light"] .sl-markdown-content .card { background: var(--thd-sheet); }
+.sl-markdown-content .card { background: var(--thd-sheet); }
 :root:not([data-theme="light"]) .sl-markdown-content .card { background: var(--sl-color-gray-6); }
 
 /* ── Heading scale: smaller and calmer than the Starlight defaults, and inline
@@ -166,43 +650,3 @@ h1#_top { font-size: 2.5rem; line-height: 1.1; }
   font-size: 0.82em;
   font-weight: 600;
 }
-
-/* ── MechanismDiagram dark mode ──────────────────────────────────
-   The diagram (a light "artifact" panel) ignored dark mode. Recolor its
-   surface, text, callouts, and the inline SVG (CSS fill/stroke override the
-   SVG presentation attributes) to the v14 dark palette. */
-:root:not([data-theme="light"]) .thd-mech { background: var(--thd-slate-1); color: var(--thd-dark-text); }
-:root:not([data-theme="light"]) .thd-mech-head { background: var(--thd-slate-2); border-color: var(--thd-slate-edge); }
-:root:not([data-theme="light"]) .thd-mech-title { color: var(--thd-dark-text); }
-:root:not([data-theme="light"]) .thd-pill { background: var(--thd-slate-2); border-color: var(--thd-slate-edge); color: var(--thd-dark-muted); }
-:root:not([data-theme="light"]) .thd-pill.ok { color: var(--thd-dark-iris); border-color: rgba(196,167,231,0.25); background: rgba(196,167,231,0.12); }
-:root:not([data-theme="light"]) .thd-pill.no { color: var(--thd-dark-love); border-color: rgba(235,111,146,0.25); background: rgba(235,111,146,0.12); }
-:root:not([data-theme="light"]) .thd-pill.cur { color: var(--thd-dark-gold); border-color: rgba(246,193,119,0.3); background: rgba(246,193,119,0.12); }
-:root:not([data-theme="light"]) .thd-legend-row { color: var(--thd-dark-muted); }
-:root:not([data-theme="light"]) .thd-legend-row strong { color: var(--thd-dark-text); }
-:root:not([data-theme="light"]) .thd-legend-row .g.ok { color: var(--thd-dark-iris); }
-:root:not([data-theme="light"]) .thd-legend-row .g.no { color: var(--thd-dark-love); }
-:root:not([data-theme="light"]) .thd-legend-row .g.cur { color: var(--thd-dark-gold); }
-:root:not([data-theme="light"]) .thd-audit { background: var(--thd-slate-0); border-color: var(--thd-slate-edge); }
-:root:not([data-theme="light"]) .thd-audit-lbl { color: var(--thd-dark-muted); border-color: var(--thd-slate-edge); }
-:root:not([data-theme="light"]) .thd-audit-head { color: var(--thd-dark-muted); border-color: var(--thd-slate-edge); background: var(--thd-slate-2); }
-:root:not([data-theme="light"]) .thd-audit-row { color: var(--thd-dark-text); border-color: var(--thd-slate-edge); }
-:root:not([data-theme="light"]) .thd-audit-row .ts, :root:not([data-theme="light"]) .thd-audit-row .rsn { color: var(--thd-dark-muted); }
-:root:not([data-theme="light"]) .thd-audit-row .act { color: var(--thd-dark-text); }
-:root:not([data-theme="light"]) .thd-audit-row.refused .act { color: var(--thd-dark-love); }
-:root:not([data-theme="light"]) .thd-audit-row .ft .ar { color: var(--thd-dark-iris); }
-:root:not([data-theme="light"]) .thd-audit-row .ft .ar.no { color: var(--thd-dark-love); }
-:root:not([data-theme="light"]) .thd-audit-row .out.ok { color: var(--thd-dark-iris); background: rgba(196,167,231,0.12); }
-:root:not([data-theme="light"]) .thd-audit-row .out.no { color: var(--thd-dark-love); background: rgba(235,111,146,0.12); }
-:root:not([data-theme="light"]) .thd-mech svg [fill="#ffffff"] { fill: var(--thd-slate-2); }
-:root:not([data-theme="light"]) .thd-mech svg [fill="#0a0a0a"] { fill: var(--thd-dark-text); }
-:root:not([data-theme="light"]) .thd-mech svg [fill="#7a7a76"] { fill: var(--thd-dark-muted); }
-:root:not([data-theme="light"]) .thd-mech svg [fill="#573e8a"] { fill: var(--thd-dark-iris); }
-:root:not([data-theme="light"]) .thd-mech svg [fill="#7a3c4a"] { fill: var(--thd-dark-love); }
-:root:not([data-theme="light"]) .thd-mech svg [fill="#9c6b1a"] { fill: var(--thd-dark-gold); }
-:root:not([data-theme="light"]) .thd-mech svg [fill="#fcefd5"] { fill: rgba(246,193,119,0.14); }
-:root:not([data-theme="light"]) .thd-mech svg [fill="#f6ebed"] { fill: rgba(235,111,146,0.12); }
-:root:not([data-theme="light"]) .thd-mech svg [stroke="#d4d4cf"] { stroke: var(--thd-slate-edge); }
-:root:not([data-theme="light"]) .thd-mech svg [stroke="#573e8a"] { stroke: var(--thd-dark-iris); }
-:root:not([data-theme="light"]) .thd-mech svg [stroke="#ea9d34"] { stroke: var(--thd-dark-gold); }
-:root:not([data-theme="light"]) .thd-mech svg [stroke="#7a3c4a"] { stroke: var(--thd-dark-love); }
