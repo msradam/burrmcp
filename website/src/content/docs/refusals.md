@@ -3,13 +3,9 @@ title: 'Refusals and recovery'
 description: 'The structured refusal shapes the step tool returns, and how an agent recovers from them.'
 ---
 
-When a `step` cannot proceed, Theodosia does not throw an opaque error or let
-the action half-run. It returns a structured refusal with a stable shape, and
-every refusal carries `valid_next_actions`, the list of actions reachable from
-the current state. An agent with no model of the graph can read that list and
-correct itself in one turn.
-
-There are five refusal shapes, distinguished by the `error` field.
+`step` returns a structured refusal for any of five conditions, each distinguished
+by the `error` field. Every refusal carries `valid_next_actions` from the current
+state, so an agent with no model of the graph can self-correct in one turn.
 
 ## `invalid_transition`
 
@@ -25,7 +21,6 @@ blocked it before the action body ran, so no state changed.
 }
 ```
 
-This is the load-bearing refusal: it is how the state machine enforces order.
 The agent retries with one of `valid_next_actions`.
 
 ## `unknown_action`

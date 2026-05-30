@@ -3,14 +3,15 @@ title: 'Architecture'
 description: 'How mount() turns a Burr Application into an MCP server.'
 ---
 
-What `mount()` actually does, and the four MCP tools it always registers.
+`mount()` wraps a Burr `Application` in a FastMCP server, registers four MCP
+tools (`step`, `reset_session`, `fork_at`, `fork_from_past`), and exposes eight
+`theodosia://` resources for the agent.
 
-## The graph is the contract
+## Graph topology
 
 The agent can only move along the graph's edges; the server refuses any step that
-is not a reachable transition. The workflow lives in the state machine, not in a
-prompt the model has to remember. `theodosia render <target>` prints this graph in
-the terminal (or `--mermaid` / `--dot` for docs):
+is not a reachable transition. `theodosia render <target>` prints the graph in the
+terminal (or `--mermaid` / `--dot` for docs):
 
 ```mermaid
 stateDiagram-v2
@@ -66,7 +67,7 @@ summary string. Both success and refusal come back on this same shape: a refusal
 is `{"error": "invalid_transition", "valid_next_actions": [...], ...}`, an
 action-body failure is `{"error": "action_error", "error_message": "..."}`.
 
-## The action-selection trick
+## Action selection
 
 Burr's `astep` picks the next action via `app.get_next_action()`, which returns
 the first transition whose condition is true. Under MCP the *client* named the

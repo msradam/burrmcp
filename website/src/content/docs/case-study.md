@@ -1,6 +1,6 @@
 ---
-title: 'Case study: the rails make the agent finish'
-description: 'The same model run two ways on real incident tasks. Free-ranging it trails off without an answer (chronically on one task, intermittently on another); on rails the conclude gate forces a committed, correct conclusion every time. The benchmark grader is the witness.'
+title: 'Case study: Kimi K2.6 on o11y-bench, free-ranging vs gated'
+description: 'Two grader-verified incident tasks: Kimi K2.6 run free-ranging with the raw Grafana toolset versus gated through a Burr FSM mounted with Theodosia.'
 ---
 
 The same model (Kimi K2.6) was given real incident-investigation tasks two

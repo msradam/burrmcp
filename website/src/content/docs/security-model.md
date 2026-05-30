@@ -3,9 +3,8 @@ title: 'Security model'
 description: 'The trust boundary Theodosia enforces, and what it deliberately does not.'
 ---
 
-Theodosia sits between an AI agent and your workflow. The agent may be wrong,
-may hallucinate a tool name, may try to skip a step or finish early. The point
-of Theodosia is to make those failures safe and visible rather than silent.
+Theodosia's trust boundary sits between an agent's tool calls and the action
+bodies that run them. The table below names what is trusted and what is not.
 
 ## What is trusted, and what is not
 

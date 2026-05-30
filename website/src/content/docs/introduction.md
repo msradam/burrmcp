@@ -1,19 +1,17 @@
 ---
 title: Introduction
-description: 'Theodosia is a Python adapter that hands your workflow to any AI agent over MCP. The agent can only take steps your workflow allows; every step it takes and every step it tried gets recorded.'
+description: 'Theodosia mounts a Burr Application as an MCP server. Every Burr action is reachable through a single step tool; the server refuses transitions the graph does not allow and records every attempt.'
 ---
 
-Theodosia is a Python adapter library. You write your workflow once as a Burr `Application` (a small Python state machine), and Theodosia serves it over **MCP (Model Context Protocol)** so any AI agent (Claude Code, Cursor, fast-agent, your own loop) can drive it.
+Theodosia mounts a Burr `Application` as an MCP server. Every Burr `@action` is reachable through one `step(action, inputs)` MCP tool. The server checks reachability against the live graph before each action body runs; out-of-order calls return a structured refusal carrying the reachable next actions. Every successful attempt and every refused attempt is written to a per-session log you can replay, fork, or chain-verify.
 
-The agent can only take steps your workflow allows. The server checks reachability before the action body runs. When the agent tries a step that isn't legal from the current state, it gets a structured refusal naming the legal next moves and a reason. Every step it takes, **and every step it tried but couldn't**, is written to a per-session log you can replay, fork, or chain-verify after the fact.
+## Primitives
 
-## What you get
-
-- **A workflow you can version-control.** The Burr `Application` is regular Python: imports, types, tests. Put it in git, write `pytest`, refactor with the IDE.
-- **Any MCP client drives it.** No per-client SDK. The same `theodosia serve module:attr` works with Claude Code, Cursor, fast-agent, mcphost, and your own loop.
-- **Refused attempts are on the record.** Burr's tracker logs the actions that ran; Theodosia adds a `refusals.jsonl` sidecar, so the trail reflects what the agent *tried*, not its own account.
-- **A hash-chained ledger.** Every entry includes the previous hash plus the session's `app_id`, `project`, and `partition_key`. `theodosia verify` recomputes the chain and names the exact line if anything was edited, reordered, or middle-deleted. Set `THEODOSIA_LEDGER_KEY` to switch SHA-256 to HMAC for production.
-- **`fork_at` and `fork_from_past`.** Resume or branch from any past step. Useful for retries, what-ifs, and rerunning the same workflow against a different model.
+- `mount(application, ...)` wraps a Burr `Application` (or factory) as a FastMCP server.
+- `step(action, inputs)` is the one MCP tool the agent calls. `reset_session`, `fork_at`, and `fork_from_past` round out the four-tool surface.
+- A structured refusal has shape `{"error": "<reason>", "valid_next_actions": [...]}`. Five reasons: `invalid_transition`, `unknown_action`, `validation_failed`, `action_timeout`, `action_error`.
+- `theodosia://` resources expose graph topology, current state, valid next actions, history, sub-runs, trace, and session identity.
+- The session log is hash-chained. `theodosia verify` recomputes the chain and names any edit, reorder, or middle-deletion.
 
 ## Try it without an API key
 
@@ -22,16 +20,16 @@ pip install theodosia
 theodosia primer
 ```
 
-`theodosia primer` walks a bundled coffee-order example in process. No LLM, no network, byte-for-byte the same output every run. It's the first thing to run after install.
+`theodosia primer` walks a bundled coffee-order example in process. No LLM, no network, byte-for-byte the same output every run.
 
 ## Build your own
 
-[Build your own agent](tutorial.md) takes you through writing the workflow, serving it, and driving it with a real agent. [Authoring a graph](authoring.md) is the reference for the Burr building blocks (`@action`, `Condition`, `with_transitions`). If you already have a Mermaid diagram or an Excalidraw sketch, [Philip](https://github.com/msradam/philip) (a sibling library) lifts those into a Burr `Application` so `theodosia.mount()` can serve them directly.
+[Build your own agent](tutorial.md) walks writing a workflow, serving it, and driving it with a real agent. [Authoring a graph](authoring.md) is the reference for the Burr building blocks (`@action`, `Condition`, `with_transitions`).
 
 ## Going further
 
-- [Refusals and recovery](refusals.md): the shapes of refusal the agent gets back, and how it self-corrects.
-- [Sessions and forking](sessions.md): per-session isolation, `fork_at`, `fork_from_past`, and partition-key binding.
+- [Refusals](refusals.md): the five refusal shapes and how the agent recovers.
+- [Sessions](sessions.md): per-session isolation, `fork_at`, `fork_from_past`, partition keys.
 - [Architecture](architecture.md): what `mount()` does and the four MCP tools it registers.
 - [Security model](security-model.md): what the ledger does and does not prove.
-- [Case study](case-study.md): Kimi K2.6 on Grafana's o11y-bench, on rails vs free-ranging.
+- [Case study](case-study.md): Kimi K2.6 on Grafana o11y-bench, free-ranging vs gated.

@@ -3,14 +3,10 @@ title: 'Personas'
 description: 'PERSONA.md identity layer mounted as MCP prompts.'
 ---
 
-A persona is a mountable identity for the agent driving a Theodosia FSM.
-The graph is the procedure; the persona is who's executing it. A careful
-on-call SRE persona produces a different trajectory through the same
-incident-investigation FSM than a risk-taking one does, even though the
-audit trail uses identical action names.
-
-Personas ship as `PERSONA.md` files. Theodosia mounts a directory of them
-and exposes each as an MCP prompt the client can fetch at session start.
+A persona is a markdown file exposing identity and role guidance to the agent
+driving a Theodosia FSM. Theodosia loads a directory of `PERSONA.md` files and
+exposes each as an MCP prompt the client can fetch at session start. The graph
+defines the steps; the persona shapes the trajectory through them.
 
 ## File format
 
