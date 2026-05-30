@@ -1,11 +1,11 @@
 # Theodosia
 
-[![PyPI](https://img.shields.io/pypi/v/theodosia?style=flat-square&color=573e8a&logo=pypi&logoColor=white)](https://pypi.org/project/theodosia/)
+[![PyPI](https://img.shields.io/pypi/v/theodosia?style=flat-square&color=286983&logo=pypi&logoColor=white)](https://pypi.org/project/theodosia/)
 [![tests](https://img.shields.io/github/actions/workflow/status/msradam/theodosia/ci.yml?branch=main&style=flat-square&label=tests)](https://github.com/msradam/theodosia/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-Apache%202.0-573e8a?style=flat-square)](LICENSE)
-[![Docs](https://img.shields.io/badge/docs-theodosia-573e8a?style=flat-square&logo=astro&logoColor=white)](https://msradam.github.io/theodosia/)
-[![Built on Apache Burr](https://img.shields.io/badge/built%20on-Apache%20Burr-c4a7e7?style=flat-square)](https://github.com/apache/burr)
-[![Built on FastMCP](https://img.shields.io/badge/built%20on-FastMCP-c4a7e7?style=flat-square)](https://github.com/jlowin/fastmcp)
+[![License](https://img.shields.io/badge/license-Apache%202.0-286983?style=flat-square)](LICENSE)
+[![Docs](https://img.shields.io/badge/docs-theodosia-286983?style=flat-square&logo=astro&logoColor=white)](https://msradam.github.io/theodosia/)
+[![Built on Apache Burr](https://img.shields.io/badge/built%20on-Apache%20Burr-7a3c4a?style=flat-square)](https://github.com/apache/burr)
+[![Built on FastMCP](https://img.shields.io/badge/built%20on-FastMCP-7a3c4a?style=flat-square)](https://github.com/jlowin/fastmcp)
 
 Theodosia mounts a [Burr](https://burr.dagworks.io/) `Application` as an MCP server. Every Burr action is reachable through a single `step(action, inputs)` tool; the server checks reachability against the graph before each action runs, refuses out-of-order calls with the legal next moves, and records every attempt.
 
