@@ -161,14 +161,18 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
   /* Mermaid diagram styling, match the v15 paper register and FILL the column.
      Mermaid stamps fixed width/height attrs on the SVG; we override to 100%. */
-  .diagram{min-height:280px;width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;display:flex;justify-content:center;
-    /* Subtle right-edge fade so mobile users see there is more to scroll. */
-    background:linear-gradient(to right, transparent calc(100% - 24px), rgba(10,10,10,0.04) 100%);
+  .diagram{min-height:280px;width:100%;display:flex;justify-content:center;align-items:center}
+  /* Dual-render: LR for wide viewports, TB (top-bottom) for narrow.
+     Mermaid renders both at page load; CSS shows the one that fits. */
+  .diagram-td{display:none}
+  @media(max-width:720px){
+    .diagram-lr{display:none}
+    .diagram-td{display:flex}
   }
   .diagram pre.mermaid{background:transparent;border:0;padding:0;margin:0;font-family:var(--sans);font-size:14px;display:flex;align-items:center;justify-content:center;overflow:visible}
   /* Let Mermaid render at its intrinsic computed size, just bounded, keeps
      node content readable instead of stretching to a flat aspect ratio. */
-  .diagram pre.mermaid > svg{width:auto !important;height:auto !important;max-width:none !important;min-width:720px;min-height:240px}
+  .diagram pre.mermaid > svg{width:100% !important;height:auto !important;max-width:100% !important;min-height:240px}
   .diagram pre.mermaid .nodeLabel{font-family:var(--display) !important;font-weight:500;font-size:15px !important}
   .diagram pre.mermaid .edgeLabel{font-family:var(--mono) !important;font-size:11.5px !important}
   /* Edge labels get a paper fill + small padding so they sit ON TOP of the
@@ -267,13 +271,11 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
   @media(max-width:560px){
     .wrap,.nav .in{padding:0 22px}
     .lp-footer{grid-template-columns:1fr}
-    /* Diagram: keep nodes/edge labels readable; container scrolls horizontally
-       (overflow-x:auto + min-width:720px on the SVG above). Mech-body padding
-       is reduced so the scroll area uses more of the viewport. */
     .mech-body{padding:24px 16px}
-    .diagram pre.mermaid .nodeLabel{font-size:16px !important}
-    .diagram pre.mermaid .edgeLabel{font-size:12.5px !important}
-    .diagram{margin:0 -16px;padding:0 16px}
+    /* Bump label sizes a touch on small screens so the TB-direction diagram
+       reads cleanly even after viewBox scales the SVG down. */
+    .diagram pre.mermaid .nodeLabel{font-size:14px !important}
+    .diagram pre.mermaid .edgeLabel{font-size:11px !important}
   }
 </style>
 </head>
@@ -387,7 +389,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       </div>
 
       <div class="mech-body">
-        <div class="diagram" role="img" aria-label="State diagram of the incident-response workflow: triaged transitions to engaged via page_oncall, engaged to verified via verify, verified to resolved via resolve, resolved to closed via archive; close_incident is refused from engaged because it requires verified first.">
+        <div class="diagram diagram-lr" role="img" aria-label="State diagram of the incident-response workflow: triaged transitions to engaged via page_oncall, engaged to verified via verify, verified to resolved via resolve, resolved to closed via archive; close_incident is refused from engaged because it requires verified first.">
           <pre class="mermaid">stateDiagram-v2
     direction LR
     [*] --> triaged
@@ -399,6 +401,23 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     note right of engaged
       close_incident · refused
       not allowed from engaged; requires verified first
+    end note
+    classDef cur fill:#fcefd5,stroke:#ea9d34,stroke-width:2px,color:#0a0a0a
+    class engaged cur
+          </pre>
+        </div>
+        <div class="diagram diagram-td" aria-hidden="true">
+          <pre class="mermaid">stateDiagram-v2
+    direction TB
+    [*] --> triaged
+    triaged --> engaged: page_oncall
+    engaged --> verified: verify
+    verified --> resolved: resolve
+    resolved --> closed: archive
+    closed --> [*]
+    note right of engaged
+      close_incident · refused
+      requires verified first
     end note
     classDef cur fill:#fcefd5,stroke:#ea9d34,stroke-width:2px,color:#0a0a0a
     class engaged cur
